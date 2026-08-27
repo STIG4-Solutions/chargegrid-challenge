@@ -1,16 +1,25 @@
 {
-  "cli": { "version": ">= 5.0.0", "appVersionSource": "local" },
+  "cli": {
+    "version": ">= 5.0.0",
+    "appVersionSource": "local"
+  },
   "build": {
     "preview": {
-      "//": "APK instalavel direto no aparelho ou emulador, sem passar pela loja.",
-      "android": { "buildType": "apk" },
+      "android": {
+        "buildType": "apk"
+      },
       "distribution": "internal",
-      "env": { "EXPO_PUBLIC_API_URL": "" }
+      "env": {
+        "EXPO_PUBLIC_API_URL": "http://192.168.15.131:8000"
+      }
     },
     "production": {
-      "//": "AAB para publicacao na Play Store.",
-      "android": { "buildType": "app-bundle" }
+      "android": {
+        "buildType": "app-bundle"
+      }
     }
   },
-  "submit": { "production": {} }
+  "submit": {
+    "production": {}
+  }
 }

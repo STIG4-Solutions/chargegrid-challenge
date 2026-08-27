@@ -129,6 +129,22 @@ npx eas-cli build -p android --profile preview
 O build roda em Linux, onde esse limite não existe, e devolve um link para baixar
 o APK.
 
+> **Duas coisas para acertar antes de gerar o APK.**
+>
+> O APK sai da nuvem com o endereço da API **embutido**, vindo de
+> `build.preview.env.EXPO_PUBLIC_API_URL` no `eas.json`. Ele precisa apontar para
+> uma máquina que o aparelho alcance — não adianta `localhost` nem `10.0.2.2`.
+> Ajuste para o IP da sua máquina na rede (`ipconfig`) sempre que ele mudar.
+>
+> E a API tem que escutar **fora do loopback**, senão nada na rede a alcança:
+>
+> ```bash
+> uvicorn app.main:app --host 0.0.0.0 --port 8000
+> ```
+>
+> Com esse par no lugar, o mesmo APK serve tanto o emulador quanto um celular na
+> mesma Wi-Fi.
+
 Para insistir no build local, é preciso combinar **duas** mudanças: mover o
 repositório para um caminho curto (`C:\cg`) **e** apontar o `buildStagingDirectory`
 do CMake para algo como `C:\b`. Isso deixa o caminho em 258 de 260 — funciona,
