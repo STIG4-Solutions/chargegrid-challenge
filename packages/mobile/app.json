@@ -21,9 +21,22 @@
     "android": {
       "package": "br.com.chargegrid.app",
       "edgeToEdgeEnabled": true,
-      "adaptiveIcon": { "backgroundColor": "#0D0D0F" },
-      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
+      "adaptiveIcon": {
+        "backgroundColor": "#0D0D0F"
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ],
+      "config": {
+        "_comentario": "O mapa no Android usa Google Maps e exige chave propria. Sem ela o componente renderiza um quadro cinza - a lista de estacoes abaixo continua funcionando. Gere em console.cloud.google.com (Maps SDK for Android) e preencha googleMaps.apiKey. No iOS o mapa usa Apple Maps e nao precisa de chave.",
+        "googleMaps": {
+          "apiKey": ""
+        }
+      }
     },
-    "plugins": ["expo-status-bar"]
+    "plugins": [
+      "expo-status-bar"
+    ]
   }
 }

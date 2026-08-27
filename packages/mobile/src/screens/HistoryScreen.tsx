@@ -20,7 +20,7 @@ export default function HistoryScreen() {
   const faturas = useApi<Fatura[]>(() => app.myInvoices(50), [])
 
   const atual = guia === 'recargas' ? sessoes : faturas
-  if (atual.loading && !atual.data) return <Carregando rotulo="Carregando historico..." />
+  if (atual.loading && !atual.data) return <Carregando rotulo="Carregando histórico..." />
 
   const emAberto = (faturas.data ?? []).filter((f) => f.status === 'open')
   const totalEnergia = (sessoes.data ?? []).reduce((t, x) => t + x.energy_kwh, 0)
@@ -29,7 +29,7 @@ export default function HistoryScreen() {
   return (
     <View style={s.tela}>
       <View style={s.cabecalho}>
-        <Text style={s.titulo}>Historico</Text>
+        <Text style={s.titulo}>Histórico</Text>
         <View style={s.guias}>
           {(['recargas', 'faturas'] as Guia[]).map((g) => (
             <Pressable
@@ -75,7 +75,7 @@ export default function HistoryScreen() {
             </View>
           }
           ListEmptyComponent={
-            !sessoes.error ? <Aviso tom="info" mensagem="Nenhuma recarga concluida ainda." /> : null
+            !sessoes.error ? <Aviso tom="info" mensagem="Nenhuma recarga concluída ainda." /> : null
           }
           renderItem={({ item }) => (
             <View style={s.card}>

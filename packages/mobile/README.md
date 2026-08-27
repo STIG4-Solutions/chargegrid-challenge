@@ -17,12 +17,39 @@ npm run mobile           # a partir da raiz do repositório
 ```
 
 Leia o QR code com o **Expo Go** (Android/iOS) ou pressione `a` / `i` para
-emulador.
+emulador. O app roda no Expo Go sem build nativo: `react-native-maps` e
+`AsyncStorage` já vêm embutidos nele.
 
-> **O app descobre o endereço da API sozinho.** `localhost` dentro do celular é
-> o próprio celular, nunca o seu computador. Como o Expo já sabe o IP da máquina
-> que serve o bundle, `src/api.ts` reaproveita esse IP e troca a porta para 8000.
-> Para apontar para outro lugar, defina `EXPO_PUBLIC_API_URL`.
+### Emulador do Android Studio
+
+O emulador não enxerga o `localhost` da sua máquina — para ele, `localhost` é o
+próprio emulador. Use o apelido `10.0.2.2`, que aponta para o loopback do host:
+
+```bash
+cp .env.example .env      # aqui em packages/mobile, não na raiz
+# EXPO_PUBLIC_API_URL=http://10.0.2.2:8000
+npm run mobile            # a partir da raiz do repositório; depois tecle "a"
+```
+
+O Expo instala o Expo Go no emulador sozinho (~200 MB), então o AVD precisa de
+espaço livre em `/data` — confira com `adb shell df /data`. Um AVD cheio falha
+com *"Requested internal only, but not enough space"*.
+
+> **O mapa abre cinza até você configurar uma chave.** No Android o
+> `react-native-maps` usa Google Maps, que exige chave própria: gere uma no
+> Google Cloud (Maps SDK for Android) e preencha `android.config.googleMaps.apiKey`
+> em `app.json`. Sem ela o quadro do mapa fica vazio — a lista de estações logo
+> abaixo continua funcionando normalmente. No iOS o mapa usa Apple Maps e não
+> precisa de chave.
+
+> **Sem `EXPO_PUBLIC_API_URL`, o app descobre o endereço sozinho.** `localhost`
+> dentro do celular é o próprio celular, nunca o seu computador. Como o Expo já
+> sabe o IP da máquina que serve o bundle, `src/api.ts` reaproveita esse IP e
+> troca a porta para 8000 — o que funciona com um celular na mesma rede. No
+> emulador, defina a variável explicitamente (veja acima).
+>
+> O `.env` fica **neste diretório**, não na raiz do workspace: o Expo lê o `.env`
+> do projeto do app.
 
 Contas de motorista criadas pelo seed: `joao.silva@email.com`, `maria.souza@email.com`,
 `carlos.lima@email.com`, `ana.costa@email.com`, `pedro.alves@email.com` — todas com a
