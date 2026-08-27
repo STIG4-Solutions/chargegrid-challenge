@@ -86,25 +86,56 @@ e não é versionada; `expo prebuild --clean` a recria.
 
 ### Duas armadilhas no Windows
 
+
 **HTTP em texto claro.** O Android bloqueia `http://` em release. Como a API do
 protótipo é HTTP, `app.json` traz o plugin `expo-build-properties` com
 `usesCleartextTraffic`. Em produção, com a API atrás de HTTPS, essa entrada sai.
 
-**Limite de 260 caracteres no caminho.** O codegen C++ da arquitetura nova gera
-caminhos intermediários muito longos, e a partir de um diretório fundo o build
-falha com *"Filename longer than 260 characters"*. O conserto é habilitar
-caminhos longos no Windows — requer permissão de administrador:
+**Limite de 260 caracteres no caminho — o build de release não sai daqui.** O
+codegen C++ da arquitetura nova gera caminhos intermediários muito longos e o
+build falha com *"Filename longer than 260 characters"*.
 
-```powershell
-# PowerShell como administrador, uma vez só; depois reinicie o terminal
-New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" `
-  -Name "LongPathsEnabled" -Value 1 -PropertyType DWord -Force
-git config --system core.longpaths true
+Medindo o caminho que falha:
+
+```
+completo:            401 caracteres   (limite 260)
+  diretório do ninja: 130
+  caminho relativo:   270   <- sozinho já passa de 260
 ```
 
-Sem isso, a alternativa é manter o repositório num caminho curto (`C:\dev\chargegrid`).
-Desligar a arquitetura nova **não** resolve: o React Native 0.86 roda o codegen
-de qualquer forma.
+Três coisas que **não** resolvem, todas testadas:
+
+- **Habilitar caminhos longos no Windows** (`LongPathsEnabled=1`). A chave só vale
+  para programas cujo manifesto declara suporte a caminhos longos, e o `ninja.exe`
+  do NDK não declara.
+- **Desligar a arquitetura nova.** O React Native 0.86 roda o codegen de qualquer
+  forma; `newArchEnabled: false` não pula a etapa.
+- **Mapear uma unidade curta com `subst`.** O autolinking do Expo resolve os
+  caminhos com `require.resolve`, que devolve o caminho real — o Gradle passa a
+  misturar as duas raízes e quebra.
+
+Encurtar o repositório também não basta sozinho: a raiz aparece duas vezes no
+caminho (no diretório de build e embutida no nome do arquivo objeto), e mesmo em
+`C:\g` o total ainda estoura por 23 caracteres.
+
+**O que funciona: compilar fora do Windows.** O `eas.json` já está configurado
+com um perfil `preview` que gera APK instalável:
+
+```bash
+npx eas-cli login                              # conta gratuita da Expo
+npx eas-cli build -p android --profile preview
+```
+
+O build roda em Linux, onde esse limite não existe, e devolve um link para baixar
+o APK.
+
+Para insistir no build local, é preciso combinar **duas** mudanças: mover o
+repositório para um caminho curto (`C:\cg`) **e** apontar o `buildStagingDirectory`
+do CMake para algo como `C:\b`. Isso deixa o caminho em 258 de 260 — funciona,
+mas por dois caracteres de margem.
+
+> Nada disso afeta o desenvolvimento: o Expo Go não compila nada, e o APK de
+> **debug** (que precisa do Metro) monta normalmente.
 
 ## Telas
 

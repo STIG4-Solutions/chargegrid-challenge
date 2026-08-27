@@ -1,0 +1,16 @@
+{
+  "cli": { "version": ">= 5.0.0", "appVersionSource": "local" },
+  "build": {
+    "preview": {
+      "//": "APK instalavel direto no aparelho ou emulador, sem passar pela loja.",
+      "android": { "buildType": "apk" },
+      "distribution": "internal",
+      "env": { "EXPO_PUBLIC_API_URL": "" }
+    },
+    "production": {
+      "//": "AAB para publicacao na Play Store.",
+      "android": { "buildType": "app-bundle" }
+    }
+  },
+  "submit": { "production": {} }
+}
