@@ -5,7 +5,7 @@ import { app, brl, useApi, type Estacao, type SessaoDetalhada } from '@chargegri
 import { Aviso, Botao, Carregando, Etiqueta } from '../components'
 import { useAuth } from '../auth'
 import { cores, espaco, raio } from '../theme'
-import type { Props } from '../navigation'
+import type { PropsAba } from '../navigation'
 
 // Centro do mapa quando ainda nao ha estacao carregada (Sao Paulo).
 const REGIAO_PADRAO = {
@@ -15,7 +15,7 @@ const REGIAO_PADRAO = {
   longitudeDelta: 0.06
 }
 
-export default function MapScreen({ navigation }: Props<'Mapa'>) {
+export default function MapScreen({ navigation }: PropsAba<'Mapa'>) {
   const { user, logout } = useAuth()
 
   const estacoes = useApi<Estacao[]>(() => app.stations(), [], { pollMs: 30000 })

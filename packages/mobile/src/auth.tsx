@@ -29,6 +29,9 @@ interface Sessao {
   error: string | null
   login: (email: string, senha: string) => Promise<void>
   logout: () => Promise<void>
+  /** Rele o perfil na API. Usado depois de mexer na carteira, para o saldo
+   *  exibido nao ficar atras do que o servidor ja registrou. */
+  recarregarPerfil: () => Promise<void>
   limparErro: () => void
 }
 
@@ -94,6 +97,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('authenticated')
   }, [])
 
+  const recarregarPerfil = useCallback(async () => {
+    try {
+      setUser(await authApi.me())
+    } catch {
+      // Falha aqui nao derruba a sessao: o saldo exibido apenas continua o antigo.
+    }
+  }, [])
+
   const logout = useCallback(async () => {
     await saveTokens(null)
     setUser(null)
@@ -101,8 +112,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const valor = useMemo<Sessao>(
-    () => ({ user, status, error, login, logout, limparErro: () => setError(null) }),
-    [user, status, error, login, logout]
+    () => ({
+      user,
+      status,
+      error,
+      login,
+      logout,
+      recarregarPerfil,
+      limparErro: () => setError(null)
+    }),
+    [user, status, error, login, logout, recarregarPerfil]
   )
 
   return <AuthContext.Provider value={valor}>{children}</AuthContext.Provider>

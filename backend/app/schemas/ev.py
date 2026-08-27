@@ -390,6 +390,11 @@ class ReservationOut(ORMModel):
     id: uuid.UUID
     code: str
     charge_point_id: uuid.UUID
+    # Contexto do ponto junto da reserva. Sem isto o app so' teria o UUID para
+    # mostrar, e precisaria de uma chamada por reserva para descobrir onde ela e'.
+    charge_point_code: str | None = None
+    charge_point_name: str | None = None
+    site_name: str | None = None
     user_id: uuid.UUID
     status: ReservationStatus
     starts_at: datetime

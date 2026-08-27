@@ -27,7 +27,7 @@ export default function SessionScreen({ navigation }: Props<'Sessao'>) {
   )
 
   const encerrar = useAction(() => app.stopSession(id as string), {
-    onSuccess: () => navigation.navigate('Mapa')
+    onSuccess: () => navigation.navigate('Abas')
   })
 
   if (sessao.loading && !sessao.data) return <Carregando rotulo="Buscando sua recarga..." />
@@ -45,7 +45,7 @@ export default function SessionScreen({ navigation }: Props<'Sessao'>) {
     return (
       <View style={s.vazio}>
         <Aviso tom="info" mensagem="Nenhuma recarga em andamento." />
-        <Botao titulo="Ver estacoes" onPress={() => navigation.navigate('Mapa')} />
+        <Botao titulo="Ver estacoes" onPress={() => navigation.navigate('Abas')} />
       </View>
     )
   }

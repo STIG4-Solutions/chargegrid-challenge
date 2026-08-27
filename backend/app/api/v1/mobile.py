@@ -291,22 +291,36 @@ async def create_reservation(payload: ReservationCreate, db: DbSession, user: Cu
     db.add(reservation)
     await db.commit()
     await db.refresh(reservation)
-    return reservation
+    ponto = await db.get(ChargePoint, reservation.charge_point_id)
+    site = await db.get(Site, ponto.site_id) if ponto else None
+    return _reserva_com_contexto(reservation, ponto, site)
+
+
+def _reserva_com_contexto(reserva, ponto, site) -> ReservationOut:
+    """Preenche o contexto do ponto na resposta da reserva.
+
+    O app precisa dizer *onde* a reserva e'; sem estes campos ele teria que
+    fazer uma chamada por reserva so' para traduzir o UUID em nome.
+    """
+    saida = ReservationOut.model_validate(reserva)
+    saida.charge_point_code = ponto.code if ponto else None
+    saida.charge_point_name = ponto.name if ponto else None
+    saida.site_name = site.name if site else None
+    return saida
 
 
 @router.get("/reservations", response_model=list[ReservationOut])
 async def my_reservations(db: DbSession, user: CurrentUser):
-    return (
-        (
-            await db.execute(
-                select(Reservation)
-                .where(Reservation.user_id == user.id)
-                .order_by(Reservation.starts_at.desc())
-            )
+    linhas = (
+        await db.execute(
+            select(Reservation, ChargePoint, Site)
+            .join(ChargePoint, ChargePoint.id == Reservation.charge_point_id, isouter=True)
+            .join(Site, Site.id == ChargePoint.site_id, isouter=True)
+            .where(Reservation.user_id == user.id)
+            .order_by(Reservation.starts_at.desc())
         )
-        .scalars()
-        .all()
-    )
+    ).all()
+    return [_reserva_com_contexto(r, cp, st) for r, cp, st in linhas]
 
 
 @router.delete("/reservations/{reservation_id}", response_model=ReservationOut)
@@ -326,7 +340,9 @@ async def cancel_reservation(reservation_id: uuid.UUID, db: DbSession, user: Cur
     reservation.cancelled_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(reservation)
-    return reservation
+    ponto = await db.get(ChargePoint, reservation.charge_point_id)
+    site = await db.get(Site, ponto.site_id) if ponto else None
+    return _reserva_com_contexto(reservation, ponto, site)
 
 
 # ----------------------------------------------------- veiculos, faturas, carteira

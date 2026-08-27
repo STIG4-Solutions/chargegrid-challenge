@@ -19,6 +19,7 @@ from app.drivers.registry import registry
 from app.models.charge_point import ChargePoint
 from app.models.site import Site
 from app.services import events, power_manager, session_service, telemetry_service
+from app.workers import virtual_meter
 
 log = get_logger(__name__)
 
@@ -147,12 +148,21 @@ def start_workers() -> list[asyncio.Task]:
     if not settings.enable_workers:
         log.info("worker.disabled")
         return []
-    return [
+    tarefas = [
         asyncio.create_task(_loop("poller", poll_once, settings.poll_interval_s)),
         asyncio.create_task(
             _loop("rebalancer", rebalance_once, settings.power_rebalance_interval_s)
         ),
     ]
+    # Sem medidor fisico, um worker sintetiza a curva do dia na mesma tabela.
+    # Com METER_SOURCE=push, so' entram leituras enviadas por POST.
+    if virtual_meter.habilitado():
+        tarefas.append(
+            asyncio.create_task(
+                _loop("medidor_virtual", virtual_meter.gerar_leitura, settings.meter_interval_s)
+            )
+        )
+    return tarefas
 
 
 async def stop_workers(tasks: list[asyncio.Task]) -> None:

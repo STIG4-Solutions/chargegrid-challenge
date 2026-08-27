@@ -53,6 +53,17 @@ vez** ao rodar — anote. Preencha-as se quiser senhas estáveis entre recriaç�
 Para o painel oferecer os atalhos de login em desenvolvimento, repita as senhas em
 `VITE_DEMO_*_PASSWORD` no `.env` da raiz; sem isso os botões não aparecem e você digita.
 
+### Medição do site
+
+Não há smart meter físico ligado a esta instalação, então um worker sintetiza a curva do dia
+na mesma tabela que um medidor real alimentaria: geração solar em meia senoide entre 6h e 18h,
+consumo do prédio maior em horário comercial, bateria descarregando na ponta (18h–21h).
+Nada mais no sistema sabe que a origem é sintética — trocar por um coletor Modbus é substituir
+`backend/app/workers/virtual_meter.py`, sem tocar no domínio.
+
+Controlado por `METER_SOURCE`: `virtual` (padrão) ou `push`, que só aceita o que chegar por
+`POST /power/meter-readings`.
+
 > No Windows, use `POSTGRES_HOST=127.0.0.1` e não `localhost`: o nome resolve para `::1` e o
 > asyncpg morre na negociação SSL.
 

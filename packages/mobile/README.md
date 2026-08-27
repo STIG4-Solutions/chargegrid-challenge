@@ -36,12 +36,20 @@ o servidor devolveria 403 nas rotas `/app/*` de qualquer forma.
 
 ## Telas
 
+Quatro abas — **Mapa**, **Agenda**, **Histórico** e **Perfil** — com telas empilhadas sobre elas.
+
 | Tela | Arquivo | Endpoints (via SDK) |
 |---|---|---|
 | Login | `src/screens/LoginScreen.tsx` | `auth.login`, `auth.me` |
 | Mapa e lista de estações | `src/screens/MapScreen.tsx` | `app.stations`, `app.activeSession` |
 | Vagas da estação | `src/screens/StationScreen.tsx` | `app.stationChargePoints`, `app.startSession` |
 | Minha recarga | `src/screens/SessionScreen.tsx` | `app.activeSession`, `app.sessionPreview`, `app.stopSession` |
+| Agenda | `src/screens/ReservationsScreen.tsx` | `app.myReservations`, `app.cancelReservation` |
+| Agendar recarga | `src/screens/NewReservationScreen.tsx` | `app.stations`, `app.stationChargePoints`, `app.myVehicles`, `app.createReservation` |
+| Histórico (recargas e faturas) | `src/screens/HistoryScreen.tsx` | `app.mySessions`, `app.myInvoices` |
+| Perfil (carteira e veículos) | `src/screens/ProfileScreen.tsx` | `app.myVehicles`, `app.addVehicle`, `app.topUpWallet` |
+
+Todos os catorze endpoints do escopo `/app/*` têm tela.
 
 A tela de recarga mostra a **fila de espera**: quando não há potência livre, a
 sessão entra em `queued` com a posição na fila e começa sozinha assim que o
@@ -77,8 +85,13 @@ npx expo export --platform ios --output-dir .expo-bundle
 
 ## O que ainda não tem
 
-Escopo deixado de fora de propósito nesta etapa, tudo já suportado pela API:
-agendamento (`app.createReservation`), veículos (`app.myVehicles`), faturas
-(`app.myInvoices`), recarga de carteira (`app.topUpWallet`) e leitura de QR code
-no ponto — esta última ainda precisa de um `GET /app/charge-points/by-code/{código}`
-no backend.
+**Leitura de QR code no ponto.** Precisaria de um `GET /app/charge-points/by-code/{código}`
+no backend e de acesso à câmera (`expo-camera`). Hoje o motorista escolhe a vaga na tela da
+estação, que resolve o mesmo problema sem módulo nativo a mais.
+
+**Pagamento real.** A carteira credita direto; não há provedor. Na integração de verdade o
+crédito só entra depois que o PSP confirma — a rota `POST /app/wallet/topup` representa esse
+passo final.
+
+**Ícones da barra de abas são glifos de texto.** Quatro caracteres evitam mais uma dependência
+nativa. Se a barra crescer, vale trocar por `@expo/vector-icons`.

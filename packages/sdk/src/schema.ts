@@ -1321,6 +1321,12 @@ export interface components {
              * Format: uuid
              */
             charge_point_id: string;
+            /** Charge Point Code */
+            charge_point_code?: string | null;
+            /** Charge Point Name */
+            charge_point_name?: string | null;
+            /** Site Name */
+            site_name?: string | null;
             /**
              * User Id
              * Format: uuid

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import secrets
+import uuid
 from datetime import UTC, datetime, time, timedelta
 
 from sqlalchemy import select
@@ -19,16 +20,21 @@ from app.core.logging import configure_logging, get_logger
 from app.core.security import hash_password
 from app.db.session import SessionLocal, engine
 from app.models import Base
-from app.models.billing import SitePaymentMethod
+from app.models.billing import Invoice, InvoiceLine, SitePaymentMethod
 from app.models.charge_point import ChargePoint, ChargePointConnection
 from app.models.enums import (
+    AuthMethod,
     ChargePointStatus,
     ConnectorType,
+    InvoiceStatus,
     PaymentMethodKind,
     PhaseType,
+    SessionState,
+    StopReason,
     TariffType,
     UserRole,
 )
+from app.models.session import ChargingSession
 from app.models.site import Site, SiteMeterReading
 from app.models.tariff import ALL_DAYS, WEEKDAYS, WEEKEND, Tariff, TariffWindow
 from app.models.user import RfidCard, User, Vehicle
@@ -249,6 +255,132 @@ async def seed() -> None:
                         tariff_id=off_peak.id,
                     )
                 )
+
+        # ---- historico de recargas dos motoristas ----
+        #
+        # Sem isto o app do motorista abre com "Historico" e "Faturas" vazios, e
+        # nao ha o que demonstrar. Sao sessoes ja encerradas e faturadas, dos
+        # ultimos dias, com as linhas de fatura abertas por tipo - o mesmo
+        # formato que o motor de tarifacao produz em operacao.
+        agora = datetime.now(UTC)
+        motoristas = (
+            await db.execute(select(User).where(User.role == UserRole.DRIVER))
+        ).scalars().all()
+        veiculos = {
+            v.user_id: v for v in (await db.execute(select(Vehicle))).scalars().all()
+        }
+        pontos_criados = (
+            await db.execute(select(ChargePoint).order_by(ChargePoint.code))
+        ).scalars().all()
+
+        # Precos das janelas consultados de uma vez. Acessar tarifa.windows aqui
+        # dispararia carregamento preguicoso dentro de contexto assincrono, e o
+        # SQLAlchemy levanta MissingGreenlet.
+        janelas = (await db.execute(select(TariffWindow))).scalars().all()
+        preco_da_janela: dict[uuid.UUID, float] = {}
+        for janela in janelas:
+            preco_da_janela.setdefault(janela.tariff_id, float(janela.price_per_kwh))
+
+        codigo_sessao = 1000
+        codigo_fatura = 2000
+        # (dias atras, hora local de inicio, kWh, minutos, ocioso, pago)
+        HISTORICO = [
+            (1, 19, 24.6, 78, 0, True),
+            (2, 9, 11.2, 41, 0, True),
+            (3, 14, 33.1, 96, 12, True),
+            (5, 20, 8.4, 27, 0, False),
+            (8, 11, 41.9, 132, 0, True),
+        ]
+
+        for indice, motorista in enumerate(motoristas[:3]):
+            for passo, (dias, hora, kwh, minutos, ocioso, pago) in enumerate(HISTORICO):
+                ponto = pontos_criados[(indice + passo) % len(pontos_criados)]
+                # Janela de ponta local (18h-21h) usa a tarifa de horario.
+                tarifa = peak if 18 <= hora < 21 else off_peak
+                preco = preco_da_janela.get(tarifa.id, float(tarifa.price_per_kwh))
+
+                inicio = agora - timedelta(days=dias)
+                inicio = inicio.replace(hour=hora % 24, minute=0, second=0, microsecond=0)
+                fim = inicio + timedelta(minutes=minutos)
+
+                codigo_sessao += 1
+                sessao = ChargingSession(
+                    code=f"SES-{codigo_sessao}",
+                    site_id=site.id,
+                    charge_point_id=ponto.id,
+                    user_id=motorista.id,
+                    vehicle_id=(
+                        veiculos[motorista.id].id if motorista.id in veiculos else None
+                    ),
+                    tariff_id=tarifa.id,
+                    state=SessionState.BILLED,
+                    auth_method=AuthMethod.APP,
+                    stop_reason=StopReason.EV_DISCONNECTED,
+                    authorized_at=inicio - timedelta(minutes=1),
+                    started_at=inicio,
+                    ended_at=fim,
+                    charging_stopped_at=fim,
+                    energy_kwh=kwh,
+                    green_energy_kwh=round(kwh * 0.31, 3),
+                    duration_s=minutos * 60,
+                    idle_minutes=ocioso,
+                    peak_power_kw=min(float(ponto.rated_kw), round(kwh / (minutos / 60), 1)),
+                    estimated_cost=0,
+                )
+                db.add(sessao)
+                await db.flush()
+
+                energia = round(kwh * preco, 2)
+                taxa_ociosa = round(ocioso * float(tarifa.idle_fee_per_min), 2)
+                subtotal = round(energia + taxa_ociosa, 2)
+                total = max(subtotal, float(tarifa.min_charge))
+                sessao.estimated_cost = total
+
+                codigo_fatura += 1
+                fatura = Invoice(
+                    code=f"INV-{codigo_fatura}",
+                    site_id=site.id,
+                    session_id=sessao.id,
+                    user_id=motorista.id,
+                    status=InvoiceStatus.PAID if pago else InvoiceStatus.OPEN,
+                    subtotal=subtotal,
+                    total=total,
+                    processing_fee=round(total * 0.032 + 0.39, 2) if pago else 0,
+                    net_amount=round(total - (total * 0.032 + 0.39), 2) if pago else total,
+                    issued_on=fim.date(),
+                    paid_at=fim + timedelta(minutes=2) if pago else None,
+                    tariff_snapshot={"name": tarifa.name, "type": str(tarifa.type)},
+                )
+                db.add(fatura)
+                await db.flush()
+
+                linhas = [
+                    InvoiceLine(
+                        invoice_id=fatura.id, position=0, kind="energy",
+                        description=f"Energia — {tarifa.name}", quantity=kwh,
+                        unit="kWh", unit_price=preco, amount=energia,
+                    )
+                ]
+                if taxa_ociosa > 0:
+                    linhas.append(
+                        InvoiceLine(
+                            invoice_id=fatura.id, position=1, kind="idle",
+                            description="Taxa de ociosidade", quantity=ocioso,
+                            unit="min", unit_price=float(tarifa.idle_fee_per_min),
+                            amount=taxa_ociosa,
+                        )
+                    )
+                if total > subtotal:
+                    linhas.append(
+                        InvoiceLine(
+                            invoice_id=fatura.id, position=len(linhas), kind="min_charge",
+                            description="Complemento até o valor mínimo", quantity=1,
+                            unit="un", unit_price=round(total - subtotal, 2),
+                            amount=round(total - subtotal, 2),
+                        )
+                    )
+                for linha in linhas:
+                    db.add(linha)
 
         # ---- leitura inicial do medidor: sem ela o orcamento so ve a rede ----
         now = datetime.now(UTC)

@@ -81,6 +81,13 @@ class Settings(BaseSettings):
     poll_interval_s: int = 5
     power_rebalance_interval_s: int = 15
 
+    # Origem das leituras do medidor do site.
+    #   virtual - um worker sintetiza a curva do dia (sem medidor fisico)
+    #   push    - so' aceita o que chegar por POST /power/meter-readings
+    # Trocar por um coletor real e' implementar um worker novo e apontar aqui.
+    meter_source: Literal["virtual", "push"] = "virtual"
+    meter_interval_s: int = 30
+
     # Pagamento
     payment_provider: Literal["mock", "pix", "stripe"] = "mock"
     # Sem default: com ele um webhook forjado marca faturas como pagas.

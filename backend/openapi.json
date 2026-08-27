@@ -3733,6 +3733,39 @@
             "format": "uuid",
             "title": "Charge Point Id"
           },
+          "charge_point_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Point Code"
+          },
+          "charge_point_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Point Name"
+          },
+          "site_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site Name"
+          },
           "user_id": {
             "type": "string",
             "format": "uuid",
