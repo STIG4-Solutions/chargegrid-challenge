@@ -1,11 +1,28 @@
 import { useCallback } from 'react'
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native'
+import { FlatList, Platform, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native'
+import Constants from 'expo-constants'
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps'
 import { app, brl, useApi, type Estacao, type SessaoDetalhada } from '@chargegrid/sdk'
 import { Aviso, Botao, Carregando, Etiqueta } from '../components'
 import { useAuth } from '../auth'
 import { cores, espaco, raio } from '../theme'
 import type { PropsAba } from '../navigation'
+
+/**
+ * O mapa no Android depende do Google Maps, que exige chave propria.
+ *
+ * Sem ela o `MapView` nao apenas fica cinza: no APK proprio o
+ * `com.google.android.gms.maps.MapView.onCreate` levanta excecao e derruba o
+ * app na abertura. Dentro do Expo Go isso nao acontece porque ele traz a
+ * configuracao dele — por isso o problema so' aparece no build standalone.
+ *
+ * Entao o mapa so' e' montado quando ha chave. Sem chave, a lista de estacoes
+ * logo abaixo continua entregando o essencial.
+ */
+const chaveDoMapa =
+  (Constants.expoConfig?.android as { config?: { googleMaps?: { apiKey?: string } } } | undefined)
+    ?.config?.googleMaps?.apiKey ?? ''
+const MAPA_DISPONIVEL = Platform.OS === 'ios' || chaveDoMapa.length > 0
 
 // Centro do mapa quando ainda nao ha estacao carregada (Sao Paulo).
 const REGIAO_PADRAO = {
@@ -52,28 +69,38 @@ export default function MapScreen({ navigation }: PropsAba<'Mapa'>) {
         </Pressable>
       )}
 
-      <MapView
-        style={s.mapa}
-        provider={PROVIDER_DEFAULT}
-        initialRegion={
-          primeira
-            ? { ...REGIAO_PADRAO, latitude: primeira.latitude, longitude: primeira.longitude }
-            : REGIAO_PADRAO
-        }
-      >
-        {comCoordenada.map((e) => (
-          <Marker
-            key={e.site_id}
-            coordinate={{ latitude: e.latitude, longitude: e.longitude }}
-            title={e.name}
-            description={`${e.available_points} de ${e.total_points} livres`}
-            pinColor={e.available_points > 0 ? cores.verde : cores.acento}
-            onCalloutPress={() =>
-              navigation.navigate('Estacao', { siteId: e.site_id, nome: e.name })
-            }
-          />
-        ))}
-      </MapView>
+      {MAPA_DISPONIVEL ? (
+        <MapView
+          style={s.mapa}
+          provider={PROVIDER_DEFAULT}
+          initialRegion={
+            primeira
+              ? { ...REGIAO_PADRAO, latitude: primeira.latitude, longitude: primeira.longitude }
+              : REGIAO_PADRAO
+          }
+        >
+          {comCoordenada.map((e) => (
+            <Marker
+              key={e.site_id}
+              coordinate={{ latitude: e.latitude, longitude: e.longitude }}
+              title={e.name}
+              description={`${e.available_points} de ${e.total_points} livres`}
+              pinColor={e.available_points > 0 ? cores.verde : cores.acento}
+              onCalloutPress={() =>
+                navigation.navigate('Estacao', { siteId: e.site_id, nome: e.name })
+              }
+            />
+          ))}
+        </MapView>
+      ) : (
+        <View style={[s.mapa, s.mapaAusente]}>
+          <Text style={s.mapaAusenteTitulo}>Mapa indisponível</Text>
+          <Text style={s.mapaAusenteTexto}>
+            Falta a chave do Google Maps em app.json ({'android.config.googleMaps.apiKey'}).
+            As estações estão listadas abaixo.
+          </Text>
+        </View>
+      )}
 
       <FlatList
         style={s.lista}
@@ -153,6 +180,18 @@ const s = StyleSheet.create({
   pulso: { width: 8, height: 8, borderRadius: 4, backgroundColor: cores.verde },
   faixaTexto: { color: cores.verde, fontSize: 13, fontWeight: '600' },
   mapa: { height: 220, marginHorizontal: espaco.md, borderRadius: raio.lg },
+  mapaAusente: {
+    backgroundColor: cores.superficie,
+    borderColor: cores.borda,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: espaco.lg,
+    gap: espaco.xs
+  },
+  mapaAusenteTitulo: { color: cores.textoFraco, fontSize: 15, fontWeight: '700' },
+  mapaAusenteTexto: { color: cores.textoFraco, fontSize: 12, textAlign: 'center', lineHeight: 17 },
   lista: { flex: 1, marginTop: espaco.md },
   listaConteudo: { paddingHorizontal: espaco.md, paddingBottom: espaco.xl, gap: espaco.sm },
   card: {
