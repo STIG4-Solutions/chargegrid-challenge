@@ -51,8 +51,27 @@ folga.
 - Crie um projeto, e em *APIs e serviços → Biblioteca* habilite **Maps SDK for Android**.
 - Em *Credenciais*, crie uma **chave de API**.
 - Restrinja a chave — este passo não é opcional. Em *Restrições de aplicativo*
-  escolha **Apps Android** e cadastre o par abaixo. Em *Restrições de API*,
-  marque só **Maps SDK for Android**.
+  escolha **Apps Android** e cadastre o par abaixo.
+- Em *Restrições de API*, marque **apenas Maps SDK for Android**. Nem
+  *Maps SDK for iOS*: no iOS o `PROVIDER_DEFAULT` usa Apple Maps, que dispensa
+  chave. E nenhuma das APIs de serviço web — o app não usa Geocoding, Places nem
+  Directions, e a distância até a estação é calculada por haversine no backend.
+
+> **Por que restringir a API se já restringi o app.** São camadas independentes,
+> e a primeira não cobre a segunda: a restrição por app Android vale para os SDKs
+> nativos, mas as APIs de serviço web **não a aceitam** — só entendem restrição
+> por IP ou referrer. Deixá-las habilitadas não dá capacidade nenhuma a mais,
+> apenas amplia o estrago se a restrição de app for afrouxada. E a diferença de
+> preço é grande: carregamento de mapa é barato, Places e Directions custam por
+> chamada e escalam rápido.
+>
+> Se um dia o app precisar de busca de endereço ou rota, crie uma **chave
+> separada** — os tipos de restrição não convivem bem na mesma chave, e chamadas
+> de serviço web ficam melhor no backend, com chave restrita por IP do servidor.
+>
+> Vale também pôr um **alerta de orçamento** em *Faturamento → Orçamentos e
+> alertas*. Um protótipo não chega perto da franquia; o alerta é o que avisa se
+> alguém estiver usando a chave indevidamente antes de a fatura chegar.
 
 | | |
 |---|---|
