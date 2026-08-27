@@ -35,12 +35,62 @@ O Expo instala o Expo Go no emulador sozinho (~200 MB), então o AVD precisa de
 espaço livre em `/data` — confira com `adb shell df /data`. Um AVD cheio falha
 com *"Requested internal only, but not enough space"*.
 
-> **O mapa abre cinza até você configurar uma chave.** No Android o
-> `react-native-maps` usa Google Maps, que exige chave própria: gere uma no
-> Google Cloud (Maps SDK for Android) e preencha `android.config.googleMaps.apiKey`
-> em `app.json`. Sem ela o quadro do mapa fica vazio — a lista de estações logo
-> abaixo continua funcionando normalmente. No iOS o mapa usa Apple Maps e não
-> precisa de chave.
+> **O mapa só aparece com uma chave do Google Maps.** Veja a seção abaixo. Sem
+> ela o app mostra um aviso no lugar do mapa e a lista de estações continua
+> funcionando. No iOS o mapa usa Apple Maps e não precisa de chave.
+
+## Chave do Google Maps
+
+No Android o `react-native-maps` usa o Google Maps, que exige chave própria.
+Precisa de uma conta no Google Cloud **com faturamento habilitado** — mesmo no
+nível gratuito. Para um protótipo o consumo fica dentro da franquia mensal com
+folga.
+
+**1. Criar e restringir a chave** em [console.cloud.google.com](https://console.cloud.google.com):
+
+- Crie um projeto, e em *APIs e serviços → Biblioteca* habilite **Maps SDK for Android**.
+- Em *Credenciais*, crie uma **chave de API**.
+- Restrinja a chave — este passo não é opcional. Em *Restrições de aplicativo*
+  escolha **Apps Android** e cadastre o par abaixo. Em *Restrições de API*,
+  marque só **Maps SDK for Android**.
+
+| | |
+|---|---|
+| Nome do pacote | `br.com.chargegrid.app` |
+| SHA-1 (builds do EAS) | `C8:3A:F5:25:64:6D:2C:78:39:6F:02:F5:0F:E4:9E:81:C5:3A:F5:00` |
+| SHA-1 (builds locais de debug) | `1E:F7:90:5E:6D:11:EC:D0:05:C1:8A:C5:47:45:0C:D2:0B:4D:81:4C` |
+
+Cadastre os dois: o primeiro assina o APK que sai da nuvem, o segundo os builds
+locais. Se a keystore do EAS for trocada, o SHA-1 muda — consulte com
+`eas credentials` ou extraia do APK:
+
+```bash
+apksigner verify --print-certs app-release.apk
+```
+
+**2. Guardar a chave fora do repositório.**
+
+Toda chave de Maps para Android acaba dentro do APK e pode ser extraída de lá —
+por isso a proteção real é a **restrição** acima, não o sigilo. Mas este
+repositório é público, e chave exposta é raspada por robôs: a cota queimada
+seria sua. Então ela não vai no `app.json`.
+
+```bash
+# local — no .env deste diretório, que o git ignora
+echo GOOGLE_MAPS_API_KEY=AIza... >> .env
+
+# nuvem — segredo do projeto no EAS, nunca no eas.json
+npx eas-cli secret:create --scope project --name GOOGLE_MAPS_API_KEY --value AIza...
+```
+
+O `app.config.js` injeta a chave na configuração nativa e publica um booleano
+`extra.mapaConfigurado`. O app consulta **o booleano**, não a chave: o
+`android.config` é podado do manifesto público que o `Constants` lê, então
+perguntar pela chave em tempo de execução devolveria vazio mesmo com ela
+configurada — e o mapa ficaria escondido para sempre.
+
+Depois de definir a variável, rode o build de novo. Nenhuma mudança de código é
+necessária.
 
 > **Sem `EXPO_PUBLIC_API_URL`, o app descobre o endereço sozinho.** `localhost`
 > dentro do celular é o próprio celular, nunca o seu computador. Como o Expo já

@@ -33,10 +33,7 @@
         "CAMERA"
       ],
       "config": {
-        "_comentario": "O mapa no Android usa Google Maps e exige chave propria. Sem ela o componente renderiza um quadro cinza - a lista de estacoes abaixo continua funcionando. Gere em console.cloud.google.com (Maps SDK for Android) e preencha googleMaps.apiKey. No iOS o mapa usa Apple Maps e nao precisa de chave.",
-        "googleMaps": {
-          "apiKey": ""
-        }
+        "_comentario": "A chave do Google Maps NAO mora aqui: este arquivo e' versionado num repositorio publico. Ela e' injetada por app.config.js a partir de GOOGLE_MAPS_API_KEY. Veja o README."
       }
     },
     "plugins": [

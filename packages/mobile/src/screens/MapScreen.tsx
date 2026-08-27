@@ -18,11 +18,12 @@ import type { PropsAba } from '../navigation'
  *
  * Entao o mapa so' e' montado quando ha chave. Sem chave, a lista de estacoes
  * logo abaixo continua entregando o essencial.
+ *
+ * O sinal vem de `extra.mapaConfigurado`, um booleano posto pelo app.config.js -
+ * e nao da propria chave, que e' podada do manifesto publico que o Constants le.
  */
-const chaveDoMapa =
-  (Constants.expoConfig?.android as { config?: { googleMaps?: { apiKey?: string } } } | undefined)
-    ?.config?.googleMaps?.apiKey ?? ''
-const MAPA_DISPONIVEL = Platform.OS === 'ios' || chaveDoMapa.length > 0
+const MAPA_DISPONIVEL =
+  Platform.OS === 'ios' || Constants.expoConfig?.extra?.mapaConfigurado === true
 
 // Centro do mapa quando ainda nao ha estacao carregada (Sao Paulo).
 const REGIAO_PADRAO = {
