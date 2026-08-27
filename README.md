@@ -1,0 +1,150 @@
+# ChargeGrid Intelligence
+
+Plataforma de orquestração de recarga EV para **estabelecimentos comerciais**
+(FIAP × GoodWe, EV Challenge 2026).
+
+O desafio aponta três lacunas nos eletropostos de hoje, e a linha GoodWe HCA G2 confirma
+cada uma: o carregador só protege o próprio disjuntor, o SEMS+ não expõe API de EV Charger,
+e sem OCPP não existe cobrança. A plataforma cobre esses três vazios.
+
+| Parte | Onde | Stack | Para quem |
+|---|---|---|---|
+| API | `backend/` | Python · FastAPI · PostgreSQL | — |
+| Painel comercial | `packages/dashboard/` | React 19 · Vite | operador do estabelecimento |
+| App do motorista | `packages/mobile/` | React Native · Expo (iOS + Android) | usuário final |
+| Cliente compartilhado | `packages/sdk/` | TypeScript | os dois clientes |
+
+## Rodar
+
+**Backend** (sobe Postgres, migra, popula e serve):
+
+```bash
+cd backend
+cp .env.example .env
+docker compose up --build          # API em http://localhost:8000
+```
+
+**Painel:**
+
+```bash
+npm install
+cp .env.example .env               # VITE_API_URL=http://localhost:8000
+npm run dev                        # http://localhost:5173
+```
+
+**App do motorista** (leia o QR code com o Expo Go):
+
+```bash
+npm run mobile                     # ou mobile:android / mobile:ios
+```
+
+Contas criadas pelo seed:
+
+| Perfil | E-mail | Senha |
+|---|---|---|
+| Operador | `operador@chargegrid.com.br` | `SEED_OPERATOR_PASSWORD` |
+| Admin | `admin@chargegrid.com.br` | `SEED_ADMIN_PASSWORD` |
+| Motorista | `joao.silva@email.com` | `SEED_DRIVER_PASSWORD` |
+
+**Não há senha escrita no repositório.** Deixe essas variáveis em branco no
+`backend/.env` e o seed sorteia uma senha para cada perfil, imprimindo-as **uma única
+vez** ao rodar — anote. Preencha-as se quiser senhas estáveis entre recriações do banco.
+
+Para o painel oferecer os atalhos de login em desenvolvimento, repita as senhas em
+`VITE_DEMO_*_PASSWORD` no `.env` da raiz; sem isso os botões não aparecem e você digita.
+
+> No Windows, use `POSTGRES_HOST=127.0.0.1` e não `localhost`: o nome resolve para `::1` e o
+> asyncpg morre na negociação SSL.
+
+## Por que um repositório só
+
+As features atravessam a fronteira o tempo todo nesta fase. Adicionar um campo costuma
+significar, de uma vez: schema do backend, `openapi.json`, tipos do SDK, endpoint do SDK e a
+tela que o consome. Aqui isso é **um commit atômico**, verificável de uma vez — separado,
+seriam dois ou três commits em repositórios diferentes, com uma janela em que ficam
+inconsistentes.
+
+O backend continua fazendo deploy sozinho: o Docker constrói com contexto `./backend` e não
+arrasta `node_modules`. Vale dividir quando o backend tiver cadência própria de release, ou
+quando mais de uma pessoa passar a mexer só num lado.
+
+Uma demonstração autônoma do painel — que roda sem backend nenhum, com um servidor falso em
+memória — vive à parte, em
+[`demo-charge-grid`](https://github.com/STIG4-Solutions/demo-charge-grid).
+
+## O SDK é o acoplamento entre os clientes
+
+Nenhuma tela faz `fetch`. Tudo passa pelo `@chargegrid/sdk`, que concentra renovação de
+token, tradução de erro, formatação e os hooks de dados. O que difere entre web e mobile cabe
+em uma linha, no arranque de cada app:
+
+```js
+configureSdk({ baseUrl, storage: localStorage })   // painel
+configureSdk({ baseUrl, storage: AsyncStorage })   // app do motorista
+```
+
+`TokenStorage` tem a mesma assinatura do `localStorage` e aceita retorno síncrono ou
+`Promise` — por isso o `AsyncStorage` entra sem adaptador. Como o armazenamento pode ser
+assíncrono, o SDK mantém um cache em memória: `hydrateTokens()` lê o disco uma vez no
+bootstrap e `accessToken()` responde de forma síncrona depois (a URL do WebSocket precisa do
+token na hora).
+
+O SDK é consumido como **código-fonte TypeScript, sem etapa de build**: Vite e Metro compilam
+o mesmo arquivo, e não existe artefato intermediário para ficar desatualizado.
+
+Os tipos vêm do contrato, não de cópia manual:
+
+```bash
+npm run gen:types      # backend/openapi.json -> packages/sdk/src/schema.ts
+npm run typecheck      # onde a incompatibilidade aparece
+```
+
+## Uma versão de React, cravada
+
+`dashboard` e `mobile` declaram **exatamente** `react@19.2.3` — a versão que o React Native
+0.86 exige.
+
+Não é preciosismo. Com versões diferentes o npm aninha uma delas, e qual sobe para a raiz do
+workspace é imprevisível; como `packages/sdk` fica ao lado dos dois, um `import ... from
+'react'` feito lá dentro podia acabar carregando o React do outro app. Duas cópias no mesmo
+bundle quebram todo hook com *"Invalid hook call"*. Ao mexer nessas versões, confira:
+
+```bash
+npm ls react           # tem que aparecer uma única
+```
+
+## Verificação
+
+```bash
+npm run verify:api                         # 15 cenários do SDK com fetch simulado
+npm run typecheck                          # tipos do SDK e do app contra o contrato
+npm run build                              # painel
+cd backend && python -m pytest -q          # 43 testes
+cd backend && python -m ruff check .
+cd backend && python -m scripts.smoke_test # 56 cenários ponta a ponta (API no ar)
+cd packages/mobile && npx expo export --platform android --output-dir .expo-bundle
+```
+
+O `verify:api` roda contra um armazenamento **assíncrono de propósito** — o do React Native.
+Se passa nele, passa no `localStorage` síncrono da web.
+
+## Estrutura
+
+```
+backend/                  API FastAPI — README próprio
+  app/                    domínio, drivers MODBUS, workers, serviços
+  alembic/                5 migrations
+  openapi.json            contrato — fonte dos tipos do SDK
+  scripts/smoke_test.py   56 cenários ponta a ponta
+  docker-compose.yml      Postgres + API em um comando
+docs/                     instruções do desafio, datasheet e mapa MODBUS do HCA G2
+packages/
+  sdk/                    @chargegrid/sdk — README na seção acima
+  dashboard/              painel comercial (réplica do SEMS+ + Recarga EV)
+  mobile/                 app do motorista — README próprio
+```
+
+## Paleta
+
+Extraída por inspeção do CSS do SEMS+ original: fundo `#1F2123`, fundo profundo `#0D0D0F`,
+acento `#FF323A`, cabeçalho de tabela `#3A3A3C`, texto `#F5F6F8`, fonte Poppins.

@@ -1,0 +1,19 @@
+{
+  "name": "chargegrid",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ChargeGrid Intelligence — API, painel comercial e app do motorista (FIAP × GoodWe, EV Challenge 2026)",
+  "type": "module",
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "dev": "npm run dev -w @chargegrid/dashboard",
+    "build": "npm run build -w @chargegrid/dashboard",
+    "preview": "npm run preview -w @chargegrid/dashboard",
+    "mobile": "npm start -w @chargegrid/mobile",
+    "mobile:android": "npm run android -w @chargegrid/mobile",
+    "mobile:ios": "npm run ios -w @chargegrid/mobile",
+    "typecheck": "npm run typecheck -w @chargegrid/sdk && npm run typecheck -w @chargegrid/mobile",
+    "verify:api": "npm run verify -w @chargegrid/sdk",
+    "gen:types": "npm run gen:types -w @chargegrid/sdk"
+  }
+}

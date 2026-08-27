@@ -1,0 +1,352 @@
+"""Modulo Tarifacao e Pagamento: politicas, simulador, metodos, faturas e cobranca."""
+
+from __future__ import annotations
+
+import uuid
+from datetime import UTC, datetime, timedelta
+
+from fastapi import APIRouter, HTTPException, Query, Request
+from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
+
+from app.core.deps import CurrentUser, DbSession, OperatorUser, ScopedSiteId
+from app.models.billing import Invoice, SitePaymentMethod
+from app.models.charge_point import ChargePoint
+from app.models.enums import InvoiceStatus
+from app.models.session import ChargingSession
+from app.models.site import Site
+from app.models.tariff import Tariff, TariffWindow
+from app.models.user import User
+from app.schemas.common import Page
+from app.schemas.ev import (
+    ChargeRequestIn,
+    InvoiceOut,
+    PaymentMethodIn,
+    PaymentMethodOut,
+    PaymentOut,
+    RatingOut,
+    RevenueSummary,
+    SimulationRequest,
+    TariffCreate,
+    TariffOut,
+    TariffUpdate,
+    TariffWindowIn,
+)
+from app.services import billing_service, payment_service, tariff_rules
+from app.services.tariff_engine import simulate
+
+router = APIRouter(tags=["recarga ev · tarifação e pagamento"])
+
+
+# ------------------------------------------------------------------ tarifas
+@router.get("/tariffs", response_model=list[TariffOut])
+async def list_tariffs(db: DbSession, site_id: ScopedSiteId, _: OperatorUser):
+    return (
+        (
+            await db.execute(
+                select(Tariff)
+                .where(Tariff.site_id == site_id)
+                .options(selectinload(Tariff.windows))
+                .order_by(Tariff.name)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+
+@router.post("/tariffs", response_model=TariffOut, status_code=201)
+async def create_tariff(
+    payload: TariffCreate, db: DbSession, site_id: ScopedSiteId, _: OperatorUser
+):
+    data = payload.model_dump(exclude={"windows"})
+    tariff_rules.validar(data["type"], data)
+    tariff = Tariff(site_id=site_id, **data)
+    for window in payload.windows:
+        tariff.windows.append(TariffWindow(**window.model_dump()))
+    db.add(tariff)
+    await db.commit()
+    await db.refresh(tariff, attribute_names=["windows"])
+    return tariff
+
+
+@router.patch("/tariffs/{tariff_id}", response_model=TariffOut)
+async def update_tariff(
+    tariff_id: uuid.UUID,
+    payload: TariffUpdate,
+    db: DbSession,
+    site_id: ScopedSiteId,
+    _: OperatorUser,
+):
+    tariff = await _get_tariff(db, site_id, tariff_id)
+    mudancas = payload.model_dump(exclude_unset=True)
+
+    # Valida o estado resultante, nao so os campos enviados: um PATCH parcial
+    # pode tornar a tarifa inconsistente com o proprio tipo.
+    resultante = {
+        campo: mudancas.get(campo, float(getattr(tariff, campo)))
+        for campo in ("price_per_kwh", "price_per_min", "session_fee")
+    }
+    tariff_rules.validar(mudancas.get("type", tariff.type), resultante)
+
+    for field, value in mudancas.items():
+        setattr(tariff, field, value)
+    await db.commit()
+    await db.refresh(tariff, attribute_names=["windows"])
+    return tariff
+
+
+@router.put("/tariffs/{tariff_id}/windows", response_model=TariffOut)
+async def replace_windows(
+    tariff_id: uuid.UUID,
+    windows: list[TariffWindowIn],
+    db: DbSession,
+    site_id: ScopedSiteId,
+    _: OperatorUser,
+):
+    """Substitui as janelas de uma vez - o editor do dashboard salva o conjunto inteiro."""
+    tariff = await _get_tariff(db, site_id, tariff_id)
+    tariff.windows.clear()
+    await db.flush()
+    for window in windows:
+        tariff.windows.append(TariffWindow(**window.model_dump()))
+    await db.commit()
+    await db.refresh(tariff, attribute_names=["windows"])
+    return tariff
+
+
+@router.delete("/tariffs/{tariff_id}", status_code=204, response_model=None)
+async def delete_tariff(
+    tariff_id: uuid.UUID, db: DbSession, site_id: ScopedSiteId, _: OperatorUser
+) -> None:
+    """Remove uma tarifa que nunca foi usada.
+
+    Tarifa com sessão faturada não é apagada: o histórico de cobrança perderia a
+    referência, e a fatura guarda o snapshot justamente para ser reproduzível. O
+    caminho nesse caso é desativar, e a mensagem diz isso.
+    """
+    tariff = await _get_tariff(db, site_id, tariff_id)
+
+    usos = (
+        await db.execute(
+            select(func.count(ChargingSession.id)).where(ChargingSession.tariff_id == tariff_id)
+        )
+    ).scalar_one()
+    if usos:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"{tariff.name} já foi aplicada em {usos} sessão(ões) e não pode ser excluída. "
+                "Desative-a para parar de usá-la nas próximas recargas."
+            ),
+        )
+
+    vinculada = (
+        await db.execute(
+            select(func.count(ChargePoint.id)).where(ChargePoint.tariff_id == tariff_id)
+        )
+    ).scalar_one()
+    site_padrao = (
+        await db.execute(select(func.count(Site.id)).where(Site.default_tariff_id == tariff_id))
+    ).scalar_one()
+    if vinculada or site_padrao:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"{tariff.name} ainda está vinculada a "
+                f"{vinculada} ponto(s) e {site_padrao} site(s). Troque a tarifa deles primeiro."
+            ),
+        )
+
+    await db.delete(tariff)
+    await db.commit()
+
+
+@router.post("/tariffs/simulate", response_model=RatingOut)
+async def simulate_cost(
+    payload: SimulationRequest, db: DbSession, site_id: ScopedSiteId, _: OperatorUser
+) -> dict:
+    """Simulador de custo da tela de tarifacao."""
+    tariff = await _get_tariff(db, site_id, payload.tariff_id)
+    return simulate(
+        tariff,
+        energy_kwh=payload.energy_kwh,
+        minutes=payload.minutes,
+        idle_minutes=payload.idle_minutes,
+        at=payload.at,
+    ).as_dict()
+
+
+async def _get_tariff(db, site_id, tariff_id) -> Tariff:
+    tariff = (
+        await db.execute(
+            select(Tariff)
+            .where(Tariff.id == tariff_id, Tariff.site_id == site_id)
+            .options(selectinload(Tariff.windows))
+        )
+    ).scalar_one_or_none()
+    if tariff is None:
+        raise HTTPException(status_code=404, detail="tarifa não encontrada")
+    return tariff
+
+
+# --------------------------------------------------------- metodos de pagamento
+@router.get("/payment-methods", response_model=list[PaymentMethodOut])
+async def list_payment_methods(db: DbSession, site_id: ScopedSiteId, _: OperatorUser):
+    return (
+        (
+            await db.execute(
+                select(SitePaymentMethod)
+                .where(SitePaymentMethod.site_id == site_id)
+                .order_by(SitePaymentMethod.label)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+
+@router.put("/payment-methods", response_model=PaymentMethodOut)
+async def upsert_payment_method(
+    payload: PaymentMethodIn, db: DbSession, site_id: ScopedSiteId, _: OperatorUser
+):
+    """Habilita ou atualiza um metodo. Um por tipo por site."""
+    method = (
+        await db.execute(
+            select(SitePaymentMethod).where(
+                SitePaymentMethod.site_id == site_id, SitePaymentMethod.kind == payload.kind
+            )
+        )
+    ).scalar_one_or_none()
+    if method is None:
+        method = SitePaymentMethod(site_id=site_id, kind=payload.kind)
+        db.add(method)
+    for field, value in payload.model_dump(exclude={"kind"}).items():
+        setattr(method, field, value)
+    await db.commit()
+    await db.refresh(method)
+    return method
+
+
+# ---------------------------------------------------------------------- faturas
+@router.get("/invoices", response_model=Page[InvoiceOut])
+async def list_invoices(
+    db: DbSession,
+    site_id: ScopedSiteId,
+    _: OperatorUser,
+    status: InvoiceStatus | None = None,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> Page[InvoiceOut]:
+    filters = [Invoice.site_id == site_id]
+    if status is not None:
+        filters.append(Invoice.status == status)
+
+    total = (await db.execute(select(func.count(Invoice.id)).where(*filters))).scalar_one()
+    rows = (
+        (
+            await db.execute(
+                select(Invoice)
+                .where(*filters)
+                .options(selectinload(Invoice.lines), selectinload(Invoice.payments))
+                .order_by(Invoice.created_at.desc())
+                .limit(limit)
+                .offset(offset)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return Page(
+        items=[InvoiceOut.model_validate(row) for row in rows],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get("/invoices/{invoice_id}", response_model=InvoiceOut)
+async def get_invoice(invoice_id: uuid.UUID, db: DbSession, _: CurrentUser):
+    return await billing_service.get_invoice(db, invoice_id)
+
+
+@router.post("/invoices/{invoice_id}/charge", response_model=PaymentOut, status_code=201)
+async def charge_invoice(
+    invoice_id: uuid.UUID, payload: ChargeRequestIn, db: DbSession, user: CurrentUser
+):
+    """Dispara a cobranca. Motorista paga a propria fatura; operador pode cobrar qualquer uma."""
+    invoice = await billing_service.get_invoice(db, invoice_id)
+    if str(user.role) == "driver" and invoice.user_id != user.id:
+        raise HTTPException(status_code=403, detail="fatura de outro usuário")
+
+    payer = user
+    if invoice.user_id and invoice.user_id != user.id:
+        payer = (
+            await db.execute(select(User).where(User.id == invoice.user_id))
+        ).scalar_one_or_none() or user
+
+    return await payment_service.charge_invoice(
+        db, invoice, payload.method, idempotency_key=payload.idempotency_key, payer=payer
+    )
+
+
+@router.post("/payments/webhook", include_in_schema=True)
+async def payment_webhook(request: Request, db: DbSession) -> dict:
+    """Liquidacao assincrona do PSP. Assinatura HMAC obrigatoria."""
+    body = await request.body()
+    signature = request.headers.get("x-signature") or request.headers.get("x-hub-signature-256")
+
+    # A referencia do corpo (ainda nao confiavel) serve so para escolher QUAL
+    # segredo tentar - o do PSP daquele estabelecimento. A assinatura continua
+    # sendo verificada contra o corpo cru, entao um corpo forjado nao passa.
+    provedor = await payment_service.provedor_do_evento(db, body)
+    if not provedor.verify_webhook(body, signature):
+        raise HTTPException(status_code=401, detail="assinatura de webhook inválida")
+    return await payment_service.handle_webhook(db, await request.json())
+
+
+@router.get("/revenue/summary", response_model=RevenueSummary)
+async def revenue_summary(
+    db: DbSession,
+    site_id: ScopedSiteId,
+    _: OperatorUser,
+    days: int = Query(default=30, ge=1, le=365),
+) -> RevenueSummary:
+    """Receita bruta x liquida do periodo - o que o lojista realmente leva."""
+    since = datetime.now(UTC) - timedelta(days=days)
+    base = [Invoice.site_id == site_id, Invoice.created_at >= since]
+
+    gross, fees, net = (
+        await db.execute(
+            select(
+                func.coalesce(func.sum(Invoice.total), 0),
+                func.coalesce(func.sum(Invoice.processing_fee), 0),
+                func.coalesce(func.sum(Invoice.net_amount), 0),
+            ).where(*base, Invoice.status == InvoiceStatus.PAID)
+        )
+    ).one()
+
+    async def count(status: InvoiceStatus) -> int:
+        return (
+            await db.execute(select(func.count(Invoice.id)).where(*base, Invoice.status == status))
+        ).scalar_one()
+
+    paid = await count(InvoiceStatus.PAID)
+    energy = (
+        await db.execute(
+            select(func.coalesce(func.sum(ChargingSession.energy_kwh), 0)).where(
+                ChargingSession.site_id == site_id, ChargingSession.created_at >= since
+            )
+        )
+    ).scalar_one()
+
+    return RevenueSummary(
+        gross=float(gross),
+        net=float(net),
+        processing_fees=float(fees),
+        paid_invoices=paid,
+        open_invoices=await count(InvoiceStatus.OPEN),
+        failed_invoices=await count(InvoiceStatus.FAILED),
+        energy_kwh=float(energy),
+        average_ticket=round(float(gross) / paid, 2) if paid else 0.0,
+    )

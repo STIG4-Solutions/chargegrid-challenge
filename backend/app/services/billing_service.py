@@ -1,0 +1,194 @@
+"""Faturamento: transforma uma sessao encerrada em fatura auditavel."""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from decimal import Decimal
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.core.config import settings
+from app.core.errors import Conflict, NotFound
+from app.core.logging import get_logger
+from app.db.base import INVOICE_CODE_SEQ
+from app.models.billing import Invoice, InvoiceLine, SitePaymentMethod
+from app.models.enums import InvoiceStatus, PaymentMethodKind, SessionState
+from app.models.session import ChargingSession
+from app.models.site import Site
+from app.models.tariff import Tariff
+from app.models.telemetry import TelemetrySample
+from app.services import session_service
+from app.services.tariff_engine import money, rate_session
+
+log = get_logger(__name__)
+
+
+async def _next_code(db: AsyncSession) -> str:
+    number = (await db.execute(select(INVOICE_CODE_SEQ.next_value()))).scalar_one()
+    return f"INV-{number}"
+
+
+async def bill_session(db: AsyncSession, session: ChargingSession) -> Invoice:
+    """Fatura uma sessao FINISHED. Idempotente: chamar duas vezes devolve a mesma fatura."""
+    existing = (
+        await db.execute(
+            select(Invoice)
+            .where(Invoice.session_id == session.id)
+            .options(selectinload(Invoice.lines))
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        return existing
+
+    if session.state not in {SessionState.FINISHED, SessionState.ERROR}:
+        raise Conflict(f"sessão ainda não encerrada ({session.state})")
+
+    site = (await db.execute(select(Site).where(Site.id == session.site_id))).scalar_one()
+    tariff = None
+    if session.tariff_id:
+        tariff = (
+            await db.execute(
+                select(Tariff)
+                .where(Tariff.id == session.tariff_id)
+                .options(selectinload(Tariff.windows))
+            )
+        ).scalar_one_or_none()
+
+    samples = list(
+        (
+            await db.execute(
+                select(TelemetrySample)
+                .where(TelemetrySample.session_id == session.id)
+                .order_by(TelemetrySample.recorded_at)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    now = datetime.now(UTC)
+    invoice = Invoice(
+        code=await _next_code(db),
+        site_id=session.site_id,
+        session_id=session.id,
+        user_id=session.user_id,
+        status=InvoiceStatus.DRAFT,
+        issued_on=now.date(),
+    )
+
+    if tariff is None:
+        # Sem tarifa vinculada nao ha o que cobrar; a fatura zerada mantem o
+        # rastro da energia entregue para conciliacao posterior.
+        invoice.status = InvoiceStatus.VOID
+        invoice.tariff_snapshot = {"error": "sessão sem tarifa vinculada"}
+        db.add(invoice)
+        session_service.record_event(
+            db, session, "billing_skipped", message="Sessão sem tarifa vinculada"
+        )
+        await db.commit()
+        return invoice
+
+    rating = rate_session(
+        session,
+        tariff,
+        samples,
+        timezone=site.timezone,
+        idle_grace_minutes=settings.idle_grace_minutes,
+        now=now,
+    )
+
+    invoice.currency = tariff.currency
+    invoice.subtotal = rating.subtotal
+    invoice.total = rating.total
+    invoice.net_amount = rating.total
+    invoice.tariff_snapshot = rating.tariff_snapshot
+    invoice.status = InvoiceStatus.OPEN if rating.total > 0 else InvoiceStatus.VOID
+    for position, line in enumerate(rating.lines):
+        invoice.lines.append(
+            InvoiceLine(
+                position=position,
+                kind=line.kind,
+                description=line.description,
+                quantity=line.quantity,
+                unit=line.unit,
+                unit_price=line.unit_price,
+                amount=line.amount,
+            )
+        )
+    db.add(invoice)
+
+    session.estimated_cost = float(rating.total)
+    if session.state == SessionState.FINISHED:
+        session_service.transition(
+            db, session, SessionState.BILLED, message=f"Fatura {invoice.code} emitida"
+        )
+    await db.commit()
+    await db.refresh(invoice)
+    log.info("invoice.created", code=invoice.code, total=float(invoice.total))
+    return invoice
+
+
+async def preview_session(db: AsyncSession, session: ChargingSession) -> dict:
+    """Previa do valor de uma sessao em andamento - usada pelo app e pelo dashboard."""
+    if not session.tariff_id:
+        return {"total": 0.0, "lines": [], "tariff_snapshot": {}}
+    site = (await db.execute(select(Site).where(Site.id == session.site_id))).scalar_one()
+    tariff = (
+        await db.execute(
+            select(Tariff)
+            .where(Tariff.id == session.tariff_id)
+            .options(selectinload(Tariff.windows))
+        )
+    ).scalar_one()
+    samples = list(
+        (
+            await db.execute(
+                select(TelemetrySample)
+                .where(TelemetrySample.session_id == session.id)
+                .order_by(TelemetrySample.recorded_at)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return rate_session(
+        session,
+        tariff,
+        samples,
+        timezone=site.timezone,
+        idle_grace_minutes=settings.idle_grace_minutes,
+    ).as_dict()
+
+
+async def apply_processing_fee(db: AsyncSession, invoice: Invoice, kind: PaymentMethodKind) -> None:
+    """Desconta a taxa do adquirente: receita liquida e o que o lojista recebe."""
+    method = (
+        await db.execute(
+            select(SitePaymentMethod).where(
+                SitePaymentMethod.site_id == invoice.site_id, SitePaymentMethod.kind == kind
+            )
+        )
+    ).scalar_one_or_none()
+    if method is None:
+        return
+    fee = money(
+        Decimal(str(invoice.total)) * Decimal(str(method.fee_percent)) / Decimal("100")
+        + Decimal(str(method.fee_fixed))
+    )
+    invoice.processing_fee = fee
+    invoice.net_amount = money(Decimal(str(invoice.total)) - fee)
+
+
+async def get_invoice(db: AsyncSession, invoice_id) -> Invoice:
+    invoice = (
+        await db.execute(
+            select(Invoice)
+            .where(Invoice.id == invoice_id)
+            .options(selectinload(Invoice.lines), selectinload(Invoice.payments))
+        )
+    ).scalar_one_or_none()
+    if invoice is None:
+        raise NotFound("fatura não encontrada")
+    return invoice

@@ -1,0 +1,20 @@
+node_modules
+dist
+*.log
+
+# Expo (app do motorista)
+.expo
+.expo-bundle
+
+# Python (backend)
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Nunca versionar: o .env carrega segredos reais em producao. O .env.example e'
+# quem entra no repositorio, com placeholders.
+.env
+.env.*
+!.env.example

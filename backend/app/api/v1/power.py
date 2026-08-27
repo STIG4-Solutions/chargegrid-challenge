@@ -1,0 +1,274 @@
+"""Modulo Gerenciamento de Potencia: orcamento do site, tetos e balanceamento."""
+
+from __future__ import annotations
+
+import uuid
+from datetime import UTC, datetime
+
+from fastapi import APIRouter, HTTPException, Query
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+
+from app.core.deps import DbSession, OperatorUser, ScopedSiteId
+from app.models.charge_point import ChargePoint, ChargePointConnection
+from app.models.enums import ChargePointStatus
+from app.models.site import Site, SiteMeterReading
+from app.schemas.ev import (
+    ChargePointCreate,
+    ChargePointOut,
+    ChargePointUpdate,
+    MeterReadingIn,
+    PowerBudgetOut,
+    PowerBudgetUpdate,
+    PowerOverview,
+    PowerPlanOut,
+    SetLimitRequest,
+    SiteSettingsOut,
+)
+from app.services import power_manager, session_service
+from app.services.command_service import send_command
+
+router = APIRouter(prefix="/power", tags=["recarga ev · potência"])
+
+
+async def _points(db, site_id) -> list[ChargePoint]:
+    return list(
+        (
+            await db.execute(
+                select(ChargePoint)
+                .where(ChargePoint.site_id == site_id)
+                .options(selectinload(ChargePoint.connection))
+                .order_by(ChargePoint.code)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+
+@router.get("/overview", response_model=PowerOverview)
+async def overview(db: DbSession, site_id: ScopedSiteId, _: OperatorUser) -> PowerOverview:
+    """Tudo que a tela de potencia precisa em uma chamada."""
+    site = (await db.execute(select(Site).where(Site.id == site_id))).scalar_one()
+    points = await _points(db, site_id)
+    budget = await power_manager.load_budget(db, site)
+
+    # Só conta quem pode efetivamente puxar energia — o mesmo conjunto que o
+    # alocador compromete. Somar o limite de pontos ociosos, na fila ou cortados
+    # inflava o número com tetos que ninguém está usando e acendia um alarme de
+    # "excede a disponibilidade" com o site inteiro tranquilo.
+    allocated = sum(float(cp.limit_kw) for cp in points if cp.is_dispatchable)
+    current = sum(float(cp.current_kw) for cp in points)
+    available = budget.available_kw
+
+    return PowerOverview(
+        budget=PowerBudgetOut(**budget.as_dict()),
+        settings=SiteSettingsOut.model_validate(site, from_attributes=True),
+        allocated_kw=round(allocated, 2),
+        current_kw=round(current, 2),
+        usage_percent=round(min(100.0, current / available * 100), 1) if available > 0 else 0.0,
+        over_budget=allocated > available,
+        active_count=sum(1 for cp in points if cp.status == ChargePointStatus.CHARGING),
+        total_count=len(points),
+        charge_points=[ChargePointOut.model_validate(cp) for cp in points],
+    )
+
+
+@router.get("/budget", response_model=PowerBudgetOut)
+async def get_budget(db: DbSession, site_id: ScopedSiteId, _: OperatorUser) -> PowerBudgetOut:
+    site = (await db.execute(select(Site).where(Site.id == site_id))).scalar_one()
+    return PowerBudgetOut(**(await power_manager.load_budget(db, site)).as_dict())
+
+
+@router.patch("/budget", response_model=PowerBudgetOut)
+async def update_budget(
+    payload: PowerBudgetUpdate, db: DbSession, site_id: ScopedSiteId, _: OperatorUser
+) -> PowerBudgetOut:
+    site = (await db.execute(select(Site).where(Site.id == site_id))).scalar_one()
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(site, field, value)
+    await db.commit()
+    # O orcamento mudou: o rateio precisa ser refeito antes de o operador sair da tela.
+    await power_manager.rebalance_site(db, site_id, triggered_by="operator")
+    return PowerBudgetOut(**(await power_manager.load_budget(db, site)).as_dict())
+
+
+@router.post("/meter-readings", status_code=202)
+async def push_meter_reading(
+    payload: MeterReadingIn, db: DbSession, site_id: ScopedSiteId, _: OperatorUser
+) -> dict:
+    """Entrada do smart meter / inversor GoodWe.
+
+    Enquanto a API de EV Chargers do SEMS+ nao existe, esta rota e o ponto de
+    integracao: um coletor no site empurra as leituras para ca.
+    """
+    db.add(
+        SiteMeterReading(
+            site_id=site_id,
+            recorded_at=payload.recorded_at or datetime.now(UTC),
+            grid_import_kw=payload.grid_import_kw,
+            pv_kw=payload.pv_kw,
+            battery_kw=payload.battery_kw,
+            battery_soc=payload.battery_soc,
+            building_load_kw=payload.building_load_kw,
+            ev_load_kw=payload.ev_load_kw,
+        )
+    )
+    await db.commit()
+    return {"accepted": True}
+
+
+@router.get("/plan", response_model=PowerPlanOut)
+async def preview_plan(db: DbSession, site_id: ScopedSiteId, _: OperatorUser) -> PowerPlanOut:
+    """Previa do rateio sem escrever nada no hardware."""
+    plan = await power_manager.plan_for_site(db, site_id)
+    return PowerPlanOut(**plan.as_dict())
+
+
+@router.post("/rebalance", response_model=dict)
+async def rebalance(
+    db: DbSession,
+    site_id: ScopedSiteId,
+    user: OperatorUser,
+    dry_run: bool = Query(default=False, description="calcula e não aplica"),
+) -> dict:
+    """Redistribuir agora - botao do dashboard."""
+    return await power_manager.rebalance_site(
+        db, site_id, triggered_by=f"operator:{user.email}", dry_run=dry_run
+    )
+
+
+@router.get("/charge-points", response_model=list[ChargePointOut])
+async def list_charge_points(db: DbSession, site_id: ScopedSiteId, _: OperatorUser):
+    return await _points(db, site_id)
+
+
+@router.post("/charge-points", response_model=ChargePointOut, status_code=201)
+async def create_charge_point(
+    payload: ChargePointCreate, db: DbSession, site_id: ScopedSiteId, _: OperatorUser
+):
+    exists = (
+        await db.execute(
+            select(ChargePoint).where(
+                ChargePoint.site_id == site_id, ChargePoint.code == payload.code
+            )
+        )
+    ).scalar_one_or_none()
+    if exists is not None:
+        raise HTTPException(status_code=409, detail="já existe um ponto com esse código")
+
+    cp = ChargePoint(
+        site_id=site_id,
+        code=payload.code,
+        name=payload.name,
+        connector=payload.connector,
+        phase_type=payload.phase_type,
+        rated_kw=payload.rated_kw,
+        min_kw=payload.min_kw,
+        limit_kw=payload.rated_kw,
+        priority=payload.priority,
+        tariff_id=payload.tariff_id,
+        status=ChargePointStatus.OFFLINE,
+    )
+    cp.connection = ChargePointConnection(
+        protocol=payload.protocol, host=payload.host, port=payload.port, unit_id=payload.unit_id
+    )
+    db.add(cp)
+    await db.commit()
+    await db.refresh(cp)
+    return cp
+
+
+@router.patch("/charge-points/{charge_point_id}", response_model=ChargePointOut)
+async def update_charge_point(
+    charge_point_id: uuid.UUID,
+    payload: ChargePointUpdate,
+    db: DbSession,
+    site_id: ScopedSiteId,
+    user: OperatorUser,
+):
+    cp = await _get_point(db, site_id, charge_point_id)
+    data = payload.model_dump(exclude_unset=True)
+
+    # Alterar o teto e um comando de hardware, nao so um UPDATE.
+    limit_kw = data.pop("limit_kw", None)
+    for field, value in data.items():
+        setattr(cp, field, value)
+    if limit_kw is not None:
+        await _apply_limit(db, cp, limit_kw, user.email)
+
+    await db.commit()
+    await db.refresh(cp)
+    return cp
+
+
+@router.post("/charge-points/{charge_point_id}/limit", response_model=ChargePointOut)
+async def set_limit(
+    charge_point_id: uuid.UUID,
+    payload: SetLimitRequest,
+    db: DbSession,
+    site_id: ScopedSiteId,
+    user: OperatorUser,
+):
+    """Slider de limite por ponto (reg 10029)."""
+    cp = await _get_point(db, site_id, charge_point_id)
+    await _apply_limit(db, cp, payload.limit_kw, user.email)
+    await db.commit()
+    await db.refresh(cp)
+    return cp
+
+
+@router.post("/charge-points/{charge_point_id}/throttle", response_model=ChargePointOut)
+async def throttle(
+    charge_point_id: uuid.UUID,
+    db: DbSession,
+    site_id: ScopedSiteId,
+    user: OperatorUser,
+    enabled: bool = Query(default=True),
+):
+    """Corte de emergencia via reg 10000: derruba para a potencia minima sem encerrar a sessao."""
+    cp = await _get_point(db, site_id, charge_point_id)
+    result = await send_command(
+        db, cp, "set_dispatch_throttle", triggered_by=f"operator:{user.email}", throttled=enabled
+    )
+    if not result.ok:
+        raise HTTPException(status_code=502, detail=result.error or "falha ao enviar comando")
+
+    cp.operator_throttled = enabled
+    if enabled:
+        cp.status = ChargePointStatus.SUSPENDED
+    else:
+        # Ao liberar, o estado depende de haver sessao em curso. Assumir CHARGING
+        # marcava como carregando um ponto ocioso, que entao passava a reservar
+        # potencia no rateio sem entregar energia a ninguem. O poller confirma no
+        # proximo ciclo; aqui so evitamos o estado impossivel.
+        ativa = await session_service.active_session_for(db, cp.id)
+        cp.status = ChargePointStatus.CHARGING if ativa else ChargePointStatus.AVAILABLE
+    await db.commit()
+    await db.refresh(cp)
+    return cp
+
+
+async def _get_point(db, site_id, charge_point_id) -> ChargePoint:
+    cp = (
+        await db.execute(
+            select(ChargePoint)
+            .where(ChargePoint.id == charge_point_id, ChargePoint.site_id == site_id)
+            .options(selectinload(ChargePoint.connection))
+        )
+    ).scalar_one_or_none()
+    if cp is None:
+        raise HTTPException(status_code=404, detail="ponto de recarga não encontrado")
+    return cp
+
+
+async def _apply_limit(db, cp: ChargePoint, limit_kw: float, actor: str) -> None:
+    target = max(float(cp.min_kw), min(limit_kw, float(cp.rated_kw)))
+    result = await send_command(
+        db, cp, "set_power_limit", triggered_by=f"operator:{actor}", kw=target
+    )
+    if not result.ok:
+        raise HTTPException(status_code=502, detail=result.error or "falha ao aplicar limite")
+    cp.limit_kw = target
+    # Vira teto de politica: o rateio automatico nao sobe acima disso.
+    cp.operator_max_kw = target

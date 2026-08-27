@@ -1,0 +1,115 @@
+/**
+ * Sessao do motorista. E a mesma logica do AuthContext do painel — inclusive
+ * a hidratacao assincrona, que la existe por causa daqui: o AsyncStorage so
+ * responde por Promise.
+ */
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode
+} from 'react'
+import {
+  auth as authApi,
+  hydrateTokens,
+  saveTokens,
+  type ApiError,
+  type Usuario
+} from '@chargegrid/sdk'
+import { iniciarSdk } from './api'
+
+type Estado = 'checking' | 'anonymous' | 'authenticated'
+
+interface Sessao {
+  user: Usuario | null
+  status: Estado
+  error: string | null
+  login: (email: string, senha: string) => Promise<void>
+  logout: () => Promise<void>
+  limparErro: () => void
+}
+
+const AuthContext = createContext<Sessao | null>(null)
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<Usuario | null>(null)
+  const [status, setStatus] = useState<Estado>('checking')
+  const [error, setError] = useState<string | null>(null)
+
+  // Configura o SDK antes de qualquer requisicao. O callback derruba a sessao
+  // quando o refresh e recusado pelo servidor.
+  useEffect(() => {
+    iniciarSdk(() => {
+      setUser(null)
+      setStatus('anonymous')
+      setError('Sua sessao expirou. Entre novamente.')
+    })
+  }, [])
+
+  // Token guardado nao significa sessao valida — confirmamos com /auth/me.
+  useEffect(() => {
+    if (status !== 'checking') return undefined
+    let cancelado = false
+
+    void (async () => {
+      const tokens = await hydrateTokens()
+      if (cancelado) return
+      if (!tokens) {
+        setStatus('anonymous')
+        return
+      }
+      try {
+        const eu = await authApi.me()
+        if (cancelado) return
+        setUser(eu)
+        setStatus('authenticated')
+      } catch (err) {
+        if (cancelado) return
+        const falha = err as ApiError
+        // API fora do ar nao apaga o token: pode voltar em seguida.
+        if (!falha.isOffline) await saveTokens(null)
+        else setError(falha.detail)
+        setStatus('anonymous')
+      }
+    })()
+
+    return () => {
+      cancelado = true
+    }
+  }, [status])
+
+  const login = useCallback(async (email: string, senha: string) => {
+    setError(null)
+    const tokens = await authApi.login(email, senha)
+    await saveTokens(tokens)
+    const eu = await authApi.me()
+    if (eu.role !== 'driver') {
+      await saveTokens(null)
+      throw new Error('Esta conta e do painel comercial. Use o app com uma conta de motorista.')
+    }
+    setUser(eu)
+    setStatus('authenticated')
+  }, [])
+
+  const logout = useCallback(async () => {
+    await saveTokens(null)
+    setUser(null)
+    setStatus('anonymous')
+  }, [])
+
+  const valor = useMemo<Sessao>(
+    () => ({ user, status, error, login, logout, limparErro: () => setError(null) }),
+    [user, status, error, login, logout]
+  )
+
+  return <AuthContext.Provider value={valor}>{children}</AuthContext.Provider>
+}
+
+export function useAuth(): Sessao {
+  const ctx = useContext(AuthContext)
+  if (!ctx) throw new Error('useAuth precisa estar dentro de <AuthProvider>')
+  return ctx
+}

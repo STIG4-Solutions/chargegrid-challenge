@@ -1,0 +1,31 @@
+{
+  "name": "@chargegrid/sdk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cliente da API ChargeGrid compartilhado pelo painel web e pelo app do motorista",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "gen:types": "openapi-typescript ../../backend/openapi.json -o src/schema.ts",
+    "verify": "node scripts/verify-api-client.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.18",
+    "openapi-typescript": "^7.4.0",
+    "typescript": "^5.6.0",
+    "esbuild": "^0.25.0"
+  }
+}

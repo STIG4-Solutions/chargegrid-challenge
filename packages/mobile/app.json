@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "ChargeGrid",
+    "slug": "chargegrid",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "chargegrid",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0D0D0F"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "br.com.chargegrid.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Usamos sua localizacao para ordenar as estacoes de recarga por distancia."
+      }
+    },
+    "android": {
+      "package": "br.com.chargegrid.app",
+      "edgeToEdgeEnabled": true,
+      "adaptiveIcon": { "backgroundColor": "#0D0D0F" },
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
+    },
+    "plugins": ["expo-status-bar"]
+  }
+}

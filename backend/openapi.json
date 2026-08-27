@@ -1,0 +1,5476 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ChargeGrid Intelligence API",
+    "description": "\nPlataforma de orquestração de recarga EV para **estabelecimentos comerciais** —\no desafio ChargeGrid Intelligence (FIAP × GoodWe).\n\nO eletroposto GoodWe HCA G2 protege apenas o próprio disjuntor, o SEMS+ não expõe\nAPI de EV Charger e, sem OCPP, não existe cobrança. Esta API cobre esses três vazios.\n\n### Gerenciamento de Potência\nOrçamento do site recalculado a cada ciclo (`rede + solar + bateria − reserva predial\n− agendamentos`), rateio por faixa de prioridade e escrita do teto no registrador\n**10029**. Corte imediato sem derrubar sessões pelo registrador **10000**.\n\nPolítica do operador persiste em campo próprio (`operator_max_kw`, `operator_throttled`):\no rateio automático distribui a potência disponível, mas nunca sobrepõe uma decisão humana.\n\n### Ciclo da Sessão\nMáquina de estados da autorização ao faturamento, com trilha de eventos que alimenta a\nlinha do tempo do painel. Sem folga no site a sessão entra em **fila de espera** e é\npromovida quando o orçamento abre — quem já carrega nunca é cortado para dar lugar a um\nrecém-chegado.\n\n### Tarifação & Pagamento\nA cobrança rateia energia e tempo sobre a telemetria, aplicando o preço da **janela\nhorária vigente**: uma sessão das 17h40 às 19h20 paga ponta e fora de ponta corretamente.\nToda aritmética em `Decimal`. A fatura guarda o retrato da tarifa aplicada, então mudar o\npreço amanhã não reescreve a cobrança de ontem.\n\n---\n\n**Autenticação:** clique em *Authorize* e use uma conta criada pelo seed — o\ne-mail do operador com a senha de `SEED_OPERATOR_PASSWORD` (ou a que o seed imprimiu)\n(contas criadas por `python -m app.seed`).\n\n**Erros de domínio** respondem `{\"code\": \"...\", \"detail\": \"...\"}` — o `code` é estável e\nserve para o cliente distinguir causas sem interpretar texto.\n",
+    "contact": {
+      "name": "ChargeGrid Intelligence",
+      "url": "https://www.goodwe.com/"
+    },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "infra"
+        ],
+        "summary": "Health",
+        "description": "Checagem de vida usada pelo Docker e pelo balanceador.",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Health Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "autenticação"
+        ],
+        "summary": "Login",
+        "operationId": "login_api_v1_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenPair"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "tags": [
+          "autenticação"
+        ],
+        "summary": "Refresh",
+        "operationId": "refresh_api_v1_auth_refresh_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenPair"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "tags": [
+          "autenticação"
+        ],
+        "summary": "Register",
+        "description": "Cadastro publico do app mobile - sempre cria motorista.\n\nContas de operador e admin sao criadas por um admin em /users.",
+        "operationId": "register_api_v1_auth_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "tags": [
+          "autenticação"
+        ],
+        "summary": "Me",
+        "operationId": "me_api_v1_auth_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/power/overview": {
+      "get": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "Overview",
+        "description": "Tudo que a tela de potencia precisa em uma chamada.",
+        "operationId": "overview_api_v1_power_overview_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PowerOverview"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/power/budget": {
+      "get": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "Get Budget",
+        "operationId": "get_budget_api_v1_power_budget_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PowerBudgetOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "Update Budget",
+        "operationId": "update_budget_api_v1_power_budget_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PowerBudgetUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PowerBudgetOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/power/meter-readings": {
+      "post": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "Push Meter Reading",
+        "description": "Entrada do smart meter / inversor GoodWe.\n\nEnquanto a API de EV Chargers do SEMS+ nao existe, esta rota e o ponto de\nintegracao: um coletor no site empurra as leituras para ca.",
+        "operationId": "push_meter_reading_api_v1_power_meter_readings_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeterReadingIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Push Meter Reading Api V1 Power Meter Readings Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/power/plan": {
+      "get": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "Preview Plan",
+        "description": "Previa do rateio sem escrever nada no hardware.",
+        "operationId": "preview_plan_api_v1_power_plan_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PowerPlanOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/power/rebalance": {
+      "post": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "Rebalance",
+        "description": "Redistribuir agora - botao do dashboard.",
+        "operationId": "rebalance_api_v1_power_rebalance_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "dry_run",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "calcula e não aplica",
+              "default": false,
+              "title": "Dry Run"
+            },
+            "description": "calcula e não aplica"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Rebalance Api V1 Power Rebalance Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/power/charge-points": {
+      "get": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "List Charge Points",
+        "operationId": "list_charge_points_api_v1_power_charge_points_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ChargePointOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Charge Points Api V1 Power Charge Points Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "Create Charge Point",
+        "operationId": "create_charge_point_api_v1_power_charge_points_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChargePointCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChargePointOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/power/charge-points/{charge_point_id}": {
+      "patch": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "Update Charge Point",
+        "operationId": "update_charge_point_api_v1_power_charge_points__charge_point_id__patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "charge_point_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Charge Point Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChargePointUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChargePointOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/power/charge-points/{charge_point_id}/limit": {
+      "post": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "Set Limit",
+        "description": "Slider de limite por ponto (reg 10029).",
+        "operationId": "set_limit_api_v1_power_charge_points__charge_point_id__limit_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "charge_point_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Charge Point Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetLimitRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChargePointOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/power/charge-points/{charge_point_id}/throttle": {
+      "post": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "Throttle",
+        "description": "Corte de emergencia via reg 10000: derruba para a potencia minima sem encerrar a sessao.",
+        "operationId": "throttle_api_v1_power_charge_points__charge_point_id__throttle_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "charge_point_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Charge Point Id"
+            }
+          },
+          {
+            "name": "enabled",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Enabled"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChargePointOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions": {
+      "get": {
+        "tags": [
+          "recarga ev · sessões"
+        ],
+        "summary": "List Sessions",
+        "operationId": "list_sessions_api_v1_sessions_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/SessionState"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "name": "charge_point_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Charge Point Id"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_SessionOut_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "recarga ev · sessões"
+        ],
+        "summary": "Start Session",
+        "description": "Autoriza e inicia em um passo - e o que o operador espera do botao Iniciar.",
+        "operationId": "start_session_api_v1_sessions_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionStartRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/kpis": {
+      "get": {
+        "tags": [
+          "recarga ev · sessões"
+        ],
+        "summary": "Kpis",
+        "description": "Cartoes do topo da tela de sessoes.",
+        "operationId": "kpis_api_v1_sessions_kpis_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionKpis"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/sessions/{session_id}": {
+      "get": {
+        "tags": [
+          "recarga ev · sessões"
+        ],
+        "summary": "Get Session",
+        "description": "Detalhe com a linha do tempo do ciclo e, se estiver na fila, a posição.",
+        "operationId": "get_session_api_v1_sessions__session_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{session_id}/stop": {
+      "post": {
+        "tags": [
+          "recarga ev · sessões"
+        ],
+        "summary": "Stop Session",
+        "operationId": "stop_session_api_v1_sessions__session_id__stop_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionStopRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{session_id}/preview": {
+      "get": {
+        "tags": [
+          "recarga ev · sessões"
+        ],
+        "summary": "Preview Cost",
+        "description": "Quanto a sessao ja custa agora, com o rateio por janela tarifaria.",
+        "operationId": "preview_cost_api_v1_sessions__session_id__preview_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RatingOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{session_id}/telemetry": {
+      "get": {
+        "tags": [
+          "recarga ev · sessões"
+        ],
+        "summary": "Session Telemetry",
+        "description": "Serie de potencia e energia da sessao - alimenta o grafico do detalhe.",
+        "operationId": "session_telemetry_api_v1_sessions__session_id__telemetry_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "minutes",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1440,
+              "minimum": 1,
+              "default": 120,
+              "title": "Minutes"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  },
+                  "title": "Response Session Telemetry Api V1 Sessions  Session Id  Telemetry Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{session_id}/bill": {
+      "post": {
+        "tags": [
+          "recarga ev · sessões"
+        ],
+        "summary": "Bill",
+        "description": "Fatura manualmente uma sessao encerrada sem cobranca (idempotente).",
+        "operationId": "bill_api_v1_sessions__session_id__bill_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Bill Api V1 Sessions  Session Id  Bill Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tariffs": {
+      "get": {
+        "tags": [
+          "recarga ev · tarifação e pagamento"
+        ],
+        "summary": "List Tariffs",
+        "operationId": "list_tariffs_api_v1_tariffs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TariffOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Tariffs Api V1 Tariffs Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "recarga ev · tarifação e pagamento"
+        ],
+        "summary": "Create Tariff",
+        "operationId": "create_tariff_api_v1_tariffs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TariffCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TariffOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/tariffs/{tariff_id}": {
+      "patch": {
+        "tags": [
+          "recarga ev · tarifação e pagamento"
+        ],
+        "summary": "Update Tariff",
+        "operationId": "update_tariff_api_v1_tariffs__tariff_id__patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tariff_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tariff Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TariffUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TariffOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "recarga ev · tarifação e pagamento"
+        ],
+        "summary": "Delete Tariff",
+        "description": "Remove uma tarifa que nunca foi usada.\n\nTarifa com sessão faturada não é apagada: o histórico de cobrança perderia a\nreferência, e a fatura guarda o snapshot justamente para ser reproduzível. O\ncaminho nesse caso é desativar, e a mensagem diz isso.",
+        "operationId": "delete_tariff_api_v1_tariffs__tariff_id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tariff_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tariff Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tariffs/{tariff_id}/windows": {
+      "put": {
+        "tags": [
+          "recarga ev · tarifação e pagamento"
+        ],
+        "summary": "Replace Windows",
+        "description": "Substitui as janelas de uma vez - o editor do dashboard salva o conjunto inteiro.",
+        "operationId": "replace_windows_api_v1_tariffs__tariff_id__windows_put",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "tariff_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Tariff Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/TariffWindowIn"
+                },
+                "title": "Windows"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TariffOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tariffs/simulate": {
+      "post": {
+        "tags": [
+          "recarga ev · tarifação e pagamento"
+        ],
+        "summary": "Simulate Cost",
+        "description": "Simulador de custo da tela de tarifacao.",
+        "operationId": "simulate_cost_api_v1_tariffs_simulate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RatingOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/payment-methods": {
+      "get": {
+        "tags": [
+          "recarga ev · tarifação e pagamento"
+        ],
+        "summary": "List Payment Methods",
+        "operationId": "list_payment_methods_api_v1_payment_methods_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PaymentMethodOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Payment Methods Api V1 Payment Methods Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "recarga ev · tarifação e pagamento"
+        ],
+        "summary": "Upsert Payment Method",
+        "description": "Habilita ou atualiza um metodo. Um por tipo por site.",
+        "operationId": "upsert_payment_method_api_v1_payment_methods_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentMethodIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentMethodOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/invoices": {
+      "get": {
+        "tags": [
+          "recarga ev · tarifação e pagamento"
+        ],
+        "summary": "List Invoices",
+        "operationId": "list_invoices_api_v1_invoices_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/InvoiceStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_InvoiceOut_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/invoices/{invoice_id}": {
+      "get": {
+        "tags": [
+          "recarga ev · tarifação e pagamento"
+        ],
+        "summary": "Get Invoice",
+        "operationId": "get_invoice_api_v1_invoices__invoice_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "invoice_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Invoice Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/invoices/{invoice_id}/charge": {
+      "post": {
+        "tags": [
+          "recarga ev · tarifação e pagamento"
+        ],
+        "summary": "Charge Invoice",
+        "description": "Dispara a cobranca. Motorista paga a propria fatura; operador pode cobrar qualquer uma.",
+        "operationId": "charge_invoice_api_v1_invoices__invoice_id__charge_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "invoice_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Invoice Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChargeRequestIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/payments/webhook": {
+      "post": {
+        "tags": [
+          "recarga ev · tarifação e pagamento"
+        ],
+        "summary": "Payment Webhook",
+        "description": "Liquidacao assincrona do PSP. Assinatura HMAC obrigatoria.",
+        "operationId": "payment_webhook_api_v1_payments_webhook_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Payment Webhook Api V1 Payments Webhook Post"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/revenue/summary": {
+      "get": {
+        "tags": [
+          "recarga ev · tarifação e pagamento"
+        ],
+        "summary": "Revenue Summary",
+        "description": "Receita bruta x liquida do periodo - o que o lojista realmente leva.",
+        "operationId": "revenue_summary_api_v1_revenue_summary_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 365,
+              "minimum": 1,
+              "default": 30,
+              "title": "Days"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevenueSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/app/stations": {
+      "get": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "Nearby Stations",
+        "description": "Mapa de estacoes com disponibilidade e preco - primeira tela do app.",
+        "operationId": "nearby_stations_api_v1_app_stations_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "latitude",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "maximum": 90.0,
+                  "minimum": -90.0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Latitude"
+            }
+          },
+          {
+            "name": "longitude",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "maximum": 180.0,
+                  "minimum": -180.0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Longitude"
+            }
+          },
+          {
+            "name": "radius_km",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 500.0,
+              "exclusiveMinimum": 0.0,
+              "default": 25,
+              "title": "Radius Km"
+            }
+          },
+          {
+            "name": "only_available",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Only Available"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StationOut"
+                  },
+                  "title": "Response Nearby Stations Api V1 App Stations Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/app/stations/{site_id}/charge-points": {
+      "get": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "Station Points",
+        "operationId": "station_points_api_v1_app_stations__site_id__charge_points_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Site Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StationPointOut"
+                  },
+                  "title": "Response Station Points Api V1 App Stations  Site Id  Charge Points Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/app/sessions": {
+      "post": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "Start From App",
+        "description": "Iniciar recarga pelo app.\n\nA pre-autorizacao existe para o estabelecimento nao ficar com energia\nentregue e sem lastro de pagamento: a sessao para sozinha ao atingir o valor.",
+        "operationId": "start_from_app_api_v1_app_sessions_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "charge_point_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Charge Point Id"
+            }
+          },
+          {
+            "name": "vehicle_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Vehicle Id"
+            }
+          },
+          {
+            "name": "preauth_amount",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "minimum": 0.0,
+              "default": 50.0,
+              "title": "Preauth Amount"
+            }
+          },
+          {
+            "name": "limit_kwh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "exclusiveMinimum": 0.0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Limit Kwh"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "My Sessions",
+        "operationId": "my_sessions_api_v1_app_sessions_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SessionOut"
+                  },
+                  "title": "Response My Sessions Api V1 App Sessions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/app/sessions/active": {
+      "get": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "My Active Session",
+        "operationId": "my_active_session_api_v1_app_sessions_active_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/SessionDetail"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response My Active Session Api V1 App Sessions Active Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/app/sessions/{session_id}/preview": {
+      "get": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "My Session Cost",
+        "operationId": "my_session_cost_api_v1_app_sessions__session_id__preview_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RatingOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/app/sessions/{session_id}/stop": {
+      "post": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "Stop From App",
+        "operationId": "stop_from_app_api_v1_app_sessions__session_id__stop_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/app/reservations": {
+      "get": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "My Reservations",
+        "operationId": "my_reservations_api_v1_app_reservations_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReservationOut"
+                  },
+                  "type": "array",
+                  "title": "Response My Reservations Api V1 App Reservations Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "Create Reservation",
+        "description": "Agendamento com checagem de conflito na janela pedida.",
+        "operationId": "create_reservation_api_v1_app_reservations_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReservationCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservationOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/app/reservations/{reservation_id}": {
+      "delete": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "Cancel Reservation",
+        "operationId": "cancel_reservation_api_v1_app_reservations__reservation_id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "reservation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Reservation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservationOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/app/vehicles": {
+      "get": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "My Vehicles",
+        "operationId": "my_vehicles_api_v1_app_vehicles_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/VehicleOut"
+                  },
+                  "type": "array",
+                  "title": "Response My Vehicles Api V1 App Vehicles Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "Add Vehicle",
+        "operationId": "add_vehicle_api_v1_app_vehicles_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VehicleCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/app/invoices": {
+      "get": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "My Invoices",
+        "operationId": "my_invoices_api_v1_app_invoices_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InvoiceOut"
+                  },
+                  "title": "Response My Invoices Api V1 App Invoices Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/app/wallet/topup": {
+      "post": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "Topup",
+        "description": "Credito na carteira pre-paga.\n\nNa integracao real, o credito so entra depois do webhook do PSP confirmar -\nesta rota representa o passo final desse fluxo.",
+        "operationId": "topup_api_v1_app_wallet_topup_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "amount",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Amount"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Topup Api V1 App Wallet Topup Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AllocationOut": {
+        "properties": {
+          "charge_point_id": {
+            "type": "string",
+            "title": "Charge Point Id"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "priority": {
+            "type": "integer",
+            "title": "Priority"
+          },
+          "requested_kw": {
+            "type": "number",
+            "title": "Requested Kw"
+          },
+          "granted_kw": {
+            "type": "number",
+            "title": "Granted Kw"
+          },
+          "suspended": {
+            "type": "boolean",
+            "title": "Suspended"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "charge_point_id",
+          "code",
+          "priority",
+          "requested_kw",
+          "granted_kw",
+          "suspended",
+          "reason"
+        ],
+        "title": "AllocationOut"
+      },
+      "AuthMethod": {
+        "type": "string",
+        "enum": [
+          "rfid",
+          "app",
+          "plug_and_charge",
+          "reservation",
+          "operator"
+        ],
+        "title": "AuthMethod"
+      },
+      "ChargePointCreate": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 24,
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "Name"
+          },
+          "connector": {
+            "$ref": "#/components/schemas/ConnectorType",
+            "default": "Type 2"
+          },
+          "phase_type": {
+            "$ref": "#/components/schemas/PhaseType",
+            "default": "three_phase"
+          },
+          "rated_kw": {
+            "type": "number",
+            "maximum": 350.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Rated Kw"
+          },
+          "min_kw": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Min Kw",
+            "default": 4.2
+          },
+          "priority": {
+            "type": "integer",
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "Priority",
+            "default": 100
+          },
+          "tariff_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tariff Id"
+          },
+          "host": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Host"
+          },
+          "port": {
+            "type": "integer",
+            "title": "Port",
+            "default": 502
+          },
+          "unit_id": {
+            "type": "integer",
+            "title": "Unit Id",
+            "default": 1
+          },
+          "protocol": {
+            "type": "string",
+            "title": "Protocol",
+            "default": "modbus_tcp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "name",
+          "rated_kw"
+        ],
+        "title": "ChargePointCreate"
+      },
+      "ChargePointOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "serial_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Serial Number"
+          },
+          "connector": {
+            "$ref": "#/components/schemas/ConnectorType"
+          },
+          "phase_type": {
+            "$ref": "#/components/schemas/PhaseType"
+          },
+          "rated_kw": {
+            "type": "number",
+            "title": "Rated Kw"
+          },
+          "min_kw": {
+            "type": "number",
+            "title": "Min Kw"
+          },
+          "limit_kw": {
+            "type": "number",
+            "title": "Limit Kw"
+          },
+          "operator_max_kw": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operator Max Kw"
+          },
+          "operator_throttled": {
+            "type": "boolean",
+            "title": "Operator Throttled"
+          },
+          "current_kw": {
+            "type": "number",
+            "title": "Current Kw"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ChargePointStatus"
+          },
+          "priority": {
+            "type": "integer",
+            "title": "Priority"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "tariff_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tariff Id"
+          },
+          "firmware_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Firmware Version"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "active_faults": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Active Faults"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "code",
+          "name",
+          "serial_number",
+          "connector",
+          "phase_type",
+          "rated_kw",
+          "min_kw",
+          "limit_kw",
+          "operator_max_kw",
+          "operator_throttled",
+          "current_kw",
+          "status",
+          "priority",
+          "enabled",
+          "tariff_id",
+          "firmware_version",
+          "last_seen_at",
+          "active_faults"
+        ],
+        "title": "ChargePointOut"
+      },
+      "ChargePointStatus": {
+        "type": "string",
+        "enum": [
+          "available",
+          "preparing",
+          "charging",
+          "suspended",
+          "finishing",
+          "reserved",
+          "faulted",
+          "offline",
+          "maintenance"
+        ],
+        "title": "ChargePointStatus"
+      },
+      "ChargePointUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "tariff_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tariff Id"
+          },
+          "limit_kw": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit Kw"
+          }
+        },
+        "type": "object",
+        "title": "ChargePointUpdate"
+      },
+      "ChargeRequestIn": {
+        "properties": {
+          "method": {
+            "$ref": "#/components/schemas/PaymentMethodKind"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idempotency Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "method"
+        ],
+        "title": "ChargeRequestIn"
+      },
+      "ConnectorType": {
+        "type": "string",
+        "enum": [
+          "Type 2",
+          "CCS2",
+          "CHAdeMO"
+        ],
+        "title": "ConnectorType"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "InvoiceLineOut": {
+        "properties": {
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "quantity": {
+            "type": "number",
+            "title": "Quantity"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "unit_price": {
+            "type": "number",
+            "title": "Unit Price"
+          },
+          "amount": {
+            "type": "number",
+            "title": "Amount"
+          }
+        },
+        "type": "object",
+        "required": [
+          "position",
+          "kind",
+          "description",
+          "quantity",
+          "unit",
+          "unit_price",
+          "amount"
+        ],
+        "title": "InvoiceLineOut"
+      },
+      "InvoiceOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/InvoiceStatus"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "subtotal": {
+            "type": "number",
+            "title": "Subtotal"
+          },
+          "total": {
+            "type": "number",
+            "title": "Total"
+          },
+          "processing_fee": {
+            "type": "number",
+            "title": "Processing Fee"
+          },
+          "net_amount": {
+            "type": "number",
+            "title": "Net Amount"
+          },
+          "issued_on": {
+            "type": "string",
+            "format": "date",
+            "title": "Issued On"
+          },
+          "paid_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid At"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/InvoiceLineOut"
+            },
+            "type": "array",
+            "title": "Lines",
+            "default": []
+          },
+          "payments": {
+            "items": {
+              "$ref": "#/components/schemas/PaymentOut"
+            },
+            "type": "array",
+            "title": "Payments",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "code",
+          "session_id",
+          "user_id",
+          "status",
+          "currency",
+          "subtotal",
+          "total",
+          "processing_fee",
+          "net_amount",
+          "issued_on",
+          "paid_at"
+        ],
+        "title": "InvoiceOut"
+      },
+      "InvoiceStatus": {
+        "type": "string",
+        "enum": [
+          "draft",
+          "open",
+          "paid",
+          "failed",
+          "refunded",
+          "void"
+        ],
+        "title": "InvoiceStatus"
+      },
+      "LoginRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 6,
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "LoginRequest"
+      },
+      "MeterReadingIn": {
+        "properties": {
+          "recorded_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded At"
+          },
+          "grid_import_kw": {
+            "type": "number",
+            "title": "Grid Import Kw",
+            "default": 0
+          },
+          "pv_kw": {
+            "type": "number",
+            "title": "Pv Kw",
+            "default": 0
+          },
+          "battery_kw": {
+            "type": "number",
+            "title": "Battery Kw",
+            "default": 0
+          },
+          "battery_soc": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Soc"
+          },
+          "building_load_kw": {
+            "type": "number",
+            "title": "Building Load Kw",
+            "default": 0
+          },
+          "ev_load_kw": {
+            "type": "number",
+            "title": "Ev Load Kw",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "MeterReadingIn",
+        "description": "Leitura do smart meter do site (inversor GoodWe, medidor MID ou gateway)."
+      },
+      "Page_InvoiceOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/InvoiceOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "Page[InvoiceOut]"
+      },
+      "Page_SessionOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SessionOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "Page[SessionOut]"
+      },
+      "PaymentMethodIn": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/PaymentMethodKind"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "fee_percent": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Fee Percent",
+            "default": 0
+          },
+          "fee_fixed": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Fee Fixed",
+            "default": 0
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider",
+            "default": "mock"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "label"
+        ],
+        "title": "PaymentMethodIn"
+      },
+      "PaymentMethodKind": {
+        "type": "string",
+        "enum": [
+          "pix",
+          "credit_card",
+          "rfid_subscription",
+          "wallet"
+        ],
+        "title": "PaymentMethodKind"
+      },
+      "PaymentMethodOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/PaymentMethodKind"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "fee_percent": {
+            "type": "number",
+            "title": "Fee Percent"
+          },
+          "fee_fixed": {
+            "type": "number",
+            "title": "Fee Fixed"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "label",
+          "enabled",
+          "fee_percent",
+          "fee_fixed",
+          "provider"
+        ],
+        "title": "PaymentMethodOut"
+      },
+      "PaymentOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "method": {
+            "$ref": "#/components/schemas/PaymentMethodKind"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "amount": {
+            "type": "number",
+            "title": "Amount"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "provider_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Ref"
+          },
+          "qr_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Qr Code"
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Reason"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "method",
+          "status",
+          "amount",
+          "provider",
+          "provider_ref",
+          "qr_code",
+          "failure_reason",
+          "created_at"
+        ],
+        "title": "PaymentOut"
+      },
+      "PhaseType": {
+        "type": "string",
+        "enum": [
+          "single_phase",
+          "three_phase"
+        ],
+        "title": "PhaseType"
+      },
+      "PowerBudgetOut": {
+        "properties": {
+          "grid_limit_kw": {
+            "type": "number",
+            "title": "Grid Limit Kw"
+          },
+          "pv_kw": {
+            "type": "number",
+            "title": "Pv Kw"
+          },
+          "battery_kw": {
+            "type": "number",
+            "title": "Battery Kw"
+          },
+          "reserved_kw": {
+            "type": "number",
+            "title": "Reserved Kw"
+          },
+          "building_load_kw": {
+            "type": "number",
+            "title": "Building Load Kw"
+          },
+          "ev_load_kw": {
+            "type": "number",
+            "title": "Ev Load Kw"
+          },
+          "booked_kw": {
+            "type": "number",
+            "title": "Booked Kw",
+            "default": 0.0
+          },
+          "available_kw": {
+            "type": "number",
+            "title": "Available Kw"
+          },
+          "reading_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reading At"
+          },
+          "reading_stale": {
+            "type": "boolean",
+            "title": "Reading Stale",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "grid_limit_kw",
+          "pv_kw",
+          "battery_kw",
+          "reserved_kw",
+          "building_load_kw",
+          "ev_load_kw",
+          "available_kw"
+        ],
+        "title": "PowerBudgetOut"
+      },
+      "PowerBudgetUpdate": {
+        "properties": {
+          "grid_limit_kw": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grid Limit Kw"
+          },
+          "reserved_kw": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reserved Kw"
+          },
+          "allow_pv_kw": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allow Pv Kw"
+          },
+          "allow_battery_kw": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allow Battery Kw"
+          },
+          "battery_min_soc": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Min Soc"
+          },
+          "main_breaker_current_a": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Main Breaker Current A"
+          }
+        },
+        "type": "object",
+        "title": "PowerBudgetUpdate"
+      },
+      "PowerOverview": {
+        "properties": {
+          "budget": {
+            "$ref": "#/components/schemas/PowerBudgetOut"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/SiteSettingsOut"
+          },
+          "allocated_kw": {
+            "type": "number",
+            "title": "Allocated Kw"
+          },
+          "current_kw": {
+            "type": "number",
+            "title": "Current Kw"
+          },
+          "usage_percent": {
+            "type": "number",
+            "title": "Usage Percent"
+          },
+          "over_budget": {
+            "type": "boolean",
+            "title": "Over Budget"
+          },
+          "active_count": {
+            "type": "integer",
+            "title": "Active Count"
+          },
+          "total_count": {
+            "type": "integer",
+            "title": "Total Count"
+          },
+          "charge_points": {
+            "items": {
+              "$ref": "#/components/schemas/ChargePointOut"
+            },
+            "type": "array",
+            "title": "Charge Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "budget",
+          "settings",
+          "allocated_kw",
+          "current_kw",
+          "usage_percent",
+          "over_budget",
+          "active_count",
+          "total_count",
+          "charge_points"
+        ],
+        "title": "PowerOverview"
+      },
+      "PowerPlanOut": {
+        "properties": {
+          "budget": {
+            "$ref": "#/components/schemas/PowerBudgetOut"
+          },
+          "total_granted_kw": {
+            "type": "number",
+            "title": "Total Granted Kw"
+          },
+          "over_budget": {
+            "type": "boolean",
+            "title": "Over Budget"
+          },
+          "allocations": {
+            "items": {
+              "$ref": "#/components/schemas/AllocationOut"
+            },
+            "type": "array",
+            "title": "Allocations"
+          }
+        },
+        "type": "object",
+        "required": [
+          "budget",
+          "total_granted_kw",
+          "over_budget",
+          "allocations"
+        ],
+        "title": "PowerPlanOut"
+      },
+      "RatedLineOut": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "quantity": {
+            "type": "number",
+            "title": "Quantity"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "unit_price": {
+            "type": "number",
+            "title": "Unit Price"
+          },
+          "amount": {
+            "type": "number",
+            "title": "Amount"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "description",
+          "quantity",
+          "unit",
+          "unit_price",
+          "amount"
+        ],
+        "title": "RatedLineOut"
+      },
+      "RatingOut": {
+        "properties": {
+          "subtotal": {
+            "type": "number",
+            "title": "Subtotal"
+          },
+          "total": {
+            "type": "number",
+            "title": "Total"
+          },
+          "energy_kwh": {
+            "type": "number",
+            "title": "Energy Kwh"
+          },
+          "billable_minutes": {
+            "type": "integer",
+            "title": "Billable Minutes"
+          },
+          "idle_minutes": {
+            "type": "integer",
+            "title": "Idle Minutes"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/RatedLineOut"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "tariff_snapshot": {
+            "type": "object",
+            "title": "Tariff Snapshot",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "required": [
+          "subtotal",
+          "total",
+          "energy_kwh",
+          "billable_minutes",
+          "idle_minutes",
+          "lines"
+        ],
+        "title": "RatingOut"
+      },
+      "RefreshRequest": {
+        "properties": {
+          "refresh_token": {
+            "type": "string",
+            "title": "Refresh Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "refresh_token"
+        ],
+        "title": "RefreshRequest"
+      },
+      "ReservationCreate": {
+        "properties": {
+          "charge_point_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Charge Point Id"
+          },
+          "vehicle_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vehicle Id"
+          },
+          "starts_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Starts At"
+          },
+          "ends_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ends At"
+          },
+          "target_kwh": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Kwh"
+          }
+        },
+        "type": "object",
+        "required": [
+          "charge_point_id",
+          "starts_at",
+          "ends_at"
+        ],
+        "title": "ReservationCreate"
+      },
+      "ReservationOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "charge_point_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Charge Point Id"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ReservationStatus"
+          },
+          "starts_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Starts At"
+          },
+          "ends_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ends At"
+          },
+          "target_kwh": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Kwh"
+          },
+          "reserved_kw": {
+            "type": "number",
+            "title": "Reserved Kw"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "code",
+          "charge_point_id",
+          "user_id",
+          "status",
+          "starts_at",
+          "ends_at",
+          "target_kwh",
+          "reserved_kw"
+        ],
+        "title": "ReservationOut"
+      },
+      "ReservationStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "confirmed",
+          "consumed",
+          "cancelled",
+          "expired"
+        ],
+        "title": "ReservationStatus"
+      },
+      "RevenueSummary": {
+        "properties": {
+          "gross": {
+            "type": "number",
+            "title": "Gross"
+          },
+          "net": {
+            "type": "number",
+            "title": "Net"
+          },
+          "processing_fees": {
+            "type": "number",
+            "title": "Processing Fees"
+          },
+          "paid_invoices": {
+            "type": "integer",
+            "title": "Paid Invoices"
+          },
+          "open_invoices": {
+            "type": "integer",
+            "title": "Open Invoices"
+          },
+          "failed_invoices": {
+            "type": "integer",
+            "title": "Failed Invoices"
+          },
+          "energy_kwh": {
+            "type": "number",
+            "title": "Energy Kwh"
+          },
+          "average_ticket": {
+            "type": "number",
+            "title": "Average Ticket"
+          }
+        },
+        "type": "object",
+        "required": [
+          "gross",
+          "net",
+          "processing_fees",
+          "paid_invoices",
+          "open_invoices",
+          "failed_invoices",
+          "energy_kwh",
+          "average_ticket"
+        ],
+        "title": "RevenueSummary"
+      },
+      "SessionDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "queued_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queued At"
+          },
+          "charge_point_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Charge Point Id"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          },
+          "tariff_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tariff Id"
+          },
+          "state": {
+            "$ref": "#/components/schemas/SessionState"
+          },
+          "auth_method": {
+            "$ref": "#/components/schemas/AuthMethod"
+          },
+          "stop_reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StopReason"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "authorized_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Authorized At"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "energy_kwh": {
+            "type": "number",
+            "title": "Energy Kwh"
+          },
+          "green_energy_kwh": {
+            "type": "number",
+            "title": "Green Energy Kwh"
+          },
+          "duration_s": {
+            "type": "integer",
+            "title": "Duration S"
+          },
+          "idle_minutes": {
+            "type": "integer",
+            "title": "Idle Minutes"
+          },
+          "peak_power_kw": {
+            "type": "number",
+            "title": "Peak Power Kw"
+          },
+          "estimated_cost": {
+            "type": "number",
+            "title": "Estimated Cost"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/SessionEventOut"
+            },
+            "type": "array",
+            "title": "Events",
+            "default": []
+          },
+          "queue_position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queue Position"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "code",
+          "charge_point_id",
+          "user_id",
+          "tariff_id",
+          "state",
+          "auth_method",
+          "stop_reason",
+          "authorized_at",
+          "started_at",
+          "ended_at",
+          "energy_kwh",
+          "green_energy_kwh",
+          "duration_s",
+          "idle_minutes",
+          "peak_power_kw",
+          "estimated_cost",
+          "error_message"
+        ],
+        "title": "SessionDetail"
+      },
+      "SessionEventOut": {
+        "properties": {
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          },
+          "event_type": {
+            "type": "string",
+            "title": "Event Type"
+          },
+          "from_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From State"
+          },
+          "to_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To State"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "payload": {
+            "type": "object",
+            "title": "Payload"
+          }
+        },
+        "type": "object",
+        "required": [
+          "occurred_at",
+          "event_type",
+          "from_state",
+          "to_state",
+          "message",
+          "payload"
+        ],
+        "title": "SessionEventOut"
+      },
+      "SessionKpis": {
+        "properties": {
+          "active": {
+            "type": "integer",
+            "title": "Active"
+          },
+          "queued": {
+            "type": "integer",
+            "title": "Queued"
+          },
+          "today": {
+            "type": "integer",
+            "title": "Today"
+          },
+          "energy_kwh": {
+            "type": "number",
+            "title": "Energy Kwh"
+          },
+          "green_energy_kwh": {
+            "type": "number",
+            "title": "Green Energy Kwh"
+          },
+          "confirmed_revenue": {
+            "type": "number",
+            "title": "Confirmed Revenue"
+          },
+          "pending_revenue": {
+            "type": "number",
+            "title": "Pending Revenue"
+          }
+        },
+        "type": "object",
+        "required": [
+          "active",
+          "queued",
+          "today",
+          "energy_kwh",
+          "green_energy_kwh",
+          "confirmed_revenue",
+          "pending_revenue"
+        ],
+        "title": "SessionKpis"
+      },
+      "SessionOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "queued_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queued At"
+          },
+          "charge_point_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Charge Point Id"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          },
+          "tariff_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tariff Id"
+          },
+          "state": {
+            "$ref": "#/components/schemas/SessionState"
+          },
+          "auth_method": {
+            "$ref": "#/components/schemas/AuthMethod"
+          },
+          "stop_reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StopReason"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "authorized_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Authorized At"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "energy_kwh": {
+            "type": "number",
+            "title": "Energy Kwh"
+          },
+          "green_energy_kwh": {
+            "type": "number",
+            "title": "Green Energy Kwh"
+          },
+          "duration_s": {
+            "type": "integer",
+            "title": "Duration S"
+          },
+          "idle_minutes": {
+            "type": "integer",
+            "title": "Idle Minutes"
+          },
+          "peak_power_kw": {
+            "type": "number",
+            "title": "Peak Power Kw"
+          },
+          "estimated_cost": {
+            "type": "number",
+            "title": "Estimated Cost"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "code",
+          "charge_point_id",
+          "user_id",
+          "tariff_id",
+          "state",
+          "auth_method",
+          "stop_reason",
+          "authorized_at",
+          "started_at",
+          "ended_at",
+          "energy_kwh",
+          "green_energy_kwh",
+          "duration_s",
+          "idle_minutes",
+          "peak_power_kw",
+          "estimated_cost",
+          "error_message"
+        ],
+        "title": "SessionOut"
+      },
+      "SessionStartRequest": {
+        "properties": {
+          "charge_point_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Charge Point Id"
+          },
+          "queue_if_unavailable": {
+            "type": "boolean",
+            "title": "Queue If Unavailable",
+            "default": true
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          },
+          "vehicle_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vehicle Id"
+          },
+          "rfid_uid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rfid Uid"
+          },
+          "auth_method": {
+            "$ref": "#/components/schemas/AuthMethod",
+            "default": "operator"
+          },
+          "preauth_amount": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Preauth Amount",
+            "default": 0
+          },
+          "limit_kwh": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit Kwh"
+          },
+          "limit_minutes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit Minutes"
+          },
+          "limit_amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit Amount"
+          }
+        },
+        "type": "object",
+        "required": [
+          "charge_point_id"
+        ],
+        "title": "SessionStartRequest"
+      },
+      "SessionState": {
+        "type": "string",
+        "enum": [
+          "authorizing",
+          "queued",
+          "starting",
+          "charging",
+          "suspended",
+          "finishing",
+          "finished",
+          "billed",
+          "error"
+        ],
+        "title": "SessionState"
+      },
+      "SessionStopRequest": {
+        "properties": {
+          "reason": {
+            "$ref": "#/components/schemas/StopReason",
+            "default": "remote"
+          },
+          "auto_bill": {
+            "type": "boolean",
+            "title": "Auto Bill",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "SessionStopRequest"
+      },
+      "SetLimitRequest": {
+        "properties": {
+          "limit_kw": {
+            "type": "number",
+            "maximum": 350.0,
+            "minimum": 0.0,
+            "title": "Limit Kw"
+          }
+        },
+        "type": "object",
+        "required": [
+          "limit_kw"
+        ],
+        "title": "SetLimitRequest"
+      },
+      "SimulationRequest": {
+        "properties": {
+          "tariff_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Tariff Id"
+          },
+          "energy_kwh": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Energy Kwh",
+            "default": 0
+          },
+          "minutes": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Minutes",
+            "default": 0
+          },
+          "idle_minutes": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Idle Minutes",
+            "default": 0
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tariff_id"
+        ],
+        "title": "SimulationRequest"
+      },
+      "SiteSettingsOut": {
+        "properties": {
+          "grid_limit_kw": {
+            "type": "number",
+            "title": "Grid Limit Kw"
+          },
+          "reserved_kw": {
+            "type": "number",
+            "title": "Reserved Kw"
+          },
+          "allow_pv_kw": {
+            "type": "boolean",
+            "title": "Allow Pv Kw"
+          },
+          "allow_battery_kw": {
+            "type": "boolean",
+            "title": "Allow Battery Kw"
+          },
+          "battery_min_soc": {
+            "type": "number",
+            "title": "Battery Min Soc"
+          },
+          "main_breaker_current_a": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Main Breaker Current A"
+          }
+        },
+        "type": "object",
+        "required": [
+          "grid_limit_kw",
+          "reserved_kw",
+          "allow_pv_kw",
+          "allow_battery_kw",
+          "battery_min_soc",
+          "main_breaker_current_a"
+        ],
+        "title": "SiteSettingsOut",
+        "description": "Politica de demanda do site - o que o operador edita no painel."
+      },
+      "StationOut": {
+        "properties": {
+          "site_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Site Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitude"
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitude"
+          },
+          "distance_km": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance Km"
+          },
+          "total_points": {
+            "type": "integer",
+            "title": "Total Points"
+          },
+          "available_points": {
+            "type": "integer",
+            "title": "Available Points"
+          },
+          "max_kw": {
+            "type": "number",
+            "title": "Max Kw"
+          },
+          "connectors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Connectors"
+          },
+          "price_per_kwh": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Per Kwh"
+          }
+        },
+        "type": "object",
+        "required": [
+          "site_id",
+          "name",
+          "address",
+          "latitude",
+          "longitude",
+          "total_points",
+          "available_points",
+          "max_kw",
+          "connectors",
+          "price_per_kwh"
+        ],
+        "title": "StationOut",
+        "description": "Estacao vista pelo app mobile (mapa e disponibilidade)."
+      },
+      "StationPointOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "connector": {
+            "type": "string",
+            "title": "Connector"
+          },
+          "rated_kw": {
+            "type": "number",
+            "title": "Rated Kw"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "code",
+          "name",
+          "connector",
+          "rated_kw",
+          "status",
+          "available"
+        ],
+        "title": "StationPointOut",
+        "description": "Ponto de recarga como o app do motorista o ve.\n\nDeliberadamente menor que ChargePointOut: o motorista escolhe uma vaga, nao\nopera o site. Limite de potencia, registrador Modbus e politica do operador\nficam fora."
+      },
+      "StopReason": {
+        "type": "string",
+        "enum": [
+          "queue_timeout",
+          "local",
+          "remote",
+          "ev_disconnected",
+          "energy_limit",
+          "time_limit",
+          "amount_limit",
+          "power_shortage",
+          "fault",
+          "deauthorized"
+        ],
+        "title": "StopReason"
+      },
+      "TariffCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "Name"
+          },
+          "type": {
+            "$ref": "#/components/schemas/TariffType",
+            "default": "per_kwh"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active",
+            "default": true
+          },
+          "price_per_kwh": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Price Per Kwh",
+            "default": 0
+          },
+          "price_per_min": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Price Per Min",
+            "default": 0
+          },
+          "idle_fee_per_min": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Idle Fee Per Min",
+            "default": 0
+          },
+          "session_fee": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Session Fee",
+            "default": 0
+          },
+          "min_charge": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Min Charge",
+            "default": 0
+          },
+          "free_minutes": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Free Minutes",
+            "default": 0
+          },
+          "dynamic_enabled": {
+            "type": "boolean",
+            "title": "Dynamic Enabled",
+            "default": false
+          },
+          "dynamic_multiplier": {
+            "type": "number",
+            "maximum": 5.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Dynamic Multiplier",
+            "default": 1.0
+          },
+          "windows": {
+            "items": {
+              "$ref": "#/components/schemas/TariffWindowIn"
+            },
+            "type": "array",
+            "title": "Windows",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "TariffCreate"
+      },
+      "TariffOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "$ref": "#/components/schemas/TariffType"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          },
+          "price_per_kwh": {
+            "type": "number",
+            "title": "Price Per Kwh"
+          },
+          "price_per_min": {
+            "type": "number",
+            "title": "Price Per Min"
+          },
+          "idle_fee_per_min": {
+            "type": "number",
+            "title": "Idle Fee Per Min"
+          },
+          "session_fee": {
+            "type": "number",
+            "title": "Session Fee"
+          },
+          "min_charge": {
+            "type": "number",
+            "title": "Min Charge"
+          },
+          "free_minutes": {
+            "type": "integer",
+            "title": "Free Minutes"
+          },
+          "dynamic_enabled": {
+            "type": "boolean",
+            "title": "Dynamic Enabled"
+          },
+          "dynamic_multiplier": {
+            "type": "number",
+            "title": "Dynamic Multiplier"
+          },
+          "windows": {
+            "items": {
+              "$ref": "#/components/schemas/TariffWindowOut"
+            },
+            "type": "array",
+            "title": "Windows",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "type",
+          "currency",
+          "active",
+          "price_per_kwh",
+          "price_per_min",
+          "idle_fee_per_min",
+          "session_fee",
+          "min_charge",
+          "free_minutes",
+          "dynamic_enabled",
+          "dynamic_multiplier"
+        ],
+        "title": "TariffOut"
+      },
+      "TariffType": {
+        "type": "string",
+        "enum": [
+          "per_kwh",
+          "per_time",
+          "time_of_use",
+          "flat"
+        ],
+        "title": "TariffType"
+      },
+      "TariffUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active"
+          },
+          "price_per_kwh": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Per Kwh"
+          },
+          "price_per_min": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Per Min"
+          },
+          "idle_fee_per_min": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idle Fee Per Min"
+          },
+          "session_fee": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Fee"
+          },
+          "min_charge": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Charge"
+          },
+          "free_minutes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Free Minutes"
+          },
+          "dynamic_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dynamic Enabled"
+          },
+          "dynamic_multiplier": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 5.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dynamic Multiplier"
+          }
+        },
+        "type": "object",
+        "title": "TariffUpdate"
+      },
+      "TariffWindowIn": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          },
+          "day_mask": {
+            "type": "integer",
+            "maximum": 127.0,
+            "minimum": 0.0,
+            "title": "Day Mask",
+            "default": 127
+          },
+          "starts_at": {
+            "type": "string",
+            "format": "time",
+            "title": "Starts At"
+          },
+          "ends_at": {
+            "type": "string",
+            "format": "time",
+            "title": "Ends At"
+          },
+          "price_per_kwh": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Price Per Kwh",
+            "default": 0
+          },
+          "price_per_min": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Price Per Min",
+            "default": 0
+          },
+          "idle_fee_per_min": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Idle Fee Per Min",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "starts_at",
+          "ends_at"
+        ],
+        "title": "TariffWindowIn"
+      },
+      "TariffWindowOut": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "default": ""
+          },
+          "day_mask": {
+            "type": "integer",
+            "maximum": 127.0,
+            "minimum": 0.0,
+            "title": "Day Mask",
+            "default": 127
+          },
+          "starts_at": {
+            "type": "string",
+            "format": "time",
+            "title": "Starts At"
+          },
+          "ends_at": {
+            "type": "string",
+            "format": "time",
+            "title": "Ends At"
+          },
+          "price_per_kwh": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Price Per Kwh",
+            "default": 0
+          },
+          "price_per_min": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Price Per Min",
+            "default": 0
+          },
+          "idle_fee_per_min": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Idle Fee Per Min",
+            "default": 0
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "starts_at",
+          "ends_at",
+          "id"
+        ],
+        "title": "TariffWindowOut"
+      },
+      "TokenPair": {
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "title": "Access Token"
+          },
+          "refresh_token": {
+            "type": "string",
+            "title": "Refresh Token"
+          },
+          "token_type": {
+            "type": "string",
+            "title": "Token Type",
+            "default": "bearer"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In"
+          }
+        },
+        "type": "object",
+        "required": [
+          "access_token",
+          "refresh_token",
+          "expires_in"
+        ],
+        "title": "TokenPair"
+      },
+      "UserCreate": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "full_name": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 2,
+            "title": "Full Name"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "title": "Password"
+          },
+          "role": {
+            "$ref": "#/components/schemas/UserRole",
+            "default": "driver"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "document": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document"
+          },
+          "site_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "full_name",
+          "password"
+        ],
+        "title": "UserCreate"
+      },
+      "UserOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "role": {
+            "$ref": "#/components/schemas/UserRole"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "document": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document"
+          },
+          "site_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site Id"
+          },
+          "wallet_balance": {
+            "type": "number",
+            "title": "Wallet Balance"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "email",
+          "full_name",
+          "role",
+          "is_active",
+          "phone",
+          "document",
+          "site_id",
+          "wallet_balance",
+          "created_at"
+        ],
+        "title": "UserOut"
+      },
+      "UserRole": {
+        "type": "string",
+        "enum": [
+          "admin",
+          "operator",
+          "driver"
+        ],
+        "title": "UserRole"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "VehicleCreate": {
+        "properties": {
+          "model": {
+            "type": "string",
+            "maxLength": 80,
+            "title": "Model"
+          },
+          "plate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plate"
+          },
+          "vin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vin"
+          },
+          "battery_kwh": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Kwh"
+          },
+          "max_ac_kw": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Ac Kw"
+          }
+        },
+        "type": "object",
+        "required": [
+          "model"
+        ],
+        "title": "VehicleCreate"
+      },
+      "VehicleOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "plate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plate"
+          },
+          "vin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vin"
+          },
+          "battery_kwh": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Kwh"
+          },
+          "max_ac_kw": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Ac Kw"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "model",
+          "plate",
+          "vin",
+          "battery_kwh",
+          "max_ac_kw"
+        ],
+        "title": "VehicleOut"
+      }
+    },
+    "securitySchemes": {
+      "OAuth2PasswordBearer": {
+        "type": "oauth2",
+        "flows": {
+          "password": {
+            "scopes": {},
+            "tokenUrl": "/api/v1/auth/token"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "autenticação",
+      "description": "Login do painel e do app mobile pelo mesmo emissor. O *access token* dura 1 h e o *refresh* 30 dias. Papéis: `admin`, `operator` (painel) e `driver` (app)."
+    },
+    {
+      "name": "recarga ev · potência",
+      "description": "Controle de demanda. `GET /power/overview` entrega orçamento, KPIs e pontos numa chamada só; `GET /power/plan` calcula o rateio **sem tocar no hardware**."
+    },
+    {
+      "name": "recarga ev · sessões",
+      "description": "Ciclo completo da recarga, incluindo a fila de espera. Toda transição vira evento consultável em `GET /sessions/{id}`."
+    },
+    {
+      "name": "recarga ev · tarifação e pagamento",
+      "description": "Políticas de preço, janelas horárias, faturas e cobrança. O tipo declarado da tarifa restringe os componentes que ela pode cobrar."
+    },
+    {
+      "name": "app mobile",
+      "description": "Escopo do motorista: mapa de estações, início com pré-autorização, agendamento, carteira e faturas próprias. Um agendamento **segura potência** no orçamento do site até ser usado."
+    },
+    {
+      "name": "tempo real",
+      "description": "O SEMS+ só responde a consulta. Este WebSocket empurra telemetria e plano de potência, e é o que faz o painel mudar sozinho."
+    },
+    {
+      "name": "infra",
+      "description": "Checagem de vida usada pelo Docker e pelo balanceador."
+    }
+  ]
+}
