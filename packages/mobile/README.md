@@ -167,6 +167,7 @@ Quatro abas — **Mapa**, **Agenda**, **Histórico** e **Perfil** — com telas 
 | Agendar recarga | `src/screens/NewReservationScreen.tsx` | `app.stations`, `app.stationChargePoints`, `app.myVehicles`, `app.createReservation` |
 | Histórico (recargas e faturas) | `src/screens/HistoryScreen.tsx` | `app.mySessions`, `app.myInvoices` |
 | Perfil (carteira e veículos) | `src/screens/ProfileScreen.tsx` | `app.myVehicles`, `app.addVehicle`, `app.topUpWallet` |
+| Ler QR do carregador | `src/screens/ScannerScreen.tsx` | `app.chargePointByCode` |
 
 Todos os catorze endpoints do escopo `/app/*` têm tela.
 
@@ -202,11 +203,27 @@ npx expo export --platform android --output-dir .expo-bundle
 npx expo export --platform ios --output-dir .expo-bundle
 ```
 
-## O que ainda não tem
+## Leitura de QR
 
-**Leitura de QR code no ponto.** Precisaria de um `GET /app/charge-points/by-code/{código}`
-no backend e de acesso à câmera (`expo-camera`). Hoje o motorista escolhe a vaga na tela da
-estação, que resolve o mesmo problema sem módulo nativo a mais.
+O adesivo do carregador pode trazer três formatos, e `src/qr.ts` normaliza os três:
+
+```
+CP-01                                 código puro
+chargegrid://cp/CP-01                 deeplink do app
+https://chargegrid.com.br/cp/CP-01    URL — o formato recomendado
+```
+
+A URL é preferível: quem não tem o app instalado cai numa página em vez de num texto sem
+sentido. `conteudoDoQr(codigo)` gera o conteúdo a imprimir.
+
+Depois de ler, o app resolve o código pela API e abre a estação **com o ponto lido no topo**,
+marcado — escanear e depois procurar a vaga numa lista anularia o ganho.
+
+> **Há sempre a digitação manual.** Adesivo em carregador de rua fica sujo, riscado e
+> vandalizado; sem essa saída o motorista fica preso. É também por ela que o fluxo é testável
+> sem câmera.
+
+## O que ainda não tem
 
 **Pagamento real.** A carteira credita direto; não há provedor. Na integração de verdade o
 crédito só entra depois que o PSP confirma — a rota `POST /app/wallet/topup` representa esse

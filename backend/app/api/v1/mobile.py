@@ -38,6 +38,7 @@ from app.schemas.ev import (
     RatingOut,
     ReservationCreate,
     ReservationOut,
+    ScannedChargePointOut,
     SessionDetail,
     SessionOut,
     StationOut,
@@ -145,6 +146,47 @@ async def station_points(
         )
         for cp in points
     ]
+
+
+@router.get("/charge-points/by-code/{codigo}", response_model=ScannedChargePointOut)
+async def charge_point_by_code(codigo: str, db: DbSession, _: CurrentUser):
+    """Resolve o ponto pelo codigo do QR colado no carregador.
+
+    O QR pode trazer o codigo puro (CP-01) ou uma URL que termina nele
+    (chargegrid://cp/CP-01, https://.../cp/CP-01) - quem normaliza e' o app.
+    Aqui a comparacao ignora caixa e espacos, porque codigo digitado a mao
+    chega de todo jeito.
+    """
+    limpo = codigo.strip()
+    if not limpo:
+        raise HTTPException(status_code=422, detail="código vazio")
+
+    linha = (
+        await db.execute(
+            select(ChargePoint, Site)
+            .join(Site, Site.id == ChargePoint.site_id)
+            .where(func.upper(ChargePoint.code) == limpo.upper())
+        )
+    ).first()
+    if linha is None:
+        raise HTTPException(status_code=404, detail=f"nenhum ponto com o código {limpo}")
+
+    cp, site = linha
+    if not cp.enabled:
+        raise HTTPException(status_code=409, detail=f"{cp.code} está fora de operação")
+
+    return ScannedChargePointOut(
+        id=cp.id,
+        code=cp.code,
+        name=cp.name,
+        connector=str(cp.connector),
+        rated_kw=float(cp.rated_kw),
+        status=str(cp.status),
+        available=cp.status == ChargePointStatus.AVAILABLE,
+        site_id=site.id,
+        site_name=site.name,
+        site_address=site.address,
+    )
 
 
 @router.post("/sessions", response_model=SessionDetail, status_code=201)

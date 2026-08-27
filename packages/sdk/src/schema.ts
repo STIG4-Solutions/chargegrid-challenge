@@ -646,6 +646,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/app/charge-points/by-code/{codigo}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Charge Point By Code
+         * @description Resolve o ponto pelo codigo do QR colado no carregador.
+         *
+         *     O QR pode trazer o codigo puro (CP-01) ou uma URL que termina nele
+         *     (chargegrid://cp/CP-01, https://.../cp/CP-01) - quem normaliza e' o app.
+         *     Aqui a comparacao ignora caixa e espacos, porque codigo digitado a mao
+         *     chega de todo jeito.
+         */
+        get: operations["charge_point_by_code_api_v1_app_charge_points_by_code__codigo__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/app/sessions": {
         parameters: {
             query?: never;
@@ -1371,6 +1396,41 @@ export interface components {
             energy_kwh: number;
             /** Average Ticket */
             average_ticket: number;
+        };
+        /**
+         * ScannedChargePointOut
+         * @description Ponto resolvido a partir do codigo lido no QR colado no carregador.
+         *
+         *     Traz o contexto da estacao junto: quem chega por aqui tem so' o codigo na
+         *     mao e precisa saber onde esta antes de decidir iniciar a recarga.
+         */
+        ScannedChargePointOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /** Connector */
+            connector: string;
+            /** Rated Kw */
+            rated_kw: number;
+            /** Status */
+            status: string;
+            /** Available */
+            available: boolean;
+            /**
+             * Site Id
+             * Format: uuid
+             */
+            site_id: string;
+            /** Site Name */
+            site_name: string;
+            /** Site Address */
+            site_address?: string | null;
         };
         /** SessionDetail */
         SessionDetail: {
@@ -3123,6 +3183,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StationPointOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    charge_point_by_code_api_v1_app_charge_points_by_code__codigo__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                codigo: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScannedChargePointOut"];
                 };
             };
             /** @description Validation Error */

@@ -420,6 +420,18 @@ class StationPointOut(BaseModel):
     available: bool
 
 
+class ScannedChargePointOut(StationPointOut):
+    """Ponto resolvido a partir do codigo lido no QR colado no carregador.
+
+    Traz o contexto da estacao junto: quem chega por aqui tem so' o codigo na
+    mao e precisa saber onde esta antes de decidir iniciar a recarga.
+    """
+
+    site_id: uuid.UUID
+    site_name: str
+    site_address: str | None = None
+
+
 class StationOut(BaseModel):
     """Estacao vista pelo app mobile (mapa e disponibilidade)."""
 

@@ -16,7 +16,8 @@
       "supportsTablet": false,
       "bundleIdentifier": "br.com.chargegrid.app",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Usamos sua localizacao para ordenar as estacoes de recarga por distancia."
+        "NSLocationWhenInUseUsageDescription": "Usamos sua localizacao para ordenar as estacoes de recarga por distancia.",
+        "NSCameraUsageDescription": "Usamos a câmera apenas para ler o QR code colado no carregador e identificar a vaga."
       },
       "icon": "./assets/icon.png"
     },
@@ -28,7 +29,8 @@
       },
       "permissions": [
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION"
+        "ACCESS_FINE_LOCATION",
+        "CAMERA"
       ],
       "config": {
         "_comentario": "O mapa no Android usa Google Maps e exige chave propria. Sem ela o componente renderiza um quadro cinza - a lista de estacoes abaixo continua funcionando. Gere em console.cloud.google.com (Maps SDK for Android) e preencha googleMaps.apiKey. No iOS o mapa usa Apple Maps e nao precisa de chave.",
@@ -45,6 +47,12 @@
           "android": {
             "usesCleartextTraffic": true
           }
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Usamos a câmera apenas para ler o QR code colado no carregador."
         }
       ]
     ],

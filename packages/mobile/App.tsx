@@ -12,6 +12,7 @@ import SessionScreen from './src/screens/SessionScreen'
 import StationScreen from './src/screens/StationScreen'
 import ReservationsScreen from './src/screens/ReservationsScreen'
 import NewReservationScreen from './src/screens/NewReservationScreen'
+import ScannerScreen from './src/screens/ScannerScreen'
 import HistoryScreen from './src/screens/HistoryScreen'
 import ProfileScreen from './src/screens/ProfileScreen'
 import type { Abas, RotasApp } from './src/navigation'
@@ -95,6 +96,11 @@ function Rotas() {
         name="NovoAgendamento"
         component={NewReservationScreen}
         options={{ title: 'Agendar recarga' }}
+      />
+      <Stack.Screen
+        name="Escanear"
+        component={ScannerScreen}
+        options={{ title: 'Ler QR do carregador' }}
       />
     </Stack.Navigator>
   )

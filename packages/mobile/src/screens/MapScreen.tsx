@@ -33,7 +33,7 @@ const REGIAO_PADRAO = {
 }
 
 export default function MapScreen({ navigation }: PropsAba<'Mapa'>) {
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
 
   const estacoes = useApi<Estacao[]>(() => app.stations(), [], { pollMs: 30000 })
   // A sessao ativa manda o motorista direto para o acompanhamento.
@@ -59,7 +59,7 @@ export default function MapScreen({ navigation }: PropsAba<'Mapa'>) {
           <Text style={s.ola}>Ola, {user?.full_name?.split(' ')[0] ?? 'motorista'}</Text>
           <Text style={s.carteira}>Carteira {brl(user?.wallet_balance ?? 0)}</Text>
         </View>
-        <Botao titulo="Sair" variante="secundario" onPress={() => void logout()} />
+        <Botao titulo="Ler QR" onPress={() => navigation.navigate('Escanear')} />
       </View>
 
       {ativa.data && (

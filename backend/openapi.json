@@ -1879,6 +1879,54 @@
         }
       }
     },
+    "/api/v1/app/charge-points/by-code/{codigo}": {
+      "get": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "Charge Point By Code",
+        "description": "Resolve o ponto pelo codigo do QR colado no carregador.\n\nO QR pode trazer o codigo puro (CP-01) ou uma URL que termina nele\n(chargegrid://cp/CP-01, https://.../cp/CP-01) - quem normaliza e' o app.\nAqui a comparacao ignora caixa e espacos, porque codigo digitado a mao\nchega de todo jeito.",
+        "operationId": "charge_point_by_code_api_v1_app_charge_points_by_code__codigo__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "codigo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Codigo"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScannedChargePointOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/app/sessions": {
       "post": {
         "tags": [
@@ -3872,6 +3920,73 @@
           "average_ticket"
         ],
         "title": "RevenueSummary"
+      },
+      "ScannedChargePointOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "connector": {
+            "type": "string",
+            "title": "Connector"
+          },
+          "rated_kw": {
+            "type": "number",
+            "title": "Rated Kw"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "site_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Site Id"
+          },
+          "site_name": {
+            "type": "string",
+            "title": "Site Name"
+          },
+          "site_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site Address"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "code",
+          "name",
+          "connector",
+          "rated_kw",
+          "status",
+          "available",
+          "site_id",
+          "site_name"
+        ],
+        "title": "ScannedChargePointOut",
+        "description": "Ponto resolvido a partir do codigo lido no QR colado no carregador.\n\nTraz o contexto da estacao junto: quem chega por aqui tem so' o codigo na\nmao e precisa saber onde esta antes de decidir iniciar a recarga."
       },
       "SessionDetail": {
         "properties": {

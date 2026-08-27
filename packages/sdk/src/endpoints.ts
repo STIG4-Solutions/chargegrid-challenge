@@ -86,6 +86,9 @@ export const app = {
     api.get<T.Estacao[]>('/app/stations', params),
   stationChargePoints: (siteId: string) =>
     api.get<T.PontoDaEstacao[]>(`/app/stations/${siteId}/charge-points`),
+  /** Resolve o ponto pelo codigo lido no QR colado no carregador. */
+  chargePointByCode: (codigo: string) =>
+    api.get<T.PontoLido>(`/app/charge-points/by-code/${encodeURIComponent(codigo)}`),
   startSession: (params: { charge_point_id: string; preauth_amount?: number }) =>
     api.post<T.SessaoDetalhada>('/app/sessions', undefined, params),
   mySessions: (limit = 20) => api.get<T.Sessao[]>('/app/sessions', { limit }),

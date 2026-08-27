@@ -13,8 +13,16 @@ import { Aviso, Botao, Carregando, Etiqueta } from '../components'
 import { cores, espaco, raio } from '../theme'
 import type { Props } from '../navigation'
 
+/** O ponto lido no QR vai para o topo: o motorista escaneou aquele, nao a lista. */
+function ordenar(pontos: PontoDaEstacao[], destaque?: string): PontoDaEstacao[] {
+  if (!destaque) return pontos
+  return [...pontos].sort((a, b) =>
+    a.code === destaque ? -1 : b.code === destaque ? 1 : 0
+  )
+}
+
 export default function StationScreen({ route, navigation }: Props<'Estacao'>) {
-  const { siteId, nome } = route.params
+  const { siteId, nome, destaque } = route.params
 
   useLayoutEffect(() => {
     navigation.setOptions({ title: nome })
@@ -42,7 +50,7 @@ export default function StationScreen({ route, navigation }: Props<'Estacao'>) {
   return (
     <View style={s.tela}>
       <FlatList
-        data={pontos.data ?? []}
+        data={ordenar(pontos.data ?? [], destaque)}
         keyExtractor={(p) => p.id}
         contentContainerStyle={s.conteudo}
         refreshControl={
@@ -71,8 +79,10 @@ export default function StationScreen({ route, navigation }: Props<'Estacao'>) {
         }
         renderItem={({ item }) => {
           const rotulo = meta(chargePointStatus, item.status)
+          const lido = destaque != null && item.code === destaque
           return (
-            <View style={s.card}>
+            <View style={[s.card, lido && s.cardLido]}>
+              {lido && <Text style={s.marcaLido}>Ponto que você escaneou</Text>}
               <View style={s.cardTopo}>
                 <View style={s.cardIdent}>
                   <Text style={s.cardNome}>{item.name}</Text>
@@ -108,6 +118,14 @@ const s = StyleSheet.create({
   tela: { flex: 1, backgroundColor: cores.fundo },
   conteudo: { padding: espaco.md, gap: espaco.sm, paddingBottom: espaco.xl },
   topo: { gap: espaco.sm, marginBottom: espaco.sm },
+  cardLido: { borderColor: cores.acento },
+  marcaLido: {
+    color: cores.acento,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase'
+  },
   card: {
     backgroundColor: cores.superficie,
     borderColor: cores.borda,

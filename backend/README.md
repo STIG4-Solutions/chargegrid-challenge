@@ -297,6 +297,7 @@ só enxerga o que é dele.
 
 `GET /app/stations` (mapa com disponibilidade e preço, ordenado por distância) ·
 `GET /app/stations/{site_id}/charge-points` (vagas da estação) ·
+`GET /app/charge-points/by-code/{código}` (QR colado no carregador) ·
 `POST /app/sessions` (iniciar com pré-autorização) · `GET /app/sessions/active` ·
 `GET /app/sessions/{id}/preview` (custo pelo mesmo motor que fatura) · `POST /app/sessions/{id}/stop` ·
 `POST /app/reservations` (agendamento com checagem de conflito) · `GET /app/invoices` ·

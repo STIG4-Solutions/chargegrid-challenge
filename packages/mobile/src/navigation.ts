@@ -13,9 +13,10 @@ export type Abas = {
 /** Telas empilhadas sobre as abas, sempre alcancadas a partir de uma delas. */
 export type RotasApp = {
   Abas: undefined
-  Estacao: { siteId: string; nome: string }
+  Estacao: { siteId: string; nome: string; destaque?: string }
   Sessao: undefined
   NovoAgendamento: undefined
+  Escanear: undefined
 }
 
 export type Props<R extends keyof RotasApp> = NativeStackScreenProps<RotasApp, R>
