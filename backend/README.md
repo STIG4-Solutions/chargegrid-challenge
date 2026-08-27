@@ -111,12 +111,27 @@ uvicorn app.main:app --reload
 ## Testes
 
 ```bash
-pytest -q          # 43 testes: rateio, fila, tarifação, coerência e guarda de segredo
+pytest -q          # 92 testes
 ruff check app     # lint
 ```
 
-Os testes cobrem as duas regras que não podem errar: **nunca estourar o orçamento do site**
-e **cobrar cada trecho pelo preço da janela vigente**.
+| Arquivo | O que protege |
+|---|---|
+| `test_power_allocation.py` | rateio por prioridade — nunca estourar o orçamento do site |
+| `test_session_lifecycle.py` | máquina de estados: fila, telemetria, ociosidade, encerramento |
+| `test_billing.py` | idempotência da fatura, linhas, mínimo, taxa do adquirente |
+| `test_payments.py` | carteira, idempotência da cobrança, liquidação por meio |
+| `test_tariff_engine.py` · `test_tariff_rules.py` | preço por janela vigente e coerência da tarifa |
+| `test_virtual_meter.py` | curvas do medidor sintético |
+| `test_config_guard.py` | recusa subir em produção com segredo público |
+
+**Os testes de serviço rodam contra um Postgres de verdade**, num banco `<db>_test` criado e
+migrado automaticamente na primeira execução. Não é preciosismo: os modelos usam tipos que só
+existem no Postgres e o código das sessões vem de uma `SEQUENCE` criada pela migration — um
+SQLite fingindo ser Postgres passaria em testes que a produção reprovaria.
+
+Cada teste roda dentro de uma transação desfeita no fim, então nada sobra no banco e a ordem
+de execução não importa. O `conftest.py` explica os detalhes.
 
 Com a API no ar, o teste de fumaça percorre o fluxo comercial inteiro — login, orçamento,
 sessão, fila de espera, agendamento e cobrança Pix — em 56 cenários:

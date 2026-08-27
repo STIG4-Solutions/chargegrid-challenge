@@ -44,17 +44,24 @@ async def charge_invoice(
     payer: User | None = None,
 ) -> Payment:
     """Cria a cobranca. A chave de idempotencia protege contra retry do app."""
-    if invoice.status == InvoiceStatus.PAID:
-        raise Conflict("fatura já paga")
-    if float(invoice.total) <= 0:
-        raise PaymentError("fatura sem valor a cobrar")
-
+    # A idempotencia vem antes de qualquer guarda, e nao depois.
+    #
+    # O caso que ela existe para atender e' exatamente este: a primeira chamada
+    # deu certo, a fatura virou PAID, e a resposta se perdeu no caminho. Com a
+    # checagem de "ja paga" na frente, o retry do app tomava 409 e a tela
+    # mostrava erro num pagamento que tinha funcionado. Devolver o pagamento
+    # original e' a unica resposta correta para a mesma chave.
     if idempotency_key:
         existing = (
             await db.execute(select(Payment).where(Payment.idempotency_key == idempotency_key))
         ).scalar_one_or_none()
         if existing is not None:
             return existing
+
+    if invoice.status == InvoiceStatus.PAID:
+        raise Conflict("fatura já paga")
+    if float(invoice.total) <= 0:
+        raise PaymentError("fatura sem valor a cobrar")
 
     method = await _method_config(db, invoice.site_id, kind)
 

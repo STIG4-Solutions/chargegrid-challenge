@@ -125,7 +125,12 @@ async def bill_session(db: AsyncSession, session: ChargingSession) -> Invoice:
             db, session, SessionState.BILLED, message=f"Fatura {invoice.code} emitida"
         )
     await db.commit()
-    await db.refresh(invoice)
+    # Recarrega pelo mesmo caminho que a fatura ja existente usa la em cima.
+    # O db.refresh() sozinho expira a colecao `lines` que acabou de ser montada,
+    # e quem tocasse invoice.lines em seguida levaria um MissingGreenlet - o
+    # carregamento preguicoso nao roda em contexto assincrono. Assim as duas
+    # saidas da funcao devolvem a mesma coisa.
+    invoice = await get_invoice(db, invoice.id)
     log.info("invoice.created", code=invoice.code, total=float(invoice.total))
     return invoice
 
