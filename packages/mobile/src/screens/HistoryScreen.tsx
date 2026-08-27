@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native'
 import { app, brl, duration, num, useApi, type Fatura, type Sessao } from '@chargegrid/sdk'
-import { Aviso, Carregando, Etiqueta } from '../components'
+import { Aviso, Carregando, Etiqueta, Tela } from '../components'
 import { dataCurta, dataHora, statusFatura } from '../format'
 import { cores, espaco, raio } from '../theme'
 
@@ -27,7 +27,7 @@ export default function HistoryScreen() {
   const totalVerde = (sessoes.data ?? []).reduce((t, x) => t + x.green_energy_kwh, 0)
 
   return (
-    <View style={s.tela}>
+    <Tela>
       <View style={s.cabecalho}>
         <Text style={s.titulo}>Histórico</Text>
         <View style={s.guias}>
@@ -147,7 +147,7 @@ export default function HistoryScreen() {
           }}
         />
       )}
-    </View>
+    </Tela>
   )
 }
 

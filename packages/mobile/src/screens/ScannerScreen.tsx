@@ -1,8 +1,9 @@
 import { useCallback, useRef, useState } from 'react'
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { useIsFocused } from '@react-navigation/native'
 import { CameraView, useCameraPermissions } from 'expo-camera'
 import { app, useAction, type ApiError, type PontoLido } from '@chargegrid/sdk'
-import { Aviso, Botao } from '../components'
+import { Aviso, Botao, useRecuoInferior } from '../components'
 import { codigoDoQr } from '../qr'
 import { cores, espaco, raio } from '../theme'
 import type { Props } from '../navigation'
@@ -12,6 +13,12 @@ export default function ScannerScreen({ navigation }: Props<'Escanear'>) {
   const [digitando, setDigitando] = useState(false)
   const [codigoManual, setCodigoManual] = useState('')
   const [naoReconhecido, setNaoReconhecido] = useState<string | null>(null)
+  const [falhaDaCamera, setFalhaDaCamera] = useState(false)
+  const recuo = useRecuoInferior()
+
+  // A previa e' uma superficie nativa: se continuar montada quando a tela sai de
+  // foco, ela volta preta na proxima visita. Desmontar junto com o foco resolve.
+  const focada = useIsFocused()
 
   // A camera dispara varias leituras por segundo do mesmo QR. Sem a trava, a
   // primeira ja navega e as seguintes empilham telas iguais por cima.
@@ -52,145 +59,130 @@ export default function ScannerScreen({ navigation }: Props<'Escanear'>) {
   }
 
   const erro = resolver.error as ApiError | null
-
-  // ------------------------------------------------------------- sem camera
-
-  const cameraIndisponivel = permissao?.granted !== true
+  const podeFilmar = permissao?.granted === true && !falhaDaCamera
 
   return (
-    <View style={s.tela}>
-      {cameraIndisponivel ? (
-        <View style={[s.visor, s.visorVazio]}>
-          <Text style={s.visorTitulo}>
-            {permissao?.canAskAgain === false ? 'Câmera bloqueada' : 'Câmera desligada'}
-          </Text>
-          <Text style={s.visorTexto}>
-            {permissao?.canAskAgain === false
-              ? 'Libere o acesso à câmera nas configurações do aparelho, ou digite o código impresso no carregador.'
-              : 'Precisamos da câmera para ler o QR colado no carregador. Você também pode digitar o código.'}
-          </Text>
-          {permissao?.canAskAgain !== false && (
-            <Botao titulo="Permitir câmera" onPress={() => void pedirPermissao()} />
+    <ScrollView
+      style={s.tela}
+      contentContainerStyle={[s.conteudo, { paddingBottom: recuo + espaco.lg }]}
+      keyboardShouldPersistTaps="handled"
+    >
+      {/* O visor tem altura fixa e nenhum filho nem irmao por cima. A previa da
+          camera e' desenhada por uma superficie nativa que, no Android, ignora a
+          ordem normal das views - qualquer mira ou texto sobreposto some ou
+          apaga a tela inteira. Por isso a mira e a instrucao ficam abaixo. */}
+      {podeFilmar ? (
+        <View style={s.visor}>
+          {focada && (
+            <CameraView
+              style={s.camera}
+              facing="back"
+              barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+              onBarcodeScanned={resolver.pending ? undefined : aoLer}
+              onMountError={() => setFalhaDaCamera(true)}
+            />
           )}
         </View>
       ) : (
-        <View style={s.visor}>
-          <CameraView
-            style={StyleSheet.absoluteFill}
-            facing="back"
-            barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-            onBarcodeScanned={resolver.pending ? undefined : aoLer}
-          />
-          {/* A sobreposicao e' irma da camera, nao filha: o CameraView avisa que
-              nao suporta children. Mas a previa e' uma superficie nativa que
-              desenha por cima de irmaos comuns - por isso o elevation, que no
-              Android eleva a view acima dela. */}
-          <View style={s.sobreposicao} pointerEvents="none">
-            <View style={s.mira} />
-            <Text style={s.dica}>
-              {resolver.pending ? 'Consultando...' : 'Aponte para o QR do carregador'}
-            </Text>
-          </View>
+        <View style={[s.visor, s.visorVazio]}>
+          <Text style={s.visorTitulo}>{tituloDoVisor(permissao?.canAskAgain, falhaDaCamera)}</Text>
+          <Text style={s.visorTexto}>{textoDoVisor(permissao?.canAskAgain, falhaDaCamera)}</Text>
+          {!falhaDaCamera && permissao?.canAskAgain !== false && (
+            <Botao titulo="Permitir câmera" onPress={() => void pedirPermissao()} />
+          )}
         </View>
       )}
 
-      <View style={s.painel}>
-        {erro && <Aviso mensagem={erro.detail} />}
-        {naoReconhecido && !erro && (
-          <Aviso
-            tom="info"
-            mensagem={`Este QR não é de um ponto ChargeGrid ("${naoReconhecido}"). Aponte para o adesivo do carregador.`}
-          />
-        )}
+      {podeFilmar && (
+        <Text style={s.dica}>
+          {resolver.pending ? 'Consultando o ponto...' : 'Enquadre o QR colado no carregador'}
+        </Text>
+      )}
 
-        {digitando ? (
-          <>
-            <Text style={s.rotulo}>Código impresso no carregador</Text>
-            <TextInput
-              style={s.input}
-              value={codigoManual}
-              onChangeText={setCodigoManual}
-              autoCapitalize="characters"
-              autoCorrect={false}
-              placeholder="ex.: CP-01"
-              placeholderTextColor={cores.textoFraco}
-              onSubmitEditing={enviarManual}
-              returnKeyType="go"
-            />
-            <Botao
-              titulo="Buscar ponto"
-              disabled={codigoManual.trim().length === 0}
-              pending={resolver.pending}
-              onPress={enviarManual}
-            />
-            {!cameraIndisponivel && (
-              <Pressable onPress={() => setDigitando(false)} accessibilityRole="button">
-                <Text style={s.alternar}>Voltar para a câmera</Text>
-              </Pressable>
-            )}
-          </>
-        ) : (
-          <Pressable onPress={() => setDigitando(true)} accessibilityRole="button">
-            <Text style={s.alternar}>
-              QR danificado? Digitar o código
-            </Text>
-          </Pressable>
-        )}
-      </View>
-    </View>
+      {erro && <Aviso mensagem={erro.detail} />}
+      {naoReconhecido && !erro && (
+        <Aviso
+          tom="info"
+          mensagem={`Este QR não é de um ponto ChargeGrid ("${naoReconhecido}"). Aponte para o adesivo do carregador.`}
+        />
+      )}
+
+      {digitando ? (
+        <View style={s.painel}>
+          <Text style={s.rotulo}>Código impresso no carregador</Text>
+          <TextInput
+            style={s.input}
+            value={codigoManual}
+            onChangeText={setCodigoManual}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            placeholder="ex.: CP-01"
+            placeholderTextColor={cores.textoFraco}
+            onSubmitEditing={enviarManual}
+            returnKeyType="go"
+          />
+          <Botao
+            titulo="Buscar ponto"
+            disabled={codigoManual.trim().length === 0}
+            pending={resolver.pending}
+            onPress={enviarManual}
+          />
+          {podeFilmar && (
+            <Pressable onPress={() => setDigitando(false)} accessibilityRole="button">
+              <Text style={s.alternar}>Voltar para a câmera</Text>
+            </Pressable>
+          )}
+        </View>
+      ) : (
+        <Pressable onPress={() => setDigitando(true)} accessibilityRole="button">
+          <Text style={s.alternar}>QR danificado? Digitar o código</Text>
+        </Pressable>
+      )}
+    </ScrollView>
   )
+}
+
+function tituloDoVisor(podePerguntar: boolean | undefined, falhou: boolean) {
+  if (falhou) return 'Câmera indisponível'
+  return podePerguntar === false ? 'Câmera bloqueada' : 'Câmera desligada'
+}
+
+function textoDoVisor(podePerguntar: boolean | undefined, falhou: boolean) {
+  if (falhou) return 'Não foi possível abrir a câmera deste aparelho. Digite o código impresso no carregador.'
+  return podePerguntar === false
+    ? 'Libere o acesso à câmera nas configurações do aparelho, ou digite o código impresso no carregador.'
+    : 'Precisamos da câmera para ler o QR colado no carregador. Você também pode digitar o código.'
 }
 
 const s = StyleSheet.create({
   tela: { flex: 1, backgroundColor: cores.fundo },
-  visor: {
-    flex: 1,
-    margin: espaco.md,
-    borderRadius: raio.lg,
-    overflow: 'hidden',
-    backgroundColor: '#000',
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
+  conteudo: { padding: espaco.md, gap: espaco.sm },
+  // Altura fixa em vez de flex: o visor precisa de um retangulo conhecido antes
+  // de a superficie nativa medir, senao a previa nasce com altura zero (preta).
+  //
+  // Sem cantos arredondados, sem overflow e sem cor de fundo - de proposito. A
+  // previa vem de um SurfaceView composto ABAIXO da janela do app, que so
+  // aparece pelo furo transparente recortado no lugar dele. Arredondar a borda
+  // manda o Android renderizar o pai num buffer a parte e o furo deixa de
+  // existir; pintar um fundo opaco tapa o furo. Nos dois casos sobra preto.
+  visor: { height: 340 },
+  camera: { flex: 1 },
   visorVazio: {
+    height: 'auto',
+    borderRadius: raio.lg,
     backgroundColor: cores.superficie,
     borderWidth: 1,
     borderColor: cores.borda,
     borderStyle: 'dashed',
     padding: espaco.lg,
-    gap: espaco.md
+    gap: espaco.md,
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   visorTitulo: { color: cores.texto, fontSize: 17, fontWeight: '700' },
   visorTexto: { color: cores.textoFraco, fontSize: 13, textAlign: 'center', lineHeight: 19 },
-  sobreposicao: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: espaco.lg,
-    elevation: 8,
-    zIndex: 8
-  },
-  mira: {
-    width: 220,
-    height: 220,
-    borderWidth: 3,
-    borderColor: cores.acento,
-    borderRadius: raio.lg
-  },
-  dica: {
-    color: '#FFF',
-    fontSize: 13,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    paddingHorizontal: espaco.md,
-    paddingVertical: 6,
-    borderRadius: 999,
-    overflow: 'hidden'
-  },
-  painel: { padding: espaco.md, gap: espaco.sm },
+  dica: { color: cores.textoFraco, fontSize: 13, textAlign: 'center', paddingVertical: espaco.xs },
+  painel: { gap: espaco.sm },
   rotulo: { color: cores.textoFraco, fontSize: 12 },
   input: {
     backgroundColor: cores.superficie,

@@ -3,7 +3,7 @@ import { FlatList, Platform, Pressable, RefreshControl, StyleSheet, Text, View }
 import Constants from 'expo-constants'
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps'
 import { app, brl, useApi, type Estacao, type SessaoDetalhada } from '@chargegrid/sdk'
-import { Aviso, Botao, Carregando, Etiqueta } from '../components'
+import { Aviso, Botao, Carregando, Etiqueta, Tela } from '../components'
 import { useAuth } from '../auth'
 import { cores, espaco, raio } from '../theme'
 import type { PropsAba } from '../navigation'
@@ -54,7 +54,7 @@ export default function MapScreen({ navigation }: PropsAba<'Mapa'>) {
   if (estacoes.loading && !estacoes.data) return <Carregando rotulo="Buscando estacoes..." />
 
   return (
-    <View style={s.tela}>
+    <Tela>
       <View style={s.cabecalho}>
         <View style={s.saudacao}>
           <Text style={s.ola}>Ola, {user?.full_name?.split(' ')[0] ?? 'motorista'}</Text>
@@ -149,7 +149,7 @@ export default function MapScreen({ navigation }: PropsAba<'Mapa'>) {
           )
         }}
       />
-    </View>
+    </Tela>
   )
 }
 

@@ -11,11 +11,12 @@ import {
   type Precificacao,
   type SessaoDetalhada
 } from '@chargegrid/sdk'
-import { Aviso, Botao, Campo, Carregando, Etiqueta } from '../components'
+import { Aviso, Botao, Campo, Carregando, Etiqueta , useRecuoInferior } from '../components'
 import { cores, espaco, raio } from '../theme'
 import type { Props } from '../navigation'
 
 export default function SessionScreen({ navigation }: Props<'Sessao'>) {
+  const recuo = useRecuoInferior()
   // 5s: e uma tela que o motorista deixa aberta olhando a recarga subir.
   const sessao = useApi<SessaoDetalhada | null>(() => app.activeSession(), [], { pollMs: 5000 })
   const id = sessao.data?.id
@@ -55,7 +56,7 @@ export default function SessionScreen({ navigation }: Props<'Sessao'>) {
   const naFila = ses.state === 'queued'
 
   return (
-    <ScrollView style={s.tela} contentContainerStyle={s.conteudo}>
+    <ScrollView style={s.tela} contentContainerStyle={[s.conteudo, { paddingBottom: recuo + espaco.xl }]}>
       <View style={s.cabecalho}>
         <Text style={s.codigo}>{ses.code}</Text>
         <Etiqueta texto={rotulo.label} cor={naFila ? cores.ambar : cores.verde} />

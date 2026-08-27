@@ -9,7 +9,7 @@ import {
   type PontoDaEstacao,
   type SessaoDetalhada
 } from '@chargegrid/sdk'
-import { Aviso, Botao, Carregando, Etiqueta } from '../components'
+import { Aviso, Botao, Carregando, Etiqueta , useRecuoInferior } from '../components'
 import { cores, espaco, raio } from '../theme'
 import type { Props } from '../navigation'
 
@@ -22,6 +22,7 @@ function ordenar(pontos: PontoDaEstacao[], destaque?: string): PontoDaEstacao[] 
 }
 
 export default function StationScreen({ route, navigation }: Props<'Estacao'>) {
+  const recuo = useRecuoInferior()
   const { siteId, nome, destaque } = route.params
 
   useLayoutEffect(() => {
@@ -52,7 +53,7 @@ export default function StationScreen({ route, navigation }: Props<'Estacao'>) {
       <FlatList
         data={ordenar(pontos.data ?? [], destaque)}
         keyExtractor={(p) => p.id}
-        contentContainerStyle={s.conteudo}
+        contentContainerStyle={[s.conteudo, { paddingBottom: recuo + espaco.xl }]}
         refreshControl={
           <RefreshControl
             refreshing={pontos.loading}

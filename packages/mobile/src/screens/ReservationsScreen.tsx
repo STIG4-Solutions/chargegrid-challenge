@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import { Alert, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native'
 import { useFocusEffect } from '@react-navigation/native'
 import { app, num, useAction, useApi, type Agendamento } from '@chargegrid/sdk'
-import { Aviso, Botao, Carregando, Etiqueta } from '../components'
+import { Aviso, Botao, Carregando, Etiqueta, Tela } from '../components'
 import { quando, statusAgendamento } from '../format'
 import { cores, espaco, raio } from '../theme'
 import type { PropsAba } from '../navigation'
@@ -41,7 +41,7 @@ export default function ReservationsScreen({ navigation }: PropsAba<'Agenda'>) {
   const ativos = lista.filter((a) => a.status === 'confirmed')
 
   return (
-    <View style={s.tela}>
+    <Tela>
       <View style={s.cabecalho}>
         <View>
           <Text style={s.titulo}>Minha agenda</Text>
@@ -109,7 +109,7 @@ export default function ReservationsScreen({ navigation }: PropsAba<'Agenda'>) {
           )
         }}
       />
-    </View>
+    </Tela>
   )
 }
 

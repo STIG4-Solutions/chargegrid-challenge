@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import { app, brl, num, useAction, useApi, type Veiculo } from '@chargegrid/sdk'
-import { Aviso, Botao, Carregando } from '../components'
+import { Aviso, Botao, Carregando, Tela } from '../components'
 import { useAuth } from '../auth'
 import { API_URL } from '../api'
 import { cores, espaco, raio } from '../theme'
@@ -40,7 +40,8 @@ export default function ProfileScreen() {
   if (veiculos.loading && !veiculos.data) return <Carregando rotulo="Carregando perfil..." />
 
   return (
-    <ScrollView style={s.tela} contentContainerStyle={s.conteudo}>
+    <Tela>
+      <ScrollView contentContainerStyle={s.conteudo}>
       <View style={s.identidade}>
         <Text style={s.nome}>{user?.full_name ?? 'Motorista'}</Text>
         <Text style={s.email}>{user?.email}</Text>
@@ -128,7 +129,8 @@ export default function ProfileScreen() {
         <Text style={s.nota}>API: {API_URL}</Text>
         <Botao titulo="Sair" variante="secundario" onPress={() => void logout()} />
       </View>
-    </ScrollView>
+      </ScrollView>
+    </Tela>
   )
 }
 

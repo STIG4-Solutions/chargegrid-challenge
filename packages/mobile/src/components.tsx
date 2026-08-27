@@ -1,4 +1,5 @@
 /** Pecas de UI reaproveitadas pelas telas. */
+import type { ReactNode } from 'react'
 import {
   ActivityIndicator,
   Pressable,
@@ -8,7 +9,32 @@ import {
   type StyleProp,
   type ViewStyle
 } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { cores, espaco, raio } from './theme'
+
+/**
+ * Raiz das telas de aba.
+ *
+ * O Android 16 tornou o desenho ponta a ponta obrigatorio: o app pinta por baixo
+ * da barra de status e da barra de navegacao. As telas de aba nao tem cabecalho
+ * do navegador para segurar o topo, entao sem este recuo o conteudo encosta nos
+ * icones do sistema - e o primeiro toque cai na barra, nao no botao.
+ *
+ * As telas empilhadas (Estacao, Sessao, Escanear) nao usam este componente: o
+ * cabecalho do navegador ja reserva o espaco delas.
+ */
+export function Tela({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
+  const bordas = useSafeAreaInsets()
+  return (
+    <View style={[s.telaBase, { paddingTop: bordas.top }, style]}>{children}</View>
+  )
+}
+
+/** Recuo inferior para listas e rolagens, para o ultimo item nao ficar colado. */
+export function useRecuoInferior(extra = 0) {
+  const bordas = useSafeAreaInsets()
+  return bordas.bottom + extra
+}
 
 export function Botao({
   titulo,
@@ -87,6 +113,7 @@ export function Campo({ rotulo, valor }: { rotulo: string; valor: string }) {
 }
 
 const s = StyleSheet.create({
+  telaBase: { flex: 1, backgroundColor: cores.fundo },
   botao: {
     backgroundColor: cores.acento,
     borderRadius: raio.md,

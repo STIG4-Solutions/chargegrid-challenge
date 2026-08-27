@@ -11,6 +11,7 @@ import {
 import type { ApiError } from '@chargegrid/sdk'
 import { useAuth } from '../auth'
 import { Aviso, Botao } from '../components'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { API_URL } from '../api'
 import { cores, espaco, raio } from '../theme'
 
@@ -41,12 +42,22 @@ export default function LoginScreen() {
     }
   }
 
+  // O login fica fora do navegador: sem cabecalho nem barra de abas para
+  // segurar as bordas, o recuo tem de vir do proprio conteudo.
+  const bordas = useSafeAreaInsets()
+
   return (
     <KeyboardAvoidingView
       style={s.tela}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView contentContainerStyle={s.conteudo} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={[
+          s.conteudo,
+          { paddingTop: bordas.top + espaco.lg, paddingBottom: bordas.bottom + espaco.lg }
+        ]}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={s.marca}>
           <Text style={s.logo}>ChargeGrid</Text>
           <Text style={s.subtitulo}>Recarregue onde voce estaciona</Text>

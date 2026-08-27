@@ -9,7 +9,7 @@ import {
   type PontoDaEstacao,
   type Veiculo
 } from '@chargegrid/sdk'
-import { Aviso, Botao, Carregando } from '../components'
+import { Aviso, Botao, Carregando , useRecuoInferior } from '../components'
 import { quando } from '../format'
 import { cores, espaco, raio } from '../theme'
 import type { Props } from '../navigation'
@@ -28,6 +28,7 @@ function proximosHorarios(qtd = 12): Date[] {
 const DURACOES = [30, 60, 90, 120]
 
 export default function NewReservationScreen({ navigation }: Props<'NovoAgendamento'>) {
+  const recuo = useRecuoInferior()
   const estacoes = useApi<Estacao[]>(() => app.stations(), [])
   const veiculos = useApi<Veiculo[]>(() => app.myVehicles(), [])
 
@@ -65,7 +66,7 @@ export default function NewReservationScreen({ navigation }: Props<'NovoAgendame
   if (estacoes.loading && !estacoes.data) return <Carregando rotulo="Carregando estações..." />
 
   return (
-    <ScrollView style={s.tela} contentContainerStyle={s.conteudo}>
+    <ScrollView style={s.tela} contentContainerStyle={[s.conteudo, { paddingBottom: recuo + espaco.xl }]}>
       {estacoes.error && <Aviso mensagem={estacoes.error.detail} />}
 
       <Secao titulo="Estação">
