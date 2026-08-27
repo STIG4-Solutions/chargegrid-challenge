@@ -1,3 +1,13 @@
 .expo
 .expo-bundle
 node_modules
+
+# Projetos nativos gerados por `expo prebuild` / `expo run:android`.
+# Sao derivados do app.json e recriados a qualquer momento; versiona-los
+# faria o app.json deixar de ser a fonte da verdade da configuracao.
+android/
+ios/
+
+# APKs e bundles do build local
+*.apk
+*.aab

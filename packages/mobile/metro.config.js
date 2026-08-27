@@ -19,6 +19,15 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspace, 'node_modules')
 ]
 
+// Pacotes do workspace resolvidos pelo caminho real, sem passar pelo symlink
+// que o npm cria em node_modules. O alvo daquele symlink e' absoluto; quando o
+// projeto e' acessado por outra letra de unidade - o que o build nativo no
+// Windows exige, para escapar do limite de 260 caracteres do MAX_PATH - o alvo
+// aponta para fora das watchFolders e o Metro nao encontra o modulo.
+config.resolver.extraNodeModules = {
+  '@chargegrid/sdk': path.resolve(workspace, 'packages/sdk')
+}
+
 // Nao ha pino de React aqui de proposito: painel e app declaram a MESMA versao
 // (19.2.3, exigida pelo React Native 0.86), entao o npm ica uma copia so' para
 // a raiz e o SDK nao tem como carregar outra. Versoes diferentes voltariam a

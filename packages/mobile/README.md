@@ -61,6 +61,51 @@ Para o app preencher o formulário sozinho em desenvolvimento, defina
 Uma conta de `admin` ou `operator` é recusada na entrada: o app é do motorista, e
 o servidor devolveria 403 nas rotas `/app/*` de qualquer forma.
 
+## App instalável, sem o Expo Go
+
+O Expo Go é ótimo para desenvolver, mas o app fica dentro dele. Para ter o
+**ícone próprio na gaveta de apps**, gere um build nativo:
+
+```bash
+# JDK 17+ e o SDK do Android no ambiente
+set JAVA_HOME=%USERPROFILE%\.jdks\temurin-21.0.10
+set ANDROID_HOME=%LOCALAPPDATA%\Android\Sdk
+
+npx expo run:android                      # debug: precisa do Metro rodando
+npx expo run:android --variant release    # release: o JS vai dentro do APK
+```
+
+O release é o que roda sozinho — o APK sai em
+`android/app/build/outputs/apk/release/app-release.apk` (~77 MB) e pode ser
+instalado com `adb install`. A pasta `android/` é gerada a partir do `app.json`
+e não é versionada; `expo prebuild --clean` a recria.
+
+> **Em release, os atalhos de login somem.** `__DEV__` é falso, então o
+> empacotador remove o ramo que lê `EXPO_PUBLIC_DEMO_*`. É o comportamento
+> desejado: o APK distribuível não carrega credencial nenhuma.
+
+### Duas armadilhas no Windows
+
+**HTTP em texto claro.** O Android bloqueia `http://` em release. Como a API do
+protótipo é HTTP, `app.json` traz o plugin `expo-build-properties` com
+`usesCleartextTraffic`. Em produção, com a API atrás de HTTPS, essa entrada sai.
+
+**Limite de 260 caracteres no caminho.** O codegen C++ da arquitetura nova gera
+caminhos intermediários muito longos, e a partir de um diretório fundo o build
+falha com *"Filename longer than 260 characters"*. O conserto é habilitar
+caminhos longos no Windows — requer permissão de administrador:
+
+```powershell
+# PowerShell como administrador, uma vez só; depois reinicie o terminal
+New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" `
+  -Name "LongPathsEnabled" -Value 1 -PropertyType DWord -Force
+git config --system core.longpaths true
+```
+
+Sem isso, a alternativa é manter o repositório num caminho curto (`C:\dev\chargegrid`).
+Desligar a arquitetura nova **não** resolve: o React Native 0.86 roda o codegen
+de qualquer forma.
+
 ## Telas
 
 Quatro abas — **Mapa**, **Agenda**, **Histórico** e **Perfil** — com telas empilhadas sobre elas.
