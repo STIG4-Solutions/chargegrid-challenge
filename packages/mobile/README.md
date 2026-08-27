@@ -39,6 +39,23 @@ com *"Requested internal only, but not enough space"*.
 > ela o app mostra um aviso no lugar do mapa e a lista de estações continua
 > funcionando. No iOS o mapa usa Apple Maps e não precisa de chave.
 
+### Quando o aparelho não alcança a API
+
+O app mostra *"Sem conexão com a API"* mesmo com o celular na mesma Wi-Fi. Confira nesta
+ordem — do mais provável ao menos:
+
+1. **Proxy configurado no aparelho.** Um proxy nas definições de Wi-Fi do celular desvia o
+   tráfego e o IP da rede local deixa de ser alcançável. Já aconteceu aqui.
+2. **A API só escuta no loopback.** Use `uvicorn app.main:app --host 0.0.0.0 --port 8000`;
+   com `127.0.0.1` nada de fora alcança.
+3. **Firewall do Windows.** Se a rede estiver classificada como *Pública*, o perfil bloqueia
+   conexões de entrada. Marque-a como *Privada* ou libere a porta.
+4. **Isolamento de clientes no roteador.** Impede aparelhos de conversarem entre si. Contorno:
+   USB com `adb reverse tcp:8000 tcp:8000` e a URL apontando para `localhost`.
+
+O teste que separa app de rede: abra `http://SEU-IP:8000/health` **no navegador do celular**.
+Se não responder ali, o problema não é do app.
+
 ## Chave do Google Maps
 
 No Android o `react-native-maps` usa o Google Maps, que exige chave própria.
