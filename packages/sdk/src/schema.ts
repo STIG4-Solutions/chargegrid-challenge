@@ -834,6 +834,9 @@ export interface paths {
          *
          *     Na integracao real, o credito so entra depois do webhook do PSP confirmar -
          *     esta rota representa o passo final desse fluxo.
+         *
+         *     A chave de idempotencia e' opcional no contrato, mas o app sempre manda: sem
+         *     ela, dois toques no botao viram dois creditos.
          */
         post: operations["topup_api_v1_app_wallet_topup_post"];
         delete?: never;
@@ -2031,6 +2034,20 @@ export interface components {
             battery_kwh: number | null;
             /** Max Ac Kw */
             max_ac_kw: number | null;
+        };
+        /**
+         * WalletTopUpIn
+         * @description Corpo do credito na carteira.
+         *
+         *     O valor era um parametro de query, e float. Dinheiro nao anda na URL - ela
+         *     vaza para log de servidor, historico e referer - e todo o resto do dominio
+         *     usa Decimal. Aqui ele volta a ser Decimal, com duas casas.
+         */
+        WalletTopUpIn: {
+            /** Amount */
+            amount: number | string;
+            /** Idempotency Key */
+            idempotency_key?: string | null;
         };
     };
     responses: never;
@@ -3544,14 +3561,16 @@ export interface operations {
     };
     topup_api_v1_app_wallet_topup_post: {
         parameters: {
-            query: {
-                amount: number;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WalletTopUpIn"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

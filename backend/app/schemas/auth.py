@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from decimal import Decimal
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -82,3 +83,15 @@ class RfidCardOut(ORMModel):
     user_id: uuid.UUID | None
     tariff_id: uuid.UUID | None
     synced_to_hardware: bool
+
+
+class WalletTopUpIn(BaseModel):
+    """Corpo do credito na carteira.
+
+    O valor era um parametro de query, e float. Dinheiro nao anda na URL - ela
+    vaza para log de servidor, historico e referer - e todo o resto do dominio
+    usa Decimal. Aqui ele volta a ser Decimal, com duas casas.
+    """
+
+    amount: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
+    idempotency_key: str | None = Field(default=None, max_length=80)

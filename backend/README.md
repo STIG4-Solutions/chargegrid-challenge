@@ -111,7 +111,7 @@ uvicorn app.main:app --reload
 ## Testes
 
 ```bash
-pytest -q          # 99 testes
+pytest -q          # 147 testes
 ruff check app     # lint
 ```
 
@@ -124,7 +124,16 @@ ruff check app     # lint
 | `test_tariff_engine.py` · `test_tariff_rules.py` | preço por janela vigente e coerência da tarifa |
 | `test_virtual_meter.py` | curvas do medidor sintético |
 | `test_charge_point_by_code.py` | resolução do código lido no QR: espaços, caixa e ponto desativado |
+| `test_http_autorizacao.py` | quem entra em cada rota — pela porta da frente, com token de verdade |
+| `test_http_app_motorista.py` | fluxos do app por HTTP: escopo por usuário, validação e serialização |
+| `test_http_carteira.py` | crédito na carteira: idempotência, razão e recusa de valor inválido |
+| `test_http_consultas.py` | custo de consulta do mapa de estações — trava o N+1 |
 | `test_config_guard.py` | recusa subir em produção com segredo público |
+
+Os quatro `test_http_*` sobem a aplicação inteira sobre a mesma transação do
+teste e falam HTTP. Existem porque todo o resto chama serviço ou handler direto,
+o que pula a resolução do token, a guarda de papel e a validação do corpo — foi
+assim que as rotas `/app/*` ficaram sem guarda de motorista sem ninguém notar.
 
 **Os testes de serviço rodam contra um Postgres de verdade**, num banco `<db>_test` criado e
 migrado automaticamente na primeira execução. Não é preciosismo: os modelos usam tipos que só

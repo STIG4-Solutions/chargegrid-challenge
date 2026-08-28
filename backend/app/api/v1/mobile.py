@@ -9,14 +9,13 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from decimal import Decimal
 from math import asin, cos, radians, sin, sqrt
 
 from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
-from app.core.deps import CurrentUser, DbSession
+from app.core.deps import DbSession, DriverUser
 from app.db.base import RESERVATION_CODE_SEQ
 from app.models.billing import Invoice
 from app.models.charge_point import ChargePoint
@@ -32,7 +31,7 @@ from app.models.session import ChargingSession
 from app.models.site import Site
 from app.models.tariff import Tariff
 from app.models.user import Vehicle
-from app.schemas.auth import VehicleCreate, VehicleOut
+from app.schemas.auth import VehicleCreate, VehicleOut, WalletTopUpIn
 from app.schemas.ev import (
     InvoiceOut,
     RatingOut,
@@ -59,7 +58,7 @@ def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 @router.get("/stations", response_model=list[StationOut])
 async def nearby_stations(
     db: DbSession,
-    _: CurrentUser,
+    _: DriverUser,
     latitude: float | None = Query(default=None, ge=-90, le=90),
     longitude: float | None = Query(default=None, ge=-180, le=180),
     radius_km: float = Query(default=25, gt=0, le=500),
@@ -72,6 +71,22 @@ async def nearby_stations(
         .unique()
         .all()
     )
+
+    # Preco de todas as estacoes numa consulta so.
+    #
+    # Antes a tarifa era buscada dentro do laco: com um site nao se nota, com
+    # cinquenta sao cinquenta e uma consultas para montar a primeira tela do app.
+    ids_de_tarifa = {s.default_tariff_id for s in sites if s.default_tariff_id}
+    precos: dict[uuid.UUID, float] = {}
+    if ids_de_tarifa:
+        precos = {
+            t.id: float(t.price_per_kwh)
+            for t in (
+                await db.execute(select(Tariff).where(Tariff.id.in_(ids_de_tarifa)))
+            )
+            .scalars()
+            .all()
+        }
 
     out: list[StationOut] = []
     for site in sites:
@@ -92,12 +107,7 @@ async def nearby_stations(
             if distance > radius_km:
                 continue
 
-        price = None
-        if site.default_tariff_id:
-            tariff = (
-                await db.execute(select(Tariff).where(Tariff.id == site.default_tariff_id))
-            ).scalar_one_or_none()
-            price = float(tariff.price_per_kwh) if tariff else None
+        price = precos.get(site.default_tariff_id) if site.default_tariff_id else None
 
         out.append(
             StationOut(
@@ -121,7 +131,7 @@ async def nearby_stations(
 
 @router.get("/stations/{site_id}/charge-points")
 async def station_points(
-    site_id: uuid.UUID, db: DbSession, _: CurrentUser
+    site_id: uuid.UUID, db: DbSession, _: DriverUser
 ) -> list[StationPointOut]:
     points = (
         (
@@ -149,7 +159,7 @@ async def station_points(
 
 
 @router.get("/charge-points/by-code/{codigo}", response_model=ScannedChargePointOut)
-async def charge_point_by_code(codigo: str, db: DbSession, _: CurrentUser):
+async def charge_point_by_code(codigo: str, db: DbSession, _: DriverUser):
     """Resolve o ponto pelo codigo do QR colado no carregador.
 
     O QR pode trazer o codigo puro (CP-01) ou uma URL que termina nele
@@ -193,7 +203,7 @@ async def charge_point_by_code(codigo: str, db: DbSession, _: CurrentUser):
 async def start_from_app(
     charge_point_id: uuid.UUID,
     db: DbSession,
-    user: CurrentUser,
+    user: DriverUser,
     vehicle_id: uuid.UUID | None = None,
     preauth_amount: float = Query(default=50.0, ge=0),
     limit_kwh: float | None = Query(default=None, gt=0),
@@ -228,7 +238,7 @@ async def start_from_app(
 
 @router.get("/sessions", response_model=list[SessionOut])
 async def my_sessions(
-    db: DbSession, user: CurrentUser, limit: int = Query(default=20, ge=1, le=100)
+    db: DbSession, user: DriverUser, limit: int = Query(default=20, ge=1, le=100)
 ):
     return (
         (
@@ -245,7 +255,7 @@ async def my_sessions(
 
 
 @router.get("/sessions/active", response_model=SessionDetail | None)
-async def my_active_session(db: DbSession, user: CurrentUser):
+async def my_active_session(db: DbSession, user: DriverUser):
     session = (
         await db.execute(
             select(ChargingSession)
@@ -262,13 +272,13 @@ async def my_active_session(db: DbSession, user: CurrentUser):
 
 
 @router.get("/sessions/{session_id}/preview", response_model=RatingOut)
-async def my_session_cost(session_id: uuid.UUID, db: DbSession, user: CurrentUser) -> dict:
+async def my_session_cost(session_id: uuid.UUID, db: DbSession, user: DriverUser) -> dict:
     session = await _own_session(db, session_id, user)
     return await billing_service.preview_session(db, session)
 
 
 @router.post("/sessions/{session_id}/stop", response_model=SessionDetail)
-async def stop_from_app(session_id: uuid.UUID, db: DbSession, user: CurrentUser):
+async def stop_from_app(session_id: uuid.UUID, db: DbSession, user: DriverUser):
     session = await _own_session(db, session_id, user)
     cp = (
         await db.execute(
@@ -292,7 +302,7 @@ async def _own_session(db, session_id, user) -> ChargingSession:
 
 # ------------------------------------------------------------------- reservas
 @router.post("/reservations", response_model=ReservationOut, status_code=201)
-async def create_reservation(payload: ReservationCreate, db: DbSession, user: CurrentUser):
+async def create_reservation(payload: ReservationCreate, db: DbSession, user: DriverUser):
     """Agendamento com checagem de conflito na janela pedida."""
     if payload.ends_at <= payload.starts_at:
         raise HTTPException(status_code=422, detail="janela de reserva inválida")
@@ -352,7 +362,7 @@ def _reserva_com_contexto(reserva, ponto, site) -> ReservationOut:
 
 
 @router.get("/reservations", response_model=list[ReservationOut])
-async def my_reservations(db: DbSession, user: CurrentUser):
+async def my_reservations(db: DbSession, user: DriverUser):
     linhas = (
         await db.execute(
             select(Reservation, ChargePoint, Site)
@@ -366,7 +376,7 @@ async def my_reservations(db: DbSession, user: CurrentUser):
 
 
 @router.delete("/reservations/{reservation_id}", response_model=ReservationOut)
-async def cancel_reservation(reservation_id: uuid.UUID, db: DbSession, user: CurrentUser):
+async def cancel_reservation(reservation_id: uuid.UUID, db: DbSession, user: DriverUser):
     reservation = (
         await db.execute(
             select(Reservation).where(
@@ -389,12 +399,12 @@ async def cancel_reservation(reservation_id: uuid.UUID, db: DbSession, user: Cur
 
 # ----------------------------------------------------- veiculos, faturas, carteira
 @router.get("/vehicles", response_model=list[VehicleOut])
-async def my_vehicles(db: DbSession, user: CurrentUser):
+async def my_vehicles(db: DbSession, user: DriverUser):
     return (await db.execute(select(Vehicle).where(Vehicle.user_id == user.id))).scalars().all()
 
 
 @router.post("/vehicles", response_model=VehicleOut, status_code=201)
-async def add_vehicle(payload: VehicleCreate, db: DbSession, user: CurrentUser):
+async def add_vehicle(payload: VehicleCreate, db: DbSession, user: DriverUser):
     vehicle = Vehicle(user_id=user.id, **payload.model_dump())
     db.add(vehicle)
     await db.commit()
@@ -404,7 +414,7 @@ async def add_vehicle(payload: VehicleCreate, db: DbSession, user: CurrentUser):
 
 @router.get("/invoices", response_model=list[InvoiceOut])
 async def my_invoices(
-    db: DbSession, user: CurrentUser, limit: int = Query(default=20, ge=1, le=100)
+    db: DbSession, user: DriverUser, limit: int = Query(default=20, ge=1, le=100)
 ):
     return (
         (
@@ -422,11 +432,16 @@ async def my_invoices(
 
 
 @router.post("/wallet/topup")
-async def topup(amount: float, db: DbSession, user: CurrentUser) -> dict:
+async def topup(payload: WalletTopUpIn, db: DbSession, user: DriverUser) -> dict:
     """Credito na carteira pre-paga.
 
     Na integracao real, o credito so entra depois do webhook do PSP confirmar -
     esta rota representa o passo final desse fluxo.
+
+    A chave de idempotencia e' opcional no contrato, mas o app sempre manda: sem
+    ela, dois toques no botao viram dois creditos.
     """
-    updated = await payment_service.topup_wallet(db, user, Decimal(str(amount)))
+    updated = await payment_service.topup_wallet(
+        db, user, payload.amount, idempotency_key=payload.idempotency_key
+    )
     return {"wallet_balance": float(updated.wallet_balance)}

@@ -7,12 +7,13 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.errors import Conflict, NotFound, PaymentError
 from app.core.logging import get_logger
-from app.models.billing import Invoice, Payment, SitePaymentMethod
+from app.models.billing import Invoice, Payment, SitePaymentMethod, WalletTopUp
 from app.models.enums import InvoiceStatus, PaymentMethodKind, PaymentStatus
 from app.models.user import User
 from app.services import billing_service
@@ -197,14 +198,48 @@ async def handle_webhook(db: AsyncSession, event: dict) -> dict:
     return {"status": str(payment.status), "invoice": payment.invoice.code}
 
 
-async def topup_wallet(db: AsyncSession, user: User, amount: Decimal) -> User:
+async def topup_wallet(
+    db: AsyncSession, user: User, amount: Decimal, idempotency_key: str | None = None
+) -> User:
     if amount <= 0:
         raise PaymentError("valor de recarga inválido")
+
+    # Chave repetida devolve o saldo de entao, sem creditar de novo. O SELECT
+    # aqui atende o caso comum - o retry depois de uma resposta perdida na rede.
+    # Quem barra a corrida de dois toques simultaneos e' o UNIQUE do banco, no
+    # INSERT abaixo.
+    if idempotency_key:
+        anterior = (
+            await db.execute(
+                select(WalletTopUp).where(WalletTopUp.idempotency_key == idempotency_key)
+            )
+        ).scalar_one_or_none()
+        if anterior is not None:
+            return user
+
     saldo = (
         await db.execute(select(User.wallet_balance).where(User.id == user.id).with_for_update())
     ).scalar_one()
-    user.wallet_balance = money(Decimal(str(saldo)) + amount)
-    await db.commit()
+    novo_saldo = money(Decimal(str(saldo)) + amount)
+
+    db.add(
+        WalletTopUp(
+            user_id=user.id,
+            amount=amount,
+            balance_after=novo_saldo,
+            idempotency_key=idempotency_key,
+        )
+    )
+    user.wallet_balance = novo_saldo
+    try:
+        await db.commit()
+    except IntegrityError:
+        # O outro toque chegou primeiro e ja creditou. Desfaz este e devolve o
+        # que ficou valendo, em vez de creditar duas vezes.
+        await db.rollback()
+        await db.refresh(user)
+        return user
+
     await db.refresh(user)
     return user
 

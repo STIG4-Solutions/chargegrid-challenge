@@ -7,6 +7,21 @@
 import { api, request } from './http'
 import type * as T from './types'
 
+/**
+ * Chave que identifica uma tentativa de escrita, para o servidor reconhecer o
+ * retry como a mesma operacao.
+ *
+ * Sem `crypto.randomUUID`: ele nao e' global no Hermes, e o app quebraria em
+ * producao por causa de uma chave. Aqui nao e' preciso ser imprevisivel - so
+ * unica dentro da sessao -, entao relogio mais contador mais ruido bastam.
+ */
+let sequencia = 0
+function chaveDeIdempotencia(): string {
+  sequencia += 1
+  return `${Date.now().toString(36)}-${sequencia.toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+
 // ---- autenticação (os dois clientes) ----------------------------------------
 export const auth = {
   login: (email: string, senha: string) =>
@@ -102,6 +117,16 @@ export const app = {
   myVehicles: () => api.get<T.Veiculo[]>('/app/vehicles'),
   addVehicle: (dados: Record<string, unknown>) => api.post<T.Veiculo>('/app/vehicles', dados),
   myInvoices: (limit = 20) => api.get<T.Fatura[]>('/app/invoices', { limit }),
-  topUpWallet: (amount: number) =>
-    api.post<{ wallet_balance: number }>('/app/wallet/topup', undefined, { amount })
+  /**
+   * Credito na carteira pre-paga.
+   *
+   * A chave de idempotencia nasce aqui, uma por chamada, e nao na tela: se ela
+   * viesse do componente, um re-render podia gerar outra e o retry deixaria de
+   * ser reconhecido como o mesmo credito. O servidor tem UNIQUE nela.
+   */
+  topUpWallet: (amount: number, idempotencyKey = chaveDeIdempotencia()) =>
+    api.post<{ wallet_balance: number }>('/app/wallet/topup', {
+      amount: amount.toFixed(2),
+      idempotency_key: idempotencyKey
+    })
 }

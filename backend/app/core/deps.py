@@ -61,8 +61,22 @@ def require_roles(*roles: UserRole):
 require_operator = require_roles(UserRole.ADMIN, UserRole.OPERATOR)
 require_admin = require_roles(UserRole.ADMIN)
 
+# Contrapartida do require_operator: as rotas /app/* sao do motorista.
+#
+# Sem esta guarda um token de operador entrava nelas e recebia 200. Nao havia
+# vazamento - todas filtram por user.id, entao o operador via a propria lista
+# vazia -, mas a ESCRITA passava: dava para cadastrar veiculo, agendar, iniciar
+# sessao e creditar a propria carteira com uma conta que nao e de motorista.
+#
+# Admin fica de fora de proposito. Nao e privilegio que falta: as rotas se
+# apoiam em user.id para achar veiculos, faturas e agendamentos, e um admin nao
+# tem nenhum. Deixa-lo entrar so criaria estado de motorista pendurado numa
+# conta administrativa.
+require_driver = require_roles(UserRole.DRIVER)
+
 OperatorUser = Annotated[User, Depends(require_operator)]
 AdminUser = Annotated[User, Depends(require_admin)]
+DriverUser = Annotated[User, Depends(require_driver)]
 
 
 async def get_scoped_site_id(db: DbSession, user: OperatorUser) -> uuid.UUID:

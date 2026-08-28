@@ -127,3 +127,30 @@ class Payment(UUIDMixin, TimestampMixin, Base):
     raw_response: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
 
     invoice = relationship("Invoice", back_populates="payments")
+
+
+class WalletTopUp(UUIDMixin, TimestampMixin, Base):
+    """Cada credito na carteira pre-paga, com a chave que impede o duplicado.
+
+    Existe por duas razoes que se resolvem na mesma tabela.
+
+    A primeira e' auditoria: ate aqui um credito so alterava users.wallet_balance
+    e nao deixava rastro nenhum - nao dava para reconciliar um saldo nem
+    responder "de onde veio esse dinheiro".
+
+    A segunda e' idempotencia. O app manda a chave; o UNIQUE do banco e' quem
+    garante, nao um SELECT antes do INSERT: dois toques simultaneos passariam
+    pelos dois SELECTs antes de qualquer INSERT, e o motorista seria creditado
+    duas vezes.
+    """
+
+    __tablename__ = "wallet_topups"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    balance_after: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    idempotency_key: Mapped[str | None] = mapped_column(String(80), unique=True, index=True)
+    provider: Mapped[str] = mapped_column(String(40), default="mock", nullable=False)
+    provider_ref: Mapped[str | None] = mapped_column(String(120), index=True)

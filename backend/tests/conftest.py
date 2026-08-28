@@ -216,7 +216,7 @@ async def motorista(db: AsyncSession):
 
     u = User(
         id=uuid.uuid4(),
-        email=f"motorista-{uuid.uuid4().hex[:8]}@teste.local",
+        email=f"motorista-{uuid.uuid4().hex[:8]}@example.com",
         full_name="Motorista de Teste",
         hashed_password="x",
         role=UserRole.DRIVER,
@@ -231,3 +231,92 @@ async def motorista(db: AsyncSession):
 def agora() -> datetime:
     return datetime.now(UTC)
 
+
+
+# ------------------------------------------------------------------ camada HTTP
+#
+# Ate aqui todo teste chamava servico ou handler direto, passando o usuario como
+# argumento. Isso pula justamente o que o FastAPI faz por nos: resolver o token,
+# aplicar a guarda de papel, validar o corpo e serializar a resposta. Foi por
+# isso que as rotas /app/* ficaram sem guarda de motorista sem ninguem notar -
+# nenhum teste tinha como perceber.
+#
+# As fixtures abaixo sobem a aplicacao de verdade sobre a MESMA sessao de banco
+# do teste, entao a transacao continua sendo desfeita no fim.
+
+
+@pytest.fixture
+async def api(db: AsyncSession):
+    """Cliente HTTP falando com o app real, no banco da transacao do teste."""
+    from httpx import ASGITransport, AsyncClient
+
+    from app.core.deps import get_db
+    from app.main import app
+
+    async def _db_do_teste():
+        yield db
+
+    app.dependency_overrides[get_db] = _db_do_teste
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://teste"
+        ) as cliente:
+            yield cliente
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+
+def _cabecalho(user) -> dict[str, str]:
+    from app.core.security import create_access_token
+
+    return {"Authorization": f"Bearer {create_access_token(str(user.id))}"}
+
+
+@pytest.fixture
+async def operador(db: AsyncSession):
+    from app.models.enums import UserRole
+    from app.models.user import User
+
+    u = User(
+        id=uuid.uuid4(),
+        email=f"operador-{uuid.uuid4().hex[:8]}@example.com",
+        full_name="Operador de Teste",
+        hashed_password="x",
+        role=UserRole.OPERATOR,
+    )
+    db.add(u)
+    await db.flush()
+    return u
+
+
+@pytest.fixture
+async def administrador(db: AsyncSession):
+    from app.models.enums import UserRole
+    from app.models.user import User
+
+    u = User(
+        id=uuid.uuid4(),
+        email=f"admin-{uuid.uuid4().hex[:8]}@example.com",
+        full_name="Admin de Teste",
+        hashed_password="x",
+        role=UserRole.ADMIN,
+    )
+    db.add(u)
+    await db.flush()
+    return u
+
+
+@pytest.fixture
+def como_motorista(motorista):
+    """Cabecalho de autorizacao de um motorista."""
+    return _cabecalho(motorista)
+
+
+@pytest.fixture
+def como_operador(operador):
+    return _cabecalho(operador)
+
+
+@pytest.fixture
+def como_admin(administrador):
+    return _cabecalho(administrador)

@@ -2460,24 +2460,18 @@
           "app mobile"
         ],
         "summary": "Topup",
-        "description": "Credito na carteira pre-paga.\n\nNa integracao real, o credito so entra depois do webhook do PSP confirmar -\nesta rota representa o passo final desse fluxo.",
+        "description": "Credito na carteira pre-paga.\n\nNa integracao real, o credito so entra depois do webhook do PSP confirmar -\nesta rota representa o passo final desse fluxo.\n\nA chave de idempotencia e' opcional no contrato, mas o app sempre manda: sem\nela, dois toques no botao viram dois creditos.",
         "operationId": "topup_api_v1_app_wallet_topup_post",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "amount",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "number",
-              "title": "Amount"
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WalletTopUpIn"
+              }
             }
-          }
-        ],
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -2500,7 +2494,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
       }
     }
   },
@@ -5577,6 +5576,40 @@
           "max_ac_kw"
         ],
         "title": "VehicleOut"
+      },
+      "WalletTopUpIn": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Amount"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idempotency Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "amount"
+        ],
+        "title": "WalletTopUpIn",
+        "description": "Corpo do credito na carteira.\n\nO valor era um parametro de query, e float. Dinheiro nao anda na URL - ela\nvaza para log de servidor, historico e referer - e todo o resto do dominio\nusa Decimal. Aqui ele volta a ser Decimal, com duas casas."
       }
     },
     "securitySchemes": {

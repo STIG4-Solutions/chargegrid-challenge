@@ -150,8 +150,14 @@ senha definida em `SEED_DRIVER_PASSWORD` (ou a que o seed sorteou e imprimiu).
 Para o app preencher o formulário sozinho em desenvolvimento, defina
 `EXPO_PUBLIC_DEMO_DRIVER_EMAIL` e `EXPO_PUBLIC_DEMO_DRIVER_PASSWORD`.
 
-Uma conta de `admin` ou `operator` é recusada na entrada: o app é do motorista, e
-o servidor devolveria 403 nas rotas `/app/*` de qualquer forma.
+Uma conta de `admin` ou `operator` é recusada na entrada, e o servidor devolve
+`403` nas rotas `/app/*` — a guarda `require_driver` em `app/core/deps.py`.
+
+> Isso não era verdade até 28/08/2026, embora este README afirmasse que sim: as
+> rotas usavam só `CurrentUser`, que valida o token mas não o papel, e um token
+> de operador recebia `200`. Não havia vazamento, porque todas filtram por
+> `user.id`, mas a escrita passava. `tests/test_http_autorizacao.py` cobre isso
+> agora.
 
 ## App instalável, sem o Expo Go
 
