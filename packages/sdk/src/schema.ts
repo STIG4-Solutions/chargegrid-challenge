@@ -381,6 +381,14 @@ export interface paths {
         /**
          * Session Telemetry
          * @description Serie de potencia e energia da sessao - alimenta o grafico do detalhe.
+         *
+         *     A janela sozinha nao limitava a resposta: o poller grava a cada 5 s, entao
+         *     24 h de sessao dao mais de 17 mil amostras - e o painel pede 4 h a cada 12 s.
+         *
+         *     Cortar com LIMIT truncaria a serie e o grafico mentiria, mostrando o comeco
+         *     da recarga como se fosse a recarga inteira. Entao em vez de cortar, reamostra:
+         *     pega uma amostra a cada N, cobrindo a janela toda. O desenho da curva e' o
+         *     mesmo; o que cai e' a resolucao, que o grafico nao usava de qualquer forma.
          */
         get: operations["session_telemetry_api_v1_sessions__session_id__telemetry_get"];
         put?: never;
@@ -800,6 +808,36 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/vehicles/{vehicle_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Vehicle
+         * @description Remove o carro do cadastro.
+         *
+         *     As sessoes passadas ficam: a coluna e' ON DELETE SET NULL, entao o historico
+         *     e as faturas continuam intactos, so perdem o vinculo com o carro vendido.
+         *
+         *     Um carro em recarga nao pode sair - a sessao em curso passaria a nao ter
+         *     carro nenhum, e o rateio usa a potencia que ele aceita.
+         */
+        delete: operations["delete_vehicle_api_v1_app_vehicles__vehicle_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Vehicle
+         * @description Corrige o cadastro do carro - placa digitada errada, bateria trocada.
+         */
+        patch: operations["update_vehicle_api_v1_app_vehicles__vehicle_id__patch"];
         trace?: never;
     };
     "/api/v1/app/invoices": {
@@ -2036,6 +2074,22 @@ export interface components {
             max_ac_kw: number | null;
         };
         /**
+         * VehicleUpdate
+         * @description Atualizacao parcial: so o que vier no corpo e' alterado.
+         */
+        VehicleUpdate: {
+            /** Model */
+            model?: string | null;
+            /** Plate */
+            plate?: string | null;
+            /** Vin */
+            vin?: string | null;
+            /** Battery Kwh */
+            battery_kwh?: number | null;
+            /** Max Ac Kw */
+            max_ac_kw?: number | null;
+        };
+        /**
          * WalletTopUpIn
          * @description Corpo do credito na carteira.
          *
@@ -2700,6 +2754,7 @@ export interface operations {
         parameters: {
             query?: {
                 minutes?: number;
+                max_points?: number;
             };
             header?: never;
             path: {
@@ -3155,6 +3210,7 @@ export interface operations {
                 longitude?: number | null;
                 radius_km?: number;
                 only_available?: boolean;
+                limit?: number;
             };
             header?: never;
             path?: never;
@@ -3393,7 +3449,10 @@ export interface operations {
     };
     my_reservations_api_v1_app_reservations_get: {
         parameters: {
-            query?: never;
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3407,6 +3466,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReservationOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -3477,7 +3545,9 @@ export interface operations {
     };
     my_vehicles_api_v1_app_vehicles_get: {
         parameters: {
-            query?: never;
+            query?: {
+                limit?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3491,6 +3561,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VehicleOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -3510,6 +3589,70 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VehicleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_vehicle_api_v1_app_vehicles__vehicle_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vehicle_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_vehicle_api_v1_app_vehicles__vehicle_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vehicle_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VehicleUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -59,6 +59,16 @@ class VehicleCreate(BaseModel):
     max_ac_kw: float | None = Field(default=None, ge=0)
 
 
+class VehicleUpdate(BaseModel):
+    """Atualizacao parcial: so o que vier no corpo e' alterado."""
+
+    model: str | None = Field(default=None, max_length=80)
+    plate: str | None = None
+    vin: str | None = None
+    battery_kwh: float | None = Field(default=None, ge=0)
+    max_ac_kw: float | None = Field(default=None, ge=0)
+
+
 class VehicleOut(ORMModel):
     id: uuid.UUID
     model: str

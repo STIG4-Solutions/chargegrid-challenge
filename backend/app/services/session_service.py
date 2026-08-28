@@ -155,6 +155,21 @@ async def active_session_for(db: AsyncSession, charge_point_id) -> ChargingSessi
     ).scalar_one_or_none()
 
 
+async def active_session_of_user(db: AsyncSession, user_id) -> ChargingSession | None:
+    """Sessao em aberto do motorista, em qualquer ponto."""
+    return (
+        await db.execute(
+            select(ChargingSession)
+            .where(
+                ChargingSession.user_id == user_id,
+                ChargingSession.state.in_(ACTIVE_SESSION_STATES),
+            )
+            .order_by(ChargingSession.created_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+
+
 async def resolve_tariff(
     db: AsyncSession, charge_point: ChargePoint, card: RfidCard | None
 ) -> Tariff | None:
@@ -252,6 +267,23 @@ async def authorize(
         raise Conflict(f"ponto indisponível ({charge_point.status})")
     if await active_session_for(db, charge_point.id) is not None:
         raise Conflict("já existe uma sessão ativa neste ponto")
+
+    # Uma vaga por motorista de cada vez.
+    #
+    # A guarda acima e' do ponto; sozinha, ela deixava o mesmo motorista ocupar
+    # varias vagas ao mesmo tempo - cada uma com sua pre-autorizacao, e cada uma
+    # negando vaga a outra pessoa. O app so mostra uma recarga em andamento,
+    # entao as demais ficariam invisiveis para quem as abriu.
+    #
+    # Vale so para quem se identifica como usuario. Cartao RFID sem usuario
+    # vinculado nao tem como ser agrupado, e a guarda do ponto ja cobre o caso.
+    if user is not None:
+        em_aberto = await active_session_of_user(db, user.id)
+        if em_aberto is not None:
+            raise Conflict(
+                f"você já tem uma recarga em andamento ({em_aberto.code}); "
+                "encerre antes de iniciar outra"
+            )
 
     reserva = await consumir_reserva(db, charge_point, user, auth_method)
     if reserva is not None and reservation_id is None:

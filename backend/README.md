@@ -111,7 +111,7 @@ uvicorn app.main:app --reload
 ## Testes
 
 ```bash
-pytest -q          # 147 testes
+pytest -q          # 175 testes
 ruff check app     # lint
 ```
 
@@ -128,6 +128,11 @@ ruff check app     # lint
 | `test_http_app_motorista.py` | fluxos do app por HTTP: escopo por usuário, validação e serialização |
 | `test_http_carteira.py` | crédito na carteira: idempotência, razão e recusa de valor inválido |
 | `test_http_consultas.py` | custo de consulta do mapa de estações — trava o N+1 |
+| `test_http_paginacao.py` | teto e paginação das listas |
+| `test_http_telemetria.py` | reamostragem da série — cobre a janela sem truncar |
+| `test_http_veiculos.py` | editar e remover carro, sem levar o histórico junto |
+| `test_http_webhook_refresh.py` | assinatura HMAC do webhook e renovação de sessão |
+| `test_sessao_por_motorista.py` | uma vaga por motorista de cada vez |
 | `test_config_guard.py` | recusa subir em produção com segredo público |
 
 Os quatro `test_http_*` sobem a aplicação inteira sobre a mesma transação do

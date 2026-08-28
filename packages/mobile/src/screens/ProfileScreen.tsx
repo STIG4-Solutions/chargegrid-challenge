@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
-import { app, brl, num, useAction, useApi, type Veiculo } from '@chargegrid/sdk'
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { app, brl, num, useAction, useApi, type ApiError, type Veiculo } from '@chargegrid/sdk'
 import { Aviso, Botao, Carregando, Tela } from '../components'
 import { useAuth } from '../auth'
 import { API_URL } from '../api'
@@ -11,6 +11,13 @@ const VALORES = [20, 50, 100]
 export default function ProfileScreen() {
   const { user, logout, recarregarPerfil } = useAuth()
   const veiculos = useApi<Veiculo[]>(() => app.myVehicles(), [])
+  const [confirmando, setConfirmando] = useState<string | null>(null)
+  const remover = useAction((id: string) => app.removeVehicle(id), {
+    onSuccess: () => {
+      setConfirmando(null)
+      void veiculos.refetch({ silent: true })
+    }
+  })
 
   const [valor, setValor] = useState(50)
   const recarregar = useAction((quanto: number) => app.topUpWallet(quanto), {
@@ -80,14 +87,29 @@ export default function ProfileScreen() {
         )}
         {(veiculos.data ?? []).map((v) => (
           <View key={v.id} style={s.veiculo}>
-            <Text style={s.veiculoModelo}>{v.model}</Text>
-            <Text style={s.veiculoMeta}>
-              {v.plate ? `${v.plate} · ` : ''}
-              {v.battery_kwh ? `${num(v.battery_kwh, 0)} kWh` : 'bateria não informada'}
-              {v.max_ac_kw ? ` · até ${num(v.max_ac_kw, 1)} kW AC` : ''}
-            </Text>
+            <View style={s.veiculoTexto}>
+              <Text style={s.veiculoModelo}>{v.model}</Text>
+              <Text style={s.veiculoMeta}>
+                {v.plate ? `${v.plate} · ` : ''}
+                {v.battery_kwh ? `${num(v.battery_kwh, 0)} kWh` : 'bateria não informada'}
+                {v.max_ac_kw ? ` · até ${num(v.max_ac_kw, 1)} kW AC` : ''}
+              </Text>
+            </View>
+            {/* Duas etapas em vez de um alerta do sistema: um modal nativo trava
+                a ponte e a sessao de automacao para com ele. */}
+            <Pressable
+              onPress={() => (confirmando === v.id ? remover.run(v.id) : setConfirmando(v.id))}
+              disabled={remover.pending}
+              accessibilityRole="button"
+              hitSlop={8}
+            >
+              <Text style={confirmando === v.id ? s.removerConfirma : s.remover}>
+                {confirmando === v.id ? 'Confirmar' : 'Remover'}
+              </Text>
+            </Pressable>
           </View>
         ))}
+        {remover.error && <Aviso mensagem={(remover.error as ApiError).detail} />}
 
         <Text style={[s.blocoTitulo, s.subtitulo]}>Adicionar veículo</Text>
         <TextInput
@@ -160,7 +182,10 @@ const s = StyleSheet.create({
     paddingTop: espaco.sm,
     gap: 2
   },
+  veiculoTexto: { flex: 1 },
   veiculoModelo: { color: cores.texto, fontSize: 15, fontWeight: '600' },
+  remover: { color: cores.textoFraco, fontSize: 13 },
+  removerConfirma: { color: cores.acento, fontSize: 13, fontWeight: '700' },
   veiculoMeta: { color: cores.textoFraco, fontSize: 12 },
   input: {
     backgroundColor: cores.superficieAlta,

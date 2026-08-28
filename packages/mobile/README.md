@@ -275,7 +275,7 @@ Quatro abas — **Mapa**, **Agenda**, **Histórico** e **Perfil** — com telas 
 | Perfil (carteira e veículos) | `src/screens/ProfileScreen.tsx` | `app.myVehicles`, `app.addVehicle`, `app.topUpWallet` |
 | Ler QR do carregador | `src/screens/ScannerScreen.tsx` | `app.chargePointByCode` |
 
-Todas as quinze operações do escopo `/app/*` têm tela.
+Todas as dezessete operações do escopo `/app/*` têm tela.
 
 A tela de recarga mostra a **fila de espera**: quando não há potência livre, a
 sessão entra em `queued` com a posição na fila e começa sozinha assim que o

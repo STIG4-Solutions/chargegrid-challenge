@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from math import asin, cos, radians, sin, sqrt
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
@@ -31,7 +32,7 @@ from app.models.session import ChargingSession
 from app.models.site import Site
 from app.models.tariff import Tariff
 from app.models.user import Vehicle
-from app.schemas.auth import VehicleCreate, VehicleOut, WalletTopUpIn
+from app.schemas.auth import VehicleCreate, VehicleOut, VehicleUpdate, WalletTopUpIn
 from app.schemas.ev import (
     InvoiceOut,
     RatingOut,
@@ -63,6 +64,7 @@ async def nearby_stations(
     longitude: float | None = Query(default=None, ge=-180, le=180),
     radius_km: float = Query(default=25, gt=0, le=500),
     only_available: bool = False,
+    limit: int = Query(default=100, ge=1, le=500),
 ) -> list[StationOut]:
     """Mapa de estacoes com disponibilidade e preco - primeira tela do app."""
     sites = (
@@ -125,8 +127,10 @@ async def nearby_stations(
             )
         )
 
+    # Ordena antes de cortar: com coordenada, o corte tem de deixar as mais
+    # proximas, nao as primeiras que sairam do banco.
     out.sort(key=lambda s: (s.distance_km is None, s.distance_km or 0))
-    return out
+    return out[:limit]
 
 
 @router.get("/stations/{site_id}/charge-points")
@@ -362,7 +366,12 @@ def _reserva_com_contexto(reserva, ponto, site) -> ReservationOut:
 
 
 @router.get("/reservations", response_model=list[ReservationOut])
-async def my_reservations(db: DbSession, user: DriverUser):
+async def my_reservations(
+    db: DbSession,
+    user: DriverUser,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+):
     linhas = (
         await db.execute(
             select(Reservation, ChargePoint, Site)
@@ -370,6 +379,8 @@ async def my_reservations(db: DbSession, user: DriverUser):
             .join(Site, Site.id == ChargePoint.site_id, isouter=True)
             .where(Reservation.user_id == user.id)
             .order_by(Reservation.starts_at.desc())
+            .limit(limit)
+            .offset(offset)
         )
     ).all()
     return [_reserva_com_contexto(r, cp, st) for r, cp, st in linhas]
@@ -399,8 +410,16 @@ async def cancel_reservation(reservation_id: uuid.UUID, db: DbSession, user: Dri
 
 # ----------------------------------------------------- veiculos, faturas, carteira
 @router.get("/vehicles", response_model=list[VehicleOut])
-async def my_vehicles(db: DbSession, user: DriverUser):
-    return (await db.execute(select(Vehicle).where(Vehicle.user_id == user.id))).scalars().all()
+async def my_vehicles(
+    db: DbSession, user: DriverUser, limit: int = Query(default=50, ge=1, le=200)
+):
+    # Teto, nao paginacao: sao os carros de uma pessoa. O limite existe para a
+    # resposta nao poder crescer sem fim, nao para o app folhear.
+    return (
+        (await db.execute(select(Vehicle).where(Vehicle.user_id == user.id).limit(limit)))
+        .scalars()
+        .all()
+    )
 
 
 @router.post("/vehicles", response_model=VehicleOut, status_code=201)
@@ -411,6 +430,64 @@ async def add_vehicle(payload: VehicleCreate, db: DbSession, user: DriverUser):
     await db.refresh(vehicle)
     return vehicle
 
+
+async def _veiculo_do_motorista(db, vehicle_id: uuid.UUID, user) -> Vehicle:
+    """Busca o veiculo garantindo que ele e' de quem pediu.
+
+    O 404 para carro de outra pessoa e' deliberado: um 403 confirmaria que o
+    identificador existe.
+    """
+    veiculo = (
+        await db.execute(
+            select(Vehicle).where(Vehicle.id == vehicle_id, Vehicle.user_id == user.id)
+        )
+    ).scalar_one_or_none()
+    if veiculo is None:
+        raise HTTPException(status_code=404, detail="veículo não encontrado")
+    return veiculo
+
+
+@router.patch("/vehicles/{vehicle_id}", response_model=VehicleOut)
+async def update_vehicle(
+    vehicle_id: uuid.UUID, payload: VehicleUpdate, db: DbSession, user: DriverUser
+):
+    """Corrige o cadastro do carro - placa digitada errada, bateria trocada."""
+    veiculo = await _veiculo_do_motorista(db, vehicle_id, user)
+    for campo, valor in payload.model_dump(exclude_unset=True).items():
+        setattr(veiculo, campo, valor)
+    await db.commit()
+    await db.refresh(veiculo)
+    return veiculo
+
+
+@router.delete("/vehicles/{vehicle_id}", status_code=204, response_class=Response)
+async def delete_vehicle(vehicle_id: uuid.UUID, db: DbSession, user: DriverUser) -> Response:
+    """Remove o carro do cadastro.
+
+    As sessoes passadas ficam: a coluna e' ON DELETE SET NULL, entao o historico
+    e as faturas continuam intactos, so perdem o vinculo com o carro vendido.
+
+    Um carro em recarga nao pode sair - a sessao em curso passaria a nao ter
+    carro nenhum, e o rateio usa a potencia que ele aceita.
+    """
+    veiculo = await _veiculo_do_motorista(db, vehicle_id, user)
+
+    em_uso = (
+        await db.execute(
+            select(ChargingSession.id).where(
+                ChargingSession.vehicle_id == veiculo.id,
+                ChargingSession.state.in_(ACTIVE_SESSION_STATES),
+            )
+        )
+    ).first()
+    if em_uso is not None:
+        raise HTTPException(
+            status_code=409, detail="este veículo está em uma recarga em andamento"
+        )
+
+    await db.delete(veiculo)
+    await db.commit()
+    return Response(status_code=204)
 
 @router.get("/invoices", response_model=list[InvoiceOut])
 async def my_invoices(

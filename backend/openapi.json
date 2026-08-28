@@ -1002,7 +1002,7 @@
           "recarga ev · sessões"
         ],
         "summary": "Session Telemetry",
-        "description": "Serie de potencia e energia da sessao - alimenta o grafico do detalhe.",
+        "description": "Serie de potencia e energia da sessao - alimenta o grafico do detalhe.\n\nA janela sozinha nao limitava a resposta: o poller grava a cada 5 s, entao\n24 h de sessao dao mais de 17 mil amostras - e o painel pede 4 h a cada 12 s.\n\nCortar com LIMIT truncaria a serie e o grafico mentiria, mostrando o comeco\nda recarga como se fosse a recarga inteira. Entao em vez de cortar, reamostra:\npega uma amostra a cada N, cobrindo a janela toda. O desenho da curva e' o\nmesmo; o que cai e' a resolucao, que o grafico nao usava de qualquer forma.",
         "operationId": "session_telemetry_api_v1_sessions__session_id__telemetry_get",
         "security": [
           {
@@ -1030,6 +1030,18 @@
               "minimum": 1,
               "default": 120,
               "title": "Minutes"
+            }
+          },
+          {
+            "name": "max_points",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 5000,
+              "minimum": 10,
+              "default": 600,
+              "title": "Max Points"
             }
           }
         ],
@@ -1797,6 +1809,18 @@
               "default": false,
               "title": "Only Available"
             }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
           }
         ],
         "responses": {
@@ -2204,34 +2228,6 @@
       }
     },
     "/api/v1/app/reservations": {
-      "get": {
-        "tags": [
-          "app mobile"
-        ],
-        "summary": "My Reservations",
-        "operationId": "my_reservations_api_v1_app_reservations_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ReservationOut"
-                  },
-                  "type": "array",
-                  "title": "Response My Reservations Api V1 App Reservations Get"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ]
-      },
       "post": {
         "tags": [
           "app mobile"
@@ -2239,15 +2235,20 @@
         "summary": "Create Reservation",
         "description": "Agendamento com checagem de conflito na janela pedida.",
         "operationId": "create_reservation_api_v1_app_reservations_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ReservationCreate"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -2270,12 +2271,70 @@
               }
             }
           }
-        },
+        }
+      },
+      "get": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "My Reservations",
+        "operationId": "my_reservations_api_v1_app_reservations_get",
         "security": [
           {
             "OAuth2PasswordBearer": []
           }
-        ]
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReservationOut"
+                  },
+                  "title": "Response My Reservations Api V1 App Reservations Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/app/reservations/{reservation_id}": {
@@ -2333,27 +2392,51 @@
         ],
         "summary": "My Vehicles",
         "operationId": "my_vehicles_api_v1_app_vehicles_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/VehicleOut"
                   },
-                  "type": "array",
                   "title": "Response My Vehicles Api V1 App Vehicles Get"
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ]
+        }
       },
       "post": {
         "tags": [
@@ -2361,15 +2444,20 @@
         ],
         "summary": "Add Vehicle",
         "operationId": "add_vehicle_api_v1_app_vehicles_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/VehicleCreate"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -2392,12 +2480,106 @@
               }
             }
           }
-        },
+        }
+      }
+    },
+    "/api/v1/app/vehicles/{vehicle_id}": {
+      "patch": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "Update Vehicle",
+        "description": "Corrige o cadastro do carro - placa digitada errada, bateria trocada.",
+        "operationId": "update_vehicle_api_v1_app_vehicles__vehicle_id__patch",
         "security": [
           {
             "OAuth2PasswordBearer": []
           }
-        ]
+        ],
+        "parameters": [
+          {
+            "name": "vehicle_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Vehicle Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VehicleUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "Delete Vehicle",
+        "description": "Remove o carro do cadastro.\n\nAs sessoes passadas ficam: a coluna e' ON DELETE SET NULL, entao o historico\ne as faturas continuam intactos, so perdem o vinculo com o carro vendido.\n\nUm carro em recarga nao pode sair - a sessao em curso passaria a nao ter\ncarro nenhum, e o rateio usa a potencia que ele aceita.",
+        "operationId": "delete_vehicle_api_v1_app_vehicles__vehicle_id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "vehicle_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Vehicle Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/app/invoices": {
@@ -5576,6 +5758,71 @@
           "max_ac_kw"
         ],
         "title": "VehicleOut"
+      },
+      "VehicleUpdate": {
+        "properties": {
+          "model": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "plate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plate"
+          },
+          "vin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vin"
+          },
+          "battery_kwh": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Kwh"
+          },
+          "max_ac_kw": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Ac Kw"
+          }
+        },
+        "type": "object",
+        "title": "VehicleUpdate",
+        "description": "Atualizacao parcial: so o que vier no corpo e' alterado."
       },
       "WalletTopUpIn": {
         "properties": {

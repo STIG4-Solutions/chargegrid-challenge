@@ -241,23 +241,47 @@ async def session_telemetry(
     db: DbSession,
     _: OperatorUser,
     minutes: int = Query(default=120, ge=1, le=1440),
+    max_points: int = Query(default=600, ge=10, le=5000),
 ) -> list[dict]:
-    """Serie de potencia e energia da sessao - alimenta o grafico do detalhe."""
+    """Serie de potencia e energia da sessao - alimenta o grafico do detalhe.
+
+    A janela sozinha nao limitava a resposta: o poller grava a cada 5 s, entao
+    24 h de sessao dao mais de 17 mil amostras - e o painel pede 4 h a cada 12 s.
+
+    Cortar com LIMIT truncaria a serie e o grafico mentiria, mostrando o comeco
+    da recarga como se fosse a recarga inteira. Entao em vez de cortar, reamostra:
+    pega uma amostra a cada N, cobrindo a janela toda. O desenho da curva e' o
+    mesmo; o que cai e' a resolucao, que o grafico nao usava de qualquer forma.
+    """
     since = datetime.now(UTC) - timedelta(minutes=minutes)
-    rows = (
-        (
-            await db.execute(
-                select(TelemetrySample)
-                .where(
-                    TelemetrySample.session_id == session_id,
-                    TelemetrySample.recorded_at >= since,
-                )
-                .order_by(TelemetrySample.recorded_at)
-            )
-        )
-        .scalars()
-        .all()
+    base = select(TelemetrySample).where(
+        TelemetrySample.session_id == session_id,
+        TelemetrySample.recorded_at >= since,
     )
+
+    total = (
+        await db.execute(select(func.count()).select_from(base.subquery()))
+    ).scalar_one()
+
+    consulta = base.order_by(TelemetrySample.recorded_at)
+    if total > max_points:
+        # Um a cada N pela posicao na serie. O ultimo ponto entra sempre: e' o
+        # estado atual da recarga, e some justamente quando o passo nao fecha.
+        passo = -(-total // max_points)  # divisao para cima
+        posicao = (
+            func.row_number().over(order_by=TelemetrySample.recorded_at).label("posicao")
+        )
+        numeradas = base.add_columns(posicao).subquery()
+        escolhidas = select(numeradas.c.id).where(
+            (numeradas.c.posicao % passo == 1) | (numeradas.c.posicao == total)
+        )
+        consulta = (
+            select(TelemetrySample)
+            .where(TelemetrySample.id.in_(escolhidas))
+            .order_by(TelemetrySample.recorded_at)
+        )
+
+    rows = (await db.execute(consulta)).scalars().all()
     return [
         {
             "recorded_at": row.recorded_at.isoformat(),

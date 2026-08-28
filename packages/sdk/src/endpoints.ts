@@ -43,13 +43,10 @@ export const power = {
   plan: () => api.get<T.PlanoDeRateio>('/power/plan'),
   rebalance: (dryRun = false) =>
     api.post<Record<string, unknown>>('/power/rebalance', undefined, { dry_run: dryRun }),
-  listChargePoints: () => api.get<T.PontoDeRecarga[]>('/power/charge-points'),
   setLimit: (id: string, limitKw: number) =>
     api.post<T.PontoDeRecarga>(`/power/charge-points/${id}/limit`, { limit_kw: limitKw }),
   throttle: (id: string, enabled: boolean) =>
     api.post<T.PontoDeRecarga>(`/power/charge-points/${id}/throttle`, undefined, { enabled }),
-  updateChargePoint: (id: string, dados: Record<string, unknown>) =>
-    api.patch<T.PontoDeRecarga>(`/power/charge-points/${id}`, dados),
   pushMeterReading: (dados: Record<string, unknown>) =>
     api.post<Record<string, unknown>>('/power/meter-readings', dados)
 }
@@ -86,7 +83,6 @@ export const payments = {
     api.put<T.MetodoDePagamento>('/payment-methods', dados),
   listInvoices: (params?: Record<string, string | number | undefined>) =>
     api.get<T.Pagina<T.Fatura>>('/invoices', params),
-  getInvoice: (id: string) => api.get<T.Fatura>(`/invoices/${id}`),
   charge: (id: string, metodo: T.TipoDePagamento, idempotencyKey?: string) =>
     api.post<T.Pagamento>(`/invoices/${id}/charge`, {
       method: metodo,
@@ -116,6 +112,9 @@ export const app = {
   cancelReservation: (id: string) => api.del<T.Agendamento>(`/app/reservations/${id}`),
   myVehicles: () => api.get<T.Veiculo[]>('/app/vehicles'),
   addVehicle: (dados: Record<string, unknown>) => api.post<T.Veiculo>('/app/vehicles', dados),
+  updateVehicle: (id: string, dados: Record<string, unknown>) =>
+    api.patch<T.Veiculo>(`/app/vehicles/${id}`, dados),
+  removeVehicle: (id: string) => api.del<void>(`/app/vehicles/${id}`),
   myInvoices: (limit = 20) => api.get<T.Fatura[]>('/app/invoices', { limit }),
   /**
    * Credito na carteira pre-paga.
