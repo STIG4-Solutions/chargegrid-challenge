@@ -111,7 +111,7 @@ uvicorn app.main:app --reload
 ## Testes
 
 ```bash
-pytest -q          # 92 testes
+pytest -q          # 99 testes
 ruff check app     # lint
 ```
 
@@ -123,6 +123,7 @@ ruff check app     # lint
 | `test_payments.py` | carteira, idempotência da cobrança, liquidação por meio |
 | `test_tariff_engine.py` · `test_tariff_rules.py` | preço por janela vigente e coerência da tarifa |
 | `test_virtual_meter.py` | curvas do medidor sintético |
+| `test_charge_point_by_code.py` | resolução do código lido no QR: espaços, caixa e ponto desativado |
 | `test_config_guard.py` | recusa subir em produção com segredo público |
 
 **Os testes de serviço rodam contra um Postgres de verdade**, num banco `<db>_test` criado e
@@ -134,7 +135,7 @@ Cada teste roda dentro de uma transação desfeita no fim, então nada sobra no 
 de execução não importa. O `conftest.py` explica os detalhes.
 
 Com a API no ar, o teste de fumaça percorre o fluxo comercial inteiro — login, orçamento,
-sessão, fila de espera, agendamento e cobrança Pix — em 56 cenários:
+sessão, fila de espera, agendamento e cobrança Pix — em 57 cenários:
 
 ```bash
 python -m scripts.smoke_test                  # usa http://127.0.0.1:8000

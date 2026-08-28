@@ -32,10 +32,19 @@ cp .env.example .env               # VITE_API_URL=http://localhost:8000
 npm run dev                        # http://localhost:5173
 ```
 
-**App do motorista** (leia o QR code com o Expo Go):
+**App do motorista:**
 
 ```bash
 npm run mobile                     # ou mobile:android / mobile:ios
+```
+
+Isso abre no **Expo Go** — escaneie o QR do terminal, ou tecle `a`/`i` para
+emulador. Para o app com ícone próprio na gaveta, sem o Expo Go no meio, o
+build sai pela nuvem (`packages/mobile/README.md` explica por que não sai
+localmente no Windows):
+
+```bash
+cd packages/mobile && npx eas-cli build -p android --profile preview
 ```
 
 Contas criadas pelo seed:
@@ -130,9 +139,9 @@ npm ls react           # tem que aparecer uma única
 npm run verify:api                         # 15 cenários do SDK com fetch simulado
 npm run typecheck                          # tipos do SDK e do app contra o contrato
 npm run build                              # painel
-cd backend && python -m pytest -q          # 92 testes (precisa do Postgres)
+cd backend && python -m pytest -q          # 99 testes (precisa do Postgres)
 cd backend && python -m ruff check .
-cd backend && python -m scripts.smoke_test # 56 cenários ponta a ponta (API no ar)
+cd backend && python -m scripts.smoke_test # 57 cenários ponta a ponta (API no ar)
 cd packages/mobile && npx expo export --platform android --output-dir .expo-bundle
 ```
 
@@ -146,7 +155,7 @@ backend/                  API FastAPI — README próprio
   app/                    domínio, drivers MODBUS, workers, serviços
   alembic/                5 migrations
   openapi.json            contrato — fonte dos tipos do SDK
-  scripts/smoke_test.py   56 cenários ponta a ponta
+  scripts/smoke_test.py   57 cenários ponta a ponta
   docker-compose.yml      Postgres + API em um comando
 docs/                     instruções do desafio, datasheet e mapa MODBUS do HCA G2
 packages/

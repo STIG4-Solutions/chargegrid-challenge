@@ -32,8 +32,14 @@ npm run mobile            # a partir da raiz do repositório; depois tecle "a"
 ```
 
 O Expo instala o Expo Go no emulador sozinho (~200 MB), então o AVD precisa de
-espaço livre em `/data` — confira com `adb shell df /data`. Um AVD cheio falha
-com *"Requested internal only, but not enough space"*.
+espaço livre em `/data` — confira com `adb shell df -h /data`. Um AVD cheio falha
+com *"Requested internal only, but not enough space"*, e `pm trim-caches` não
+devolve espaço suficiente: o jeito é um AVD com partição maior.
+
+> **No Git Bash, prefixe comandos `adb shell` com `MSYS_NO_PATHCONV=1`.** Sem
+> isso o MSYS traduz `/data` para `C:/Program Files/Git/data` antes de o comando
+> chegar ao aparelho, e o erro que aparece é um `No such file or directory` que
+> não tem nada a ver com o Android.
 
 > **O mapa só aparece com uma chave do Google Maps.** Veja a seção abaixo. Sem
 > ela o app mostra um aviso no lugar do mapa e a lista de estações continua
@@ -150,13 +156,22 @@ o servidor devolveria 403 nas rotas `/app/*` de qualquer forma.
 ## App instalável, sem o Expo Go
 
 O Expo Go é ótimo para desenvolver, mas o app fica dentro dele. Para ter o
-**ícone próprio na gaveta de apps**, gere um build nativo:
+**ícone próprio na gaveta de apps**, gere um build nativo.
+
+**Neste repositório o caminho é a nuvem** — o build local não sai no Windows, e a
+seção adiante explica por quê:
 
 ```bash
-# JDK 17+ e o SDK do Android no ambiente
-set JAVA_HOME=%USERPROFILE%\.jdks\temurin-21.0.10
-set ANDROID_HOME=%LOCALAPPDATA%\Android\Sdk
+npx eas-cli build -p android --profile preview
+```
 
+O link devolvido, aberto no próprio Android, instala o APK. Validado em aparelho
+físico: câmera, mapa, leitura de QR e sessão contra a API real.
+
+Localmente, com JDK 17+ e o SDK do Android no ambiente (`JAVA_HOME` e
+`ANDROID_HOME` apontados):
+
+```bash
 npx expo run:android                      # debug: precisa do Metro rodando
 npx expo run:android --variant release    # release: o JS vai dentro do APK
 ```
@@ -171,7 +186,6 @@ e não é versionada; `expo prebuild --clean` a recria.
 > desejado: o APK distribuível não carrega credencial nenhuma.
 
 ### Duas armadilhas no Windows
-
 
 **HTTP em texto claro.** O Android bloqueia `http://` em release. Como a API do
 protótipo é HTTP, `app.json` traz o plugin `expo-build-properties` com
@@ -255,7 +269,7 @@ Quatro abas — **Mapa**, **Agenda**, **Histórico** e **Perfil** — com telas 
 | Perfil (carteira e veículos) | `src/screens/ProfileScreen.tsx` | `app.myVehicles`, `app.addVehicle`, `app.topUpWallet` |
 | Ler QR do carregador | `src/screens/ScannerScreen.tsx` | `app.chargePointByCode` |
 
-Todos os catorze endpoints do escopo `/app/*` têm tela.
+Todas as quinze operações do escopo `/app/*` têm tela.
 
 A tela de recarga mostra a **fila de espera**: quando não há potência livre, a
 sessão entra em `queued` com a posição na fila e começa sozinha assim que o
@@ -308,6 +322,59 @@ marcado — escanear e depois procurar a vaga numa lista anularia o ganho.
 > **Há sempre a digitação manual.** Adesivo em carregador de rua fica sujo, riscado e
 > vandalizado; sem essa saída o motorista fica preso. É também por ela que o fluxo é testável
 > sem câmera.
+
+## A câmera não é uma view como as outras
+
+O leitor de QR abriu **totalmente preto** no aparelho físico até se descobrir por quê. Não era
+permissão nem falha ao abrir a câmera: o logcat trazia `Camera open completed, errorCode=null` e
+a camada tinha `activeBuffer=[1024x768]`. A câmera entregava quadros o tempo todo — eles nunca
+chegavam à tela.
+
+A prévia do `expo-camera` é um `SurfaceView` composto em `z=-2`, ou seja **abaixo** da janela do
+app. Ela aparece por um furo transparente que o Android recorta no lugar dela. Duas coisas
+comuns de escrever destroem esse furo:
+
+| O que se escreve | O que acontece |
+|---|---|
+| `borderRadius` + `overflow: 'hidden'` no container | o Android renderiza o pai num buffer à parte; o recorte deixa de valer |
+| `backgroundColor` opaco no container | pinta por cima do furo |
+
+Por isso `src/screens/ScannerScreen.tsx` mantém o visor como um retângulo de **altura fixa, sem
+cantos arredondados e sem cor de fundo**. É feio de propósito — não dá para ter os dois.
+
+Pela mesma razão a mira e a instrução ficam **abaixo** do retângulo, não sobre ele. O
+`CameraView` não aceita filhos, e um irmão sobreposto depende da ordem de composição da
+superfície nativa, que varia entre aparelhos. Com os controles fora do retângulo, a entrada
+manual continua alcançável mesmo se a prévia falhar — e `onMountError` troca o visor por uma
+explicação em vez de deixar preto.
+
+A prévia também **desmonta quando a tela perde o foco** (`useIsFocused`): uma superfície nativa
+que fica montada em segundo plano volta preta na visita seguinte.
+
+> Para diagnosticar de novo, o comando que responde é
+> `adb shell dumpsys SurfaceFlinger | grep -A4 SurfaceView`. Um `activeBuffer` com dimensões
+> reais significa que a câmera está funcionando e o problema é de composição — não adianta mexer
+> em permissão.
+>
+> `adb exec-out screencap` **não** é prova de nada aqui: superfícies de câmera saem pretas na
+> captura mesmo quando estão desenhando na tela.
+
+## Áreas seguras
+
+O Android 16 tornou o desenho ponta a ponta obrigatório: o app pinta por baixo da barra de
+status e da barra de navegação. Sem recuo, o conteúdo encosta nos ícones do sistema e o primeiro
+toque cai na barra, não no botão.
+
+Quem reserva o espaço depende de onde a tela está:
+
+| Tela | Topo | Base |
+|---|---|---|
+| Abas (Mapa, Agenda, Histórico, Perfil) | `<Tela>` aplica `insets.top` | a barra de abas já reserva |
+| Empilhadas (Estação, Sessão, Agendar, Escanear) | o cabeçalho do navegador segura | `useRecuoInferior()` no conteúdo rolável |
+| Login | por conta própria — fica fora de qualquer navegador | idem |
+
+Os dois utilitários estão em `src/components.tsx`. **Não use `useRecuoInferior()` numa tela de
+aba**: a barra de abas já reserva a base e o recuo sairia contado duas vezes.
 
 ## O que ainda não tem
 
