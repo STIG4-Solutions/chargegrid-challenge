@@ -12,6 +12,7 @@ import asyncio
 import secrets
 import uuid
 from datetime import UTC, datetime, time, timedelta
+from pathlib import Path
 
 from sqlalchemy import select
 
@@ -19,7 +20,6 @@ from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
 from app.core.security import hash_password
 from app.db.session import SessionLocal, engine
-from app.models import Base
 from app.models.billing import Invoice, InvoiceLine, SitePaymentMethod
 from app.models.charge_point import ChargePoint, ChargePointConnection
 from app.models.enums import (
@@ -415,9 +415,30 @@ async def seed() -> None:
 
 
 async def create_schema() -> None:
-    """Atalho de desenvolvimento. Em producao use: alembic upgrade head."""
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    """Constroi o schema pelas migrations, nunca por Base.metadata.create_all.
+
+    O create_all monta o schema a partir dos MODELOS, e nem tudo mora neles: os
+    indices BRIN das tabelas de serie temporal, os indices compostos e os
+    indices unicos parciais que impedem duas sessoes ativas no mesmo ponto
+    existem so nas migrations. Um banco criado por create_all ficava com oito
+    indices a menos que producao - entre eles a unica garantia de unicidade -,
+    e `alembic check` nao acusava, porque ele compara modelos com migrations e
+    esses indices nao estao nos modelos.
+
+    O docker-compose ja rodava `alembic upgrade head` antes deste script; quem
+    executasse `python -m app.seed` direto e' que acabava com o schema torto.
+    Agora as duas rotas produzem o mesmo banco.
+    """
+    from alembic.config import Config
+
+    from alembic import command
+
+    raiz = Path(__file__).resolve().parent.parent
+    cfg = Config(str(raiz / "alembic.ini"))
+    cfg.set_main_option("script_location", str(raiz / "alembic"))
+    # Numa thread propria: o env.py chama asyncio.run(), que recusa rodar dentro
+    # de um laco de eventos ja em execucao - e este script abriu o dele.
+    await asyncio.to_thread(command.upgrade, cfg, "head")
 
 
 async def main() -> None:

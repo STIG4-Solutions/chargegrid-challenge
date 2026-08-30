@@ -111,7 +111,7 @@ uvicorn app.main:app --reload
 ## Testes
 
 ```bash
-pytest -q          # 203 testes
+pytest -q          # 209 testes
 ruff check app     # lint
 ```
 
@@ -137,12 +137,19 @@ ruff check app     # lint
 | `test_falhas_terminais.py` | qual bit encerra a recarga e qual é só alarme |
 | `test_corte_do_operador.py` | o corte manual do painel não é desfeito por sessão nova |
 | `test_idempotencia_cobranca.py` | o contrato de chave que o painel usa para retentar |
+| `test_indices_sessao_ativa.py` | as duas guardas de sessão ativa, no nível do banco |
 | `test_config_guard.py` | recusa subir em produção com segredo público |
 
 Os quatro `test_http_*` sobem a aplicação inteira sobre a mesma transação do
 teste e falam HTTP. Existem porque todo o resto chama serviço ou handler direto,
 o que pula a resolução do token, a guarda de papel e a validação do corpo — foi
 assim que as rotas `/app/*` ficaram sem guarda de motorista sem ninguém notar.
+
+> **O seed constrói o schema pelas migrations, não por `create_all`.** O que
+> existe só na migration — os BRIN das séries temporais, os índices compostos e
+> os únicos parciais — some de um banco montado a partir dos modelos. Era assim
+> até 30/08/2026, e `alembic check` não acusava: ele compara modelos com
+> migrations, e esses índices não estavam nos modelos. Agora estão.
 
 **Os testes de serviço rodam contra um Postgres de verdade**, num banco `<db>_test` criado e
 migrado automaticamente na primeira execução. Não é preciosismo: os modelos usam tipos que só

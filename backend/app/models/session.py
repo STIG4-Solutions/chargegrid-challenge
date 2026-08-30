@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Index, Integer, Numeric, String, Text
+from sqlalchemy import DateTime, Enum, ForeignKey, Index, Integer, Numeric, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -11,12 +11,39 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin, UUIDMixin
 from app.models.enums import AuthMethod, SessionState, StopReason
 
+_ATIVOS_SQL = (
+    "state IN ('AUTHORIZING', 'QUEUED', 'STARTING', 'CHARGING', 'SUSPENDED', 'FINISHING')"
+)
+
 
 class ChargingSession(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "charging_sessions"
+    # Os indices parciais ficam declarados aqui, e nao so na migration.
+    #
+    # O que existe apenas na migration some de um banco criado por
+    # `create_all` - foi assim que oito indices, entre eles a unica garantia de
+    # unicidade, deixaram de existir em desenvolvimento sem que `alembic check`
+    # percebesse: ele compara modelos com migrations, e nao havia o que comparar.
+    #
+    # O predicado usa os NOMES dos membros porque e' o que
+    # Enum(..., native_enum=False) grava na coluna. Escrever os valores em
+    # minusculas - como a migration original fazia - cria um indice que casa com
+    # zero linhas e nao exige nada.
     __table_args__ = (
         Index("ix_charging_sessions_cp_state", "charge_point_id", "state"),
         Index("ix_charging_sessions_started_at", "started_at"),
+        Index(
+            "uq_active_session_per_charge_point",
+            "charge_point_id",
+            unique=True,
+            postgresql_where=text(_ATIVOS_SQL),
+        ),
+        Index(
+            "uq_active_session_per_driver",
+            "user_id",
+            unique=True,
+            postgresql_where=text(f"user_id IS NOT NULL AND {_ATIVOS_SQL}"),
+        ),
     )
 
     code: Mapped[str] = mapped_column(
