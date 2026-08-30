@@ -37,6 +37,9 @@ class ChargePointReading:
     session_duration_s: int = 0
     power_sources: list[str] = field(default_factory=list)
     faults: list[str] = field(default_factory=list)
+    # Condicoes ativas que NAO encerram a recarga - alarmes e estados de
+    # operacao. Ficam visiveis para o operador, mas a sessao segue.
+    operational_flags: list[str] = field(default_factory=list)
     start_mode: str | None = None
     last_rfid_uid: str | None = None
 

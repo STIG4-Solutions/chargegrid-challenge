@@ -9,10 +9,10 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
-from app.core.deps import CurrentUser, DbSession, OperatorUser, ScopedSiteId
+from app.core.deps import CurrentUser, DbSession, OperatorUser, ScopedSiteId, get_scoped_site_id
 from app.models.billing import Invoice, SitePaymentMethod
 from app.models.charge_point import ChargePoint
-from app.models.enums import InvoiceStatus
+from app.models.enums import InvoiceStatus, UserRole
 from app.models.session import ChargingSession
 from app.models.site import Site
 from app.models.tariff import Tariff, TariffWindow
@@ -265,19 +265,42 @@ async def list_invoices(
     )
 
 
+async def _fatura_permitida(db, invoice_id: uuid.UUID, user: User) -> Invoice:
+    """Fatura que este usuario pode ver ou cobrar.
+
+    Motorista so alcanca a propria; operador e admin, so as do proprio
+    estabelecimento. Antes, `get_invoice` exigia apenas um token valido - com
+    isso qualquer motorista lia a fatura de qualquer outro pelo identificador,
+    com valor, linhas e pagamentos. E a cobranca so barrava motorista, entao um
+    operador cobrava fatura de outro site e, no metodo carteira, debitava o
+    saldo de uma pessoa que nao era cliente dele.
+
+    404 e nao 403 nos dois casos: um 403 confirmaria que a fatura existe.
+    """
+    invoice = await billing_service.get_invoice(db, invoice_id)
+
+    if user.role == UserRole.DRIVER:
+        if invoice.user_id != user.id:
+            raise HTTPException(status_code=404, detail="fatura não encontrada")
+        return invoice
+
+    site_id = await get_scoped_site_id(db, user)
+    if invoice.site_id != site_id:
+        raise HTTPException(status_code=404, detail="fatura não encontrada neste site")
+    return invoice
+
+
 @router.get("/invoices/{invoice_id}", response_model=InvoiceOut)
-async def get_invoice(invoice_id: uuid.UUID, db: DbSession, _: CurrentUser):
-    return await billing_service.get_invoice(db, invoice_id)
+async def get_invoice(invoice_id: uuid.UUID, db: DbSession, user: CurrentUser):
+    return await _fatura_permitida(db, invoice_id, user)
 
 
 @router.post("/invoices/{invoice_id}/charge", response_model=PaymentOut, status_code=201)
 async def charge_invoice(
     invoice_id: uuid.UUID, payload: ChargeRequestIn, db: DbSession, user: CurrentUser
 ):
-    """Dispara a cobranca. Motorista paga a propria fatura; operador pode cobrar qualquer uma."""
-    invoice = await billing_service.get_invoice(db, invoice_id)
-    if str(user.role) == "driver" and invoice.user_id != user.id:
-        raise HTTPException(status_code=403, detail="fatura de outro usuário")
+    """Dispara a cobranca. Motorista paga a propria; operador, as do seu site."""
+    invoice = await _fatura_permitida(db, invoice_id, user)
 
     payer = user
     if invoice.user_id and invoice.user_id != user.id:

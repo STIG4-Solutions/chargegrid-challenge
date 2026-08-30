@@ -155,7 +155,8 @@ class ModbusChargePointDriver(ChargePointDriver):
             applied_limit_kw=_scaled(g(M.MAX_CHARGING_POWER.address), 10),
             session_duration_s=int(u32_at(M.CHARGE_DURATION) or 0),
             power_sources=M.decode_power_sources(g(M.POWER_SOURCE_BITS.address)),
-            faults=M.decode_faults(values),
+            faults=M.decode_terminal_faults(values),
+            operational_flags=M.decode_operational_flags(values),
             start_mode=M.START_MODES.get(g(M.START_MODE.address) or -1),
             last_rfid_uid=_decode_str(
                 [values.get(M.RFID_LAST_CARD.address + i, 0) for i in range(7)]

@@ -320,3 +320,48 @@ def como_operador(operador):
 @pytest.fixture
 def como_admin(administrador):
     return _cabecalho(administrador)
+
+
+@pytest.fixture
+async def segundo_site(db: AsyncSession):
+    """Outro estabelecimento, para provar que um nao enxerga o outro."""
+    from app.models.site import Site
+
+    s = Site(
+        id=uuid.uuid4(),
+        name="Site Vizinho",
+        grid_limit_kw=75,
+        reserved_kw=10,
+        allow_pv_kw=False,
+        allow_battery_kw=False,
+    )
+    db.add(s)
+    await db.flush()
+    return s
+
+
+async def _operador_de(db: AsyncSession, site_id):
+    from app.models.enums import UserRole
+    from app.models.user import User
+
+    u = User(
+        id=uuid.uuid4(),
+        email=f"op-{uuid.uuid4().hex[:8]}@example.com",
+        full_name="Operador",
+        hashed_password="x",
+        role=UserRole.OPERATOR,
+        site_id=site_id,
+    )
+    db.add(u)
+    await db.flush()
+    return u
+
+
+@pytest.fixture
+async def como_operador_do_site(db: AsyncSession, site):
+    return _cabecalho(await _operador_de(db, site.id))
+
+
+@pytest.fixture
+async def como_operador_vizinho(db: AsyncSession, segundo_site):
+    return _cabecalho(await _operador_de(db, segundo_site.id))

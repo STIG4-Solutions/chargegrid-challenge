@@ -1611,7 +1611,7 @@
           "recarga ev · tarifação e pagamento"
         ],
         "summary": "Charge Invoice",
-        "description": "Dispara a cobranca. Motorista paga a propria fatura; operador pode cobrar qualquer uma.",
+        "description": "Dispara a cobranca. Motorista paga a propria; operador, as do seu site.",
         "operationId": "charge_invoice_api_v1_invoices__invoice_id__charge_post",
         "security": [
           {

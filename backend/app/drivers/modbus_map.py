@@ -255,6 +255,46 @@ POLL_BLOCKS: list[tuple[int, int]] = [
 ]
 
 
+# Nem tudo que acende bit e' motivo para encerrar a recarga.
+#
+# O registrador 10005 e' de ALARME, nao de falha - os proprios rotulos dizem
+# "Alarme de ...". E no 10003 so os dois primeiros bits sao defeito eletrico; os
+# demais descrevem condicao de operacao. "Potencia insuficiente de PV/bateria" e
+# "Ponto offline durante carga por PV/bateria" sao rotina numa instalacao
+# alimentada por solar - que e' a premissa deste projeto.
+#
+# Tratar tudo como terminal derrubava a sessao por causa de uma nuvem.
+NAO_TERMINAIS: frozenset[tuple[int, int]] = frozenset(
+    {(10003, 2), (10003, 3), (10003, 4), (10003, 5)}
+    | {(10005, bit) for bit in FAULT_BITS[10005]}
+)
+
+
+def _classificar(values: dict[int, int]) -> tuple[list[str], list[str]]:
+    terminais: list[str] = []
+    operacionais: list[str] = []
+    for address, bit_map in FAULT_BITS.items():
+        raw = values.get(address)
+        if not raw:
+            continue
+        for bit, label in bit_map.items():
+            if not raw >> bit & 1:
+                continue
+            alvo = operacionais if (address, bit) in NAO_TERMINAIS else terminais
+            alvo.append(label)
+    return terminais, operacionais
+
+
+def decode_terminal_faults(values: dict[int, int]) -> list[str]:
+    """So o que obriga a encerrar a sessao."""
+    return _classificar(values)[0]
+
+
+def decode_operational_flags(values: dict[int, int]) -> list[str]:
+    """Condicoes que o operador deve ver, mas que nao encerram a recarga."""
+    return _classificar(values)[1]
+
+
 def decode_faults(values: dict[int, int]) -> list[str]:
     """Recebe {endereco: valor_bruto} e devolve a lista legivel de falhas ativas."""
     faults: list[str] = []

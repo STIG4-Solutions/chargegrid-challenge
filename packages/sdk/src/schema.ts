@@ -568,7 +568,7 @@ export interface paths {
         put?: never;
         /**
          * Charge Invoice
-         * @description Dispara a cobranca. Motorista paga a propria fatura; operador pode cobrar qualquer uma.
+         * @description Dispara a cobranca. Motorista paga a propria; operador, as do seu site.
          */
         post: operations["charge_invoice_api_v1_invoices__invoice_id__charge_post"];
         delete?: never;

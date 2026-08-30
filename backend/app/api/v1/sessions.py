@@ -133,10 +133,26 @@ async def kpis(db: DbSession, site_id: ScopedSiteId, _: OperatorUser) -> Session
     )
 
 
-@router.get("/{session_id}", response_model=SessionDetail)
-async def get_session(session_id: uuid.UUID, db: DbSession, _: OperatorUser) -> SessionDetail:
-    """Detalhe com a linha do tempo do ciclo e, se estiver na fila, a posição."""
+async def _sessao_do_site(db, session_id, site_id) -> ChargingSession:
+    """Sessao do estabelecimento de quem pediu.
+
+    O 404 e' proposital: um 403 confirmaria que a sessao existe em outro site.
+    Vale para detalhe, previa, telemetria e faturamento - `list_sessions` e
+    `stop_session` ja filtravam, mas as outras quatro liam qualquer sessao do
+    sistema com um token de operador de qualquer estabelecimento.
+    """
     session = await session_service.get_session(db, session_id, with_events=True)
+    if session.site_id != site_id:
+        raise HTTPException(status_code=404, detail="sessão não encontrada neste site")
+    return session
+
+
+@router.get("/{session_id}", response_model=SessionDetail)
+async def get_session(
+    session_id: uuid.UUID, db: DbSession, site_id: ScopedSiteId, _: OperatorUser
+) -> SessionDetail:
+    """Detalhe com a linha do tempo do ciclo e, se estiver na fila, a posição."""
+    session = await _sessao_do_site(db, session_id, site_id)
     detalhe = SessionDetail.model_validate(session)
     if session.state == SessionState.QUEUED:
         detalhe.queue_position = await session_service.queue_position(db, session)
@@ -229,9 +245,11 @@ async def stop_session(
 
 
 @router.get("/{session_id}/preview", response_model=RatingOut)
-async def preview_cost(session_id: uuid.UUID, db: DbSession, _: OperatorUser) -> dict:
+async def preview_cost(
+    session_id: uuid.UUID, db: DbSession, site_id: ScopedSiteId, _: OperatorUser
+) -> dict:
     """Quanto a sessao ja custa agora, com o rateio por janela tarifaria."""
-    session = await session_service.get_session(db, session_id)
+    session = await _sessao_do_site(db, session_id, site_id)
     return await billing_service.preview_session(db, session)
 
 
@@ -239,6 +257,7 @@ async def preview_cost(session_id: uuid.UUID, db: DbSession, _: OperatorUser) ->
 async def session_telemetry(
     session_id: uuid.UUID,
     db: DbSession,
+    site_id: ScopedSiteId,
     _: OperatorUser,
     minutes: int = Query(default=120, ge=1, le=1440),
     max_points: int = Query(default=600, ge=10, le=5000),
@@ -253,6 +272,10 @@ async def session_telemetry(
     pega uma amostra a cada N, cobrindo a janela toda. O desenho da curva e' o
     mesmo; o que cai e' a resolucao, que o grafico nao usava de qualquer forma.
     """
+    # A serie e' lida por session_id; sem esta checagem o site nao entrava na
+    # consulta e um operador via a telemetria de outro estabelecimento.
+    await _sessao_do_site(db, session_id, site_id)
+
     since = datetime.now(UTC) - timedelta(minutes=minutes)
     base = select(TelemetrySample).where(
         TelemetrySample.session_id == session_id,
@@ -294,8 +317,10 @@ async def session_telemetry(
 
 
 @router.post("/{session_id}/bill", response_model=dict)
-async def bill(session_id: uuid.UUID, db: DbSession, _: OperatorUser) -> dict:
+async def bill(
+    session_id: uuid.UUID, db: DbSession, site_id: ScopedSiteId, _: OperatorUser
+) -> dict:
     """Fatura manualmente uma sessao encerrada sem cobranca (idempotente)."""
-    session = await session_service.get_session(db, session_id)
+    session = await _sessao_do_site(db, session_id, site_id)
     invoice = await billing_service.bill_session(db, session)
     return {"invoice_id": str(invoice.id), "code": invoice.code, "total": float(invoice.total)}

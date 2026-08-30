@@ -56,7 +56,9 @@ async def ingest(db: AsyncSession, charge_point: ChargePoint, reading: ChargePoi
 
     charge_point.last_seen_at = now
     charge_point.current_kw = reading.power_kw
-    charge_point.active_faults = reading.faults
+    # O painel mostra as duas coisas: o que derruba a sessao e o que so merece
+    # atencao. So a falha terminal vira last_fault_code.
+    charge_point.active_faults = [*reading.faults, *reading.operational_flags]
     charge_point.last_fault_code = reading.faults[0] if reading.faults else None
     if reading.serial_number and not charge_point.serial_number:
         charge_point.serial_number = reading.serial_number
@@ -119,7 +121,22 @@ async def ingest(db: AsyncSession, charge_point: ChargePoint, reading: ChargePoi
     await session_service.apply_reading(db, session, reading, tariff=tariff)
 
     if reading.faults:
-        await session_service.fail(db, session, "; ".join(reading.faults))
+        # Encerra pelo caminho normal, nao com fail().
+        #
+        # fail() so marcava state = ERROR: nenhum comando de parada era enviado -
+        # o carro continuava puxando energia - e bill_session nunca era chamado,
+        # entao a energia entregue nao virava fatura. Pior, ERROR nao esta em
+        # ACTIVE_SESSION_STATES, e no ciclo seguinte a leitura "charging" fazia o
+        # poller adotar uma sessao nova: um laco adota-falha-adota.
+        #
+        # stop() manda parar, encerra e fatura. A causa fica no evento.
+        await session_service.stop(
+            db,
+            session,
+            charge_point,
+            reason=StopReason.FAULT,
+            triggered_by="hardware:" + "; ".join(reading.faults),
+        )
         return
 
     stop_reason = session_service.reached_limit(session)
