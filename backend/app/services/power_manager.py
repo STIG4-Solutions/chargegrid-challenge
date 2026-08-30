@@ -204,8 +204,16 @@ def build_plan(
     """
     plan = AllocationPlan(budget=budget)
     starting = starting_ids or set()
+    # `starting` entra por fora do is_dispatchable porque o ponto ainda esta
+    # AVAILABLE - mas nao por fora do corte manual: admitir um ponto cortado
+    # dava potencia a quem o operador mandou parar, e como is_dispatchable
+    # continua falso, os ciclos seguintes o excluiam do orcamento enquanto ele
+    # carregava. O site passava do teto com o alocador dizendo que estava bem.
     candidates = [
-        cp for cp in charge_points if cp.is_dispatchable or (cp.enabled and str(cp.id) in starting)
+        cp
+        for cp in charge_points
+        if cp.is_dispatchable
+        or (cp.enabled and not cp.operator_throttled and str(cp.id) in starting)
     ]
 
     for cp in charge_points:

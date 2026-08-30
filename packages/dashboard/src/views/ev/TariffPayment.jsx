@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { payments, tariffs as tariffsApi } from '@chargegrid/sdk'
 import {
   brl,
@@ -435,12 +435,43 @@ function InvoiceRow({ invoice, onPaid }) {
   const status = meta(invoiceStatus, invoice.status)
   const [method, setMethod] = useState('pix')
 
+  // Uma chave por TENTATIVA, não por fatura.
+  //
+  // A chave existe para o duplo clique: as duas chamadas levam a mesma e o
+  // backend devolve o mesmo pagamento em vez de cobrar duas vezes. Mas ela era
+  // `inv-<id>-<método>` — constante. Como o botão reaparece depois de uma
+  // recusa (canCharge inclui 'failed'), a segunda tentativa reencontrava a
+  // chave e o backend devolvia o pagamento FALHO anterior sem sequer falar com
+  // o provedor: o clique não fazia nada e não explicava por quê.
+  //
+  // Agora a chave nasce na primeira tentativa e só é descartada quando aquela
+  // tentativa termina sem sucesso — então o duplo clique continua protegido e
+  // a retentativa é uma cobrança de verdade.
+  const chaveRef = useRef(null)
+
   const charge = useAction(
-    // A chave de idempotência protege contra duplo clique: o backend devolve o
-    // mesmo pagamento em vez de cobrar duas vezes.
-    () => payments.charge(invoice.id, method, `inv-${invoice.id}-${method}`),
-    { onSuccess: onPaid }
+    () => {
+      chaveRef.current ??= `inv-${invoice.id}-${method}-${Date.now().toString(36)}`
+      return payments.charge(invoice.id, method, chaveRef.current)
+    },
+    {
+      onSuccess: (pagamento) => {
+        // Recusa volta como 201 com status 'failed', não como erro HTTP.
+        if (pagamento?.status !== 'captured' && pagamento?.status !== 'authorized') {
+          chaveRef.current = null
+        }
+        onPaid()
+      },
+      onError: () => {
+        chaveRef.current = null
+      }
+    }
   )
+
+  // Trocar de método é outra tentativa, não a mesma.
+  useEffect(() => {
+    chaveRef.current = null
+  }, [method])
 
   const payment = invoice.payments?.[0]
   const canCharge = invoice.status === 'open' || invoice.status === 'failed'

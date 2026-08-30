@@ -111,7 +111,7 @@ uvicorn app.main:app --reload
 ## Testes
 
 ```bash
-pytest -q          # 196 testes
+pytest -q          # 203 testes
 ruff check app     # lint
 ```
 
@@ -135,6 +135,8 @@ ruff check app     # lint
 | `test_sessao_por_motorista.py` | uma vaga por motorista de cada vez |
 | `test_http_isolamento.py` | fatura e sessão entre motoristas e entre estabelecimentos |
 | `test_falhas_terminais.py` | qual bit encerra a recarga e qual é só alarme |
+| `test_corte_do_operador.py` | o corte manual do painel não é desfeito por sessão nova |
+| `test_idempotencia_cobranca.py` | o contrato de chave que o painel usa para retentar |
 | `test_config_guard.py` | recusa subir em produção com segredo público |
 
 Os quatro `test_http_*` sobem a aplicação inteira sobre a mesma transação do

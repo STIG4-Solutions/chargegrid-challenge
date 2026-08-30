@@ -265,6 +265,16 @@ async def authorize(
     """Cria a sessao em AUTHORIZING. Ainda nao ha energia fluindo."""
     if charge_point.status in {ChargePointStatus.FAULTED, ChargePointStatus.OFFLINE}:
         raise Conflict(f"ponto indisponível ({charge_point.status})")
+
+    # Corte manual do operador barra sessao nova.
+    #
+    # `promote_queue` ja pulava pontos cortados, mas `start()` era alcancado
+    # direto por POST /sessions e POST /app/sessions - e mais abaixo ele libera
+    # o reg 10000 sem olhar o banco, desfazendo o corte. O comentario do modelo
+    # diz que este campo existe justamente porque "o botao do painel parecia
+    # funcionar e revertia sozinho".
+    if charge_point.operator_throttled:
+        raise Conflict("ponto cortado manualmente pelo operador")
     if await active_session_for(db, charge_point.id) is not None:
         raise Conflict("já existe uma sessão ativa neste ponto")
 
@@ -393,9 +403,13 @@ async def start(
     # ele carregaria na potencia minima a sessao inteira, porque logo abaixo o
     # status vira CHARGING e a retomada do rebalanceador (que so age sobre
     # SUSPENDED) nunca dispararia. E uma escrita por sessao, nao por ciclo.
-    await send_command(
-        db, charge_point, "set_dispatch_throttle", triggered_by=triggered_by, throttled=False
-    )
+    # ... mas nunca sobre um corte manual: esse e' do operador, e so ele desfaz.
+    # A guarda de authorize() ja barra o caminho normal; esta aqui cobre quem
+    # chamar start() direto.
+    if not charge_point.operator_throttled:
+        await send_command(
+            db, charge_point, "set_dispatch_throttle", triggered_by=triggered_by, throttled=False
+        )
 
     start_result = await send_command(db, charge_point, "start_charging", triggered_by=triggered_by)
     now = datetime.now(UTC)
