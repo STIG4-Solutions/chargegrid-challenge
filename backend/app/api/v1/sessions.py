@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import func, select
@@ -14,6 +15,7 @@ from app.models.billing import Invoice
 from app.models.charge_point import ChargePoint
 from app.models.enums import InvoiceStatus, SessionState
 from app.models.session import ChargingSession
+from app.models.site import Site
 from app.models.telemetry import TelemetrySample
 from app.models.user import RfidCard, User
 from app.schemas.common import Page
@@ -71,10 +73,33 @@ async def list_sessions(
     )
 
 
+def inicio_do_dia(nome_do_fuso: str | None, agora: datetime | None = None) -> datetime:
+    """Meia-noite de hoje no fuso do estabelecimento.
+
+    Antes era meia-noite UTC, e em Sao Paulo (UTC-3) isso cai as 21h locais: os
+    cartoes de "hoje" zeravam no meio da noite de um site comercial, dentro do
+    horario de pico. O resto do sistema ja usava site.timezone.
+
+    Recebe `agora` para poder ser testado sem depender da hora do relogio.
+    """
+    fuso = ZoneInfo(nome_do_fuso or "America/Sao_Paulo")
+    referencia = (agora or datetime.now(UTC)).astimezone(fuso)
+    return referencia.replace(hour=0, minute=0, second=0, microsecond=0)
+
+
 @router.get("/kpis", response_model=SessionKpis)
 async def kpis(db: DbSession, site_id: ScopedSiteId, _: OperatorUser) -> SessionKpis:
     """Cartoes do topo da tela de sessoes."""
-    day_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    # "Hoje" e' o dia do estabelecimento, nao o de Greenwich.
+    #
+    # Com meia-noite UTC os contadores zeravam as 21h em Sao Paulo - dentro do
+    # horario de pico de um site comercial, e o operador via a energia do dia
+    # sumir sem explicacao. O resto do sistema ja usa site.timezone; isto aqui
+    # tinha ficado para tras.
+    nome_do_fuso = (
+        await db.execute(select(Site.timezone).where(Site.id == site_id))
+    ).scalar_one_or_none()
+    day_start = inicio_do_dia(nome_do_fuso)
 
     active = (
         await db.execute(

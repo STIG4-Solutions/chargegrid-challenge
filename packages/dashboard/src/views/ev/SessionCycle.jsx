@@ -167,7 +167,13 @@ export default function SessionCycle() {
           </Async>
         </div>
 
-        {selectedId && <SessionDetail sessionId={selectedId} onChanged={() => {
+        {/* `key` força uma instância nova a cada sessão escolhida. Sem ela o
+            componente era reaproveitado e `useApi` só escreve em caso de sucesso,
+            então os dados da sessão anterior ficavam na tela durante a busca da
+            nova — com os botões calculados do dado velho e agindo sobre o id novo.
+            Clicar em "Encerrar" nessa janela chamava stop() numa sessão já
+            encerrada. */}
+        {selectedId && <SessionDetail key={selectedId} sessionId={selectedId} onChanged={() => {
           list.refetch({ silent: true })
           kpis.refetch({ silent: true })
         }} />}

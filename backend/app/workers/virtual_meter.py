@@ -20,6 +20,7 @@ from __future__ import annotations
 import math
 import random
 from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 
@@ -31,15 +32,16 @@ from app.models.site import Site, SiteMeterReading
 
 log = get_logger(__name__)
 
-# Fuso do site. As curvas sao do horario local, nao do UTC.
-_FUSO_HORAS = -3
+def _hora_local(agora: datetime, fuso: str | None) -> float:
+    """Hora do dia com fracao (13.5 = 13h30), no fuso do site.
 
-
-def _hora_local(agora: datetime) -> float:
-    """Hora do dia com fracao (13.5 = 13h30), no fuso do site."""
-    local = agora.timestamp() + _FUSO_HORAS * 3600
-    segundos_no_dia = local % 86_400
-    return segundos_no_dia / 3600
+    O deslocamento era um inteiro cravado (-3). Funcionava para Sao Paulo e
+    para mais nenhum lugar: um site em outro fuso teria a curva solar deslocada,
+    com o pico de geracao fora do meio-dia dele. O resto do sistema ja resolve
+    fuso por site - a tarifacao inclusive -, e agora este tambem.
+    """
+    local = agora.astimezone(ZoneInfo(fuso or "America/Sao_Paulo"))
+    return local.hour + local.minute / 60 + local.second / 3600
 
 
 def geracao_solar_kw(hora: float, pico_kw: float) -> float:
@@ -79,12 +81,13 @@ def bateria_kw(
 async def gerar_leitura() -> dict:
     """Grava uma leitura para cada site. Uma execucao do laco."""
     agora = datetime.now(UTC)
-    hora = _hora_local(agora)
     registros = 0
 
     async with SessionLocal() as db:
         sites = (await db.execute(select(Site))).scalars().all()
         for site in sites:
+            # Cada site tem o seu meio-dia.
+            hora = _hora_local(agora, site.timezone)
             # Escala as curvas pelo porte do site, para nao inventar um solar
             # de 40 kW num condominio com um ponto de 7 kW.
             teto = float(site.grid_limit_kw or 75)

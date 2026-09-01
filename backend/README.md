@@ -111,7 +111,7 @@ uvicorn app.main:app --reload
 ## Testes
 
 ```bash
-pytest -q          # 209 testes
+pytest -q          # 225 testes
 ruff check app     # lint
 ```
 
@@ -138,6 +138,7 @@ ruff check app     # lint
 | `test_corte_do_operador.py` | o corte manual do painel não é desfeito por sessão nova |
 | `test_idempotencia_cobranca.py` | o contrato de chave que o painel usa para retentar |
 | `test_indices_sessao_ativa.py` | as duas guardas de sessão ativa, no nível do banco |
+| `test_achados_de_revisao.py` | os oito achados restantes da revisão, um bloco cada |
 | `test_config_guard.py` | recusa subir em produção com segredo público |
 
 Os quatro `test_http_*` sobem a aplicação inteira sobre a mesma transação do

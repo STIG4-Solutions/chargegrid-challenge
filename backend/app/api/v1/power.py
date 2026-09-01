@@ -11,7 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.deps import DbSession, OperatorUser, ScopedSiteId
 from app.models.charge_point import ChargePoint, ChargePointConnection
-from app.models.enums import ChargePointStatus
+from app.models.enums import ChargePointStatus, SessionState
 from app.models.site import Site, SiteMeterReading
 from app.schemas.ev import (
     ChargePointCreate,
@@ -242,8 +242,18 @@ async def throttle(
         # marcava como carregando um ponto ocioso, que entao passava a reservar
         # potencia no rateio sem entregar energia a ninguem. O poller confirma no
         # proximo ciclo; aqui so evitamos o estado impossivel.
+        # ACTIVE_SESSION_STATES inclui AUTHORIZING, QUEUED e FINISHING - estados
+        # em que o ponto esta ocupado mas nao entrega energia. Marca-lo CHARGING
+        # nesses casos torna is_dispatchable verdadeiro e faz o alocador
+        # comprometer potencia com quem nao consome: exatamente o que o
+        # paragrafo acima diz que esta branch existe para evitar.
         ativa = await session_service.active_session_for(db, cp.id)
-        cp.status = ChargePointStatus.CHARGING if ativa else ChargePointStatus.AVAILABLE
+        carregando = ativa is not None and ativa.state in {
+            SessionState.STARTING,
+            SessionState.CHARGING,
+            SessionState.SUSPENDED,
+        }
+        cp.status = ChargePointStatus.CHARGING if carregando else ChargePointStatus.AVAILABLE
     await db.commit()
     await db.refresh(cp)
     return cp

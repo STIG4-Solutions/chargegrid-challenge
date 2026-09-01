@@ -89,7 +89,10 @@ class Settings(BaseSettings):
     meter_interval_s: int = 30
 
     # Pagamento
-    payment_provider: Literal["mock", "pix", "stripe"] = "mock"
+    # O Literal lista o que existe de verdade. "stripe" estava aqui sem
+    # implementacao: passava na validacao e caia no simulador, aprovando
+    # pagamento ficticio. Quando houver um provedor Stripe, ele volta.
+    payment_provider: Literal["mock", "pix"] = "mock"
     # Sem default: com ele um webhook forjado marca faturas como pagas.
     payment_webhook_secret: str
 

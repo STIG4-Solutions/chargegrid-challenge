@@ -9,31 +9,44 @@ from datetime import UTC, datetime, timedelta
 CAB = "/api/v1/app"
 
 
-async def _agendamentos(api, cab, ponto, quantos: int):
-    """Cria pela propria API: janelas de 1h, espacadas, para nao conflitarem."""
-    base = datetime.now(UTC) + timedelta(days=1)
+async def _agendamentos(db, motorista, ponto, quantos: int):
+    """Cria direto no banco, com janelas ja passadas.
+
+    Nao pela API de proposito: ela recusa janela no passado e limita
+    agendamentos EM ABERTO por motorista. A lista, porem, mostra o historico
+    inteiro - e' justamente por ele crescer sem teto que a paginacao existe.
+    """
+    import uuid
+
+    from app.models.enums import ReservationStatus
+    from app.models.reservation import Reservation
+
+    base = datetime.now(UTC) - timedelta(days=30)
     for n in range(quantos):
-        r = await api.post(
-            f"{CAB}/reservations",
-            headers=cab,
-            json={
-                "charge_point_id": str(ponto.id),
-                "starts_at": (base + timedelta(hours=n * 2)).isoformat(),
-                "ends_at": (base + timedelta(hours=n * 2 + 1)).isoformat(),
-            },
+        db.add(
+            Reservation(
+                id=uuid.uuid4(),
+                code=f"RES-{uuid.uuid4().hex[:8].upper()}",
+                site_id=ponto.site_id,
+                charge_point_id=ponto.id,
+                user_id=motorista.id,
+                status=ReservationStatus.EXPIRED,
+                starts_at=base + timedelta(hours=n * 2),
+                ends_at=base + timedelta(hours=n * 2 + 1),
+            )
         )
-        assert r.status_code == 201, r.text
+    await db.flush()
 
 
-async def test_agendamentos_respeitam_o_limite(api, como_motorista, ponto):
-    await _agendamentos(api, como_motorista, ponto, 12)
+async def test_agendamentos_respeitam_o_limite(api, como_motorista, db, motorista, ponto):
+    await _agendamentos(db, motorista, ponto, 12)
     r = await api.get(f"{CAB}/reservations?limit=5", headers=como_motorista)
     assert r.status_code == 200
     assert len(r.json()) == 5
 
 
-async def test_offset_anda_pela_lista_sem_repetir(api, como_motorista, ponto):
-    await _agendamentos(api, como_motorista, ponto, 12)
+async def test_offset_anda_pela_lista_sem_repetir(api, como_motorista, db, motorista, ponto):
+    await _agendamentos(db, motorista, ponto, 12)
     pagina1 = (await api.get(f"{CAB}/reservations?limit=5&offset=0", headers=como_motorista)).json()
     pagina2 = (await api.get(f"{CAB}/reservations?limit=5&offset=5", headers=como_motorista)).json()
 

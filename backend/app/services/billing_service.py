@@ -56,14 +56,19 @@ async def bill_session(db: AsyncSession, session: ChargingSession) -> Invoice:
             )
         ).scalar_one_or_none()
 
+    # So o que foi entregue depois do inicio.
+    #
+    # `ingest` carimba a sessao em toda amostra, inclusive enquanto ela esta
+    # AUTHORIZING ou QUEUED, e `apply_reading` recusa essas de proposito - nao
+    # se cobra por recarga que nao comecou. Aqui elas entravam assim mesmo,
+    # porque a consulta pegava tudo: os dois caminhos discordavam sobre o mesmo
+    # dado, e a fatura ficava com o lado mais caro.
+    consulta = select(TelemetrySample).where(TelemetrySample.session_id == session.id)
+    if session.started_at is not None:
+        consulta = consulta.where(TelemetrySample.recorded_at >= session.started_at)
+
     samples = list(
-        (
-            await db.execute(
-                select(TelemetrySample)
-                .where(TelemetrySample.session_id == session.id)
-                .order_by(TelemetrySample.recorded_at)
-            )
-        )
+        (await db.execute(consulta.order_by(TelemetrySample.recorded_at)))
         .scalars()
         .all()
     )

@@ -155,7 +155,18 @@ function TariffRow({ tariff, onSaved, onEditWindows, editandoJanelas }) {
     }
   })
   const [draft, setDraft] = useState(tariff)
-  useEffect(() => setDraft(tariff), [tariff])
+
+  // Acompanha o servidor apenas enquanto esta linha não está sendo editada.
+  //
+  // `recarregar()` roda depois da alteração de QUALQUER linha e devolve objetos
+  // novos para todas, então este efeito disparava aqui também — e uma edição
+  // ainda não confirmada era substituída pelo valor do servidor sem aviso. Quem
+  // digitava um preço na linha 1 e mexia no interruptor da linha 2 perdia o que
+  // tinha escrito.
+  const editandoRef = useRef(false)
+  useEffect(() => {
+    if (!editandoRef.current) setDraft(tariff)
+  }, [tariff])
 
   const save = useAction((payload) => tariffsApi.update(tariff.id, payload), { onSuccess: onSaved })
 
@@ -174,8 +185,9 @@ function TariffRow({ tariff, onSaved, onEditWindows, editandoJanelas }) {
       min="0"
       value={draft[field]}
       disabled={save.pending}
+      onFocus={() => { editandoRef.current = true }}
       onChange={(e) => setDraft({ ...draft, [field]: e.target.value })}
-      onBlur={() => commit(field)}
+      onBlur={() => { editandoRef.current = false; commit(field) }}
       onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
     />
   )
@@ -315,14 +327,29 @@ function Simulator({ tariffs }) {
     if (!form.tariff_id && tariffs.length > 0) setForm((f) => ({ ...f, tariff_id: tariffs[0].id }))
   }, [tariffs, form.tariff_id])
 
-  const simulate = useAction(() => tariffsApi.simulate(form), { onSuccess: setResult })
+  // Descarta resposta fora de ordem.
+  //
+  // `useAction` não tem a guarda de request-id que o `useApi` tem, e o timer
+  // só era limpo — a requisição já em voo seguia. Digitar 20 e depois 200:
+  // se a de 20 kWh voltasse depois, o painel exibia o total de 20 sob os
+  // campos de 200, apresentado como "calculado pelo motor de tarifação da API".
+  const pedidoRef = useRef(0)
+
+  const simulate = useAction(
+    (id) => tariffsApi.simulate(form).then((r) => ({ id, r })),
+    {
+      onSuccess: ({ id, r }) => {
+        if (id === pedidoRef.current) setResult(r)
+      }
+    }
+  )
 
   // O cálculo roda no servidor, com as mesmas regras que faturam de verdade —
   // o simulador não pode divergir da cobrança real.
   // O atraso de 300ms evita uma requisição por tecla digitada nos campos numéricos.
   useEffect(() => {
     if (!form.tariff_id) return undefined
-    const timer = setTimeout(() => simulate.run(), 300)
+    const timer = setTimeout(() => simulate.run(++pedidoRef.current), 300)
     return () => clearTimeout(timer)
   }, [form.tariff_id, form.energy_kwh, form.minutes, form.idle_minutes]) // eslint-disable-line react-hooks/exhaustive-deps
 

@@ -369,7 +369,12 @@ async def apply_plan(
                 )
                 failed += 0 if result.ok else 1
                 applied += 1 if result.ok else 0
-                cp.status = ChargePointStatus.SUSPENDED
+                # So registra o corte se o hardware confirmou. Marcar SUSPENDED
+                # depois de uma escrita que falhou punha o banco a mentir: o
+                # ponto seguia puxando potencia plena enquanto o orcamento
+                # contava com ele cortado.
+                if result.ok:
+                    cp.status = ChargePointStatus.SUSPENDED
             continue
 
         # Um ponto suspenso precisa ser liberado mesmo que o teto calculado seja

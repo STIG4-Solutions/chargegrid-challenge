@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 
 from app.core.config import settings
+from app.core.errors import PaymentError
 from app.models.enums import PaymentMethodKind, PaymentStatus
 
 
@@ -50,13 +51,27 @@ class PaymentProvider(ABC):
     @abstractmethod
     async def refund(self, provider_ref: str, amount: Decimal) -> ChargeResponse: ...
 
+    # Segredo deste provedor. Cada estabelecimento tem o seu, guardado em
+    # SitePaymentMethod.provider_config; o do .env e' o fallback de instalacao
+    # unica.
+    config: dict = {}
+
+    @property
+    def webhook_secret(self) -> str:
+        return self.config.get("webhook_secret") or settings.payment_webhook_secret
+
     def verify_webhook(self, body: bytes, signature: str | None) -> bool:
-        """HMAC do corpo cru: sem isso qualquer um marca fatura como paga."""
+        """HMAC do corpo cru: sem isso qualquer um marca fatura como paga.
+
+        O segredo sai de `webhook_secret`, nao mais direto das settings. Antes,
+        `provedor_do_evento` descobria de qual estabelecimento era o evento e
+        montava o provedor com a config dele - e a verificacao ignorava tudo
+        isso, usando sempre o segredo global. Com dois sites em PSPs diferentes,
+        so um funcionava: os webhooks legitimos do outro tomavam 401.
+        """
         if not signature:
             return False
-        expected = hmac.new(
-            settings.payment_webhook_secret.encode(), body, hashlib.sha256
-        ).hexdigest()
+        expected = hmac.new(self.webhook_secret.encode(), body, hashlib.sha256).hexdigest()
         return hmac.compare_digest(expected, signature)
 
 
@@ -118,7 +133,25 @@ PROVIDERS: dict[str, type[PaymentProvider]] = {"mock": MockProvider, "pix": PixP
 
 
 def get_provider(name: str | None = None, config: dict | None = None) -> PaymentProvider:
-    provider_cls = PROVIDERS.get(name or settings.payment_provider, MockProvider)
+    """Resolve o provedor pelo nome, recusando o que nao conhece.
+
+    O fallback silencioso para MockProvider era perigoso: `payment_provider`
+    aceita "stripe" no Literal da config, mas PROVIDERS so registra mock e pix.
+    PAYMENT_PROVIDER=stripe passava na validacao e caia no simulador, que
+    aprova na hora e devolve uma referencia inventada - a fatura virava paga
+    sem dinheiro nenhum ter entrado. O mesmo valia para qualquer erro de
+    digitacao no campo livre SitePaymentMethod.provider.
+
+    Um nome desconhecido tem de estourar. Aprovar por engano e' pior do que
+    ficar fora do ar.
+    """
+    escolhido = name or settings.payment_provider
+    provider_cls = PROVIDERS.get(escolhido)
+    if provider_cls is None:
+        raise PaymentError(
+            f"provedor de pagamento desconhecido: {escolhido!r} "
+            f"(disponíveis: {', '.join(sorted(PROVIDERS))})"
+        )
     if provider_cls is PixProvider:
         return PixProvider(config)
     return provider_cls()

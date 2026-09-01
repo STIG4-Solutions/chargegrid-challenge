@@ -43,15 +43,33 @@ export default function PowerManagement() {
       })
       const currentKw = chargePoints.reduce((sum, cp) => sum + Number(cp.current_kw || 0), 0)
       const available = stream.telemetry.budget.available_kw
+
+      // Recalcula a potência alocada com a mesma regra do backend: só os pontos
+      // que podem puxar energia. Carregá-la adiante sem refazer a conta deixava
+      // o cartão com a soma anterior enquanto os limites por ponto, logo abaixo,
+      // já mostravam os novos — e o alerta vermelho de "excede a
+      // disponibilidade" ficava aceso até 10s num site que já estava dentro.
+      const alocada = chargePoints
+        .filter((cp) => podeReceberPotencia(cp))
+        .reduce((sum, cp) => sum + Number(cp.limit_kw || 0), 0)
+
       return {
         ...current,
         budget: stream.telemetry.budget,
         charge_points: chargePoints,
         current_kw: Number(currentKw.toFixed(2)),
+        allocated_kw: Number(alocada.toFixed(2)),
+        over_budget: alocada > available,
         usage_percent: available > 0 ? Math.min(100, (currentKw / available) * 100) : 0,
         active_count: chargePoints.filter((cp) => cp.status === 'charging').length
       }
     })
+
+    // A lista de sessões alimenta o botão de ação de cada linha, e o WebSocket
+    // não a toca. Sem isto, o status da linha ficava "Carregando" enquanto o
+    // botão ainda dizia "Iniciar" — e o clique tomava 409 do servidor, que é
+    // exatamente o conflito que o painel deveria evitar.
+    recent.refetch({ silent: true })
   }, [stream.telemetry]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const reload = () => {
@@ -75,7 +93,7 @@ export default function PowerManagement() {
     <div>
       <div className="stream-bar">
         <StreamBadge status={stream.status} />
-        <button className="btn btn-sm" onClick={() => overview.refetch()} disabled={overview.loading}>
+        <button className="btn btn-sm" onClick={reload} disabled={overview.loading}>
           {overview.loading ? <Spinner /> : null} Atualizar
         </button>
       </div>
@@ -433,11 +451,22 @@ function MeterFreshness({ budget }) {
   )
 }
 
+// `obrigatorio` espelha o NOT NULL da coluna. Um campo limpo vira null no
+// rascunho, e mandar null para uma coluna NOT NULL estourava um 500 sem
+// mensagem — o operador que apagasse o valor só para redigitar levava um erro
+// de servidor. Só `main_breaker_current_a` aceita nulo de verdade.
+// Espelha ChargePoint.is_dispatchable do backend. Se um dos lados mudar, o
+// cartão de potência alocada passa a discordar da tabela logo abaixo dele.
+function podeReceberPotencia(cp) {
+  if (cp.operator_throttled) return false
+  return cp.enabled && (cp.status === 'charging' || cp.status === 'suspended')
+}
+
 const CAMPOS_ORCAMENTO = [
-  { campo: 'grid_limit_kw', rotulo: 'Limite da rede (kW)', dica: 'Capacidade contratada no ponto de entrega', step: 1 },
-  { campo: 'reserved_kw', rotulo: 'Reserva predial (kW)', dica: 'Potência protegida para as cargas não-EV', step: 1 },
+  { campo: 'grid_limit_kw', rotulo: 'Limite da rede (kW)', dica: 'Capacidade contratada no ponto de entrega', step: 1, obrigatorio: true },
+  { campo: 'reserved_kw', rotulo: 'Reserva predial (kW)', dica: 'Potência protegida para as cargas não-EV', step: 1, obrigatorio: true },
   { campo: 'main_breaker_current_a', rotulo: 'Disjuntor de entrada (A)', dica: 'Espelha o registrador 10026 do carregador', step: 1 },
-  { campo: 'battery_min_soc', rotulo: 'SOC mínimo da bateria (%)', dica: 'Abaixo disso a bateria não alimenta a recarga', step: 1 }
+  { campo: 'battery_min_soc', rotulo: 'SOC mínimo da bateria (%)', dica: 'Abaixo disso a bateria não alimenta a recarga', step: 1, obrigatorio: true }
 ]
 
 function BudgetEditor({ settings, onSaved }) {
@@ -452,6 +481,10 @@ function BudgetEditor({ settings, onSaved }) {
   const salvar = useAction(
     (payload) => power.updateBudget(payload),
     { onSuccess: () => { setAberto(false); onSaved() } }
+  )
+
+  const faltando = CAMPOS_ORCAMENTO.filter(
+    ({ campo, obrigatorio }) => obrigatorio && (rascunho[campo] === null || rascunho[campo] === undefined)
   )
 
   const alterado = CAMPOS_ORCAMENTO.some(
@@ -526,10 +559,16 @@ function BudgetEditor({ settings, onSaved }) {
 
       <ErrorState error={salvar.error} compact />
 
+        {faltando.length > 0 && (
+          <p className="muted" style={{ marginTop: 12, fontSize: 13 }}>
+            Preencha {faltando.map((c) => c.rotulo).join(', ')} para salvar.
+          </p>
+        )}
+
       <div className="flex gap-8" style={{ marginTop: 16 }}>
         <button
           className="btn btn-primary btn-sm"
-          disabled={salvar.pending || !alterado}
+          disabled={salvar.pending || !alterado || faltando.length > 0}
           onClick={() => salvar.run(rascunho)}
         >
           {salvar.pending ? <Spinner size={12} /> : null} Salvar e reaplicar

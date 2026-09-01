@@ -25,6 +25,7 @@ from app.models.enums import (
     AuthMethod,
     ChargePointStatus,
     ReservationStatus,
+    SessionState,
     StopReason,
 )
 from app.models.reservation import Reservation
@@ -45,6 +46,11 @@ from app.schemas.ev import (
     StationPointOut,
 )
 from app.services import billing_service, payment_service, session_service
+
+# Teto de agendamentos simultaneos por motorista. Nao e' regra de negocio
+# fechada - e' um limite de sanidade para uma conta nao drenar o orcamento do
+# site inteiro, que era possivel sem ele.
+MAX_RESERVAS_POR_MOTORISTA = 5
 
 router = APIRouter(prefix="/app", tags=["app mobile"])
 
@@ -272,7 +278,23 @@ async def my_active_session(db: DbSession, user: DriverUser):
             .limit(1)
         )
     ).scalar_one_or_none()
-    return session
+    return await _com_posicao_na_fila(db, session)
+
+
+async def _com_posicao_na_fila(db, session: ChargingSession | None) -> SessionDetail | None:
+    """Preenche queue_position, que so a rota do operador preenchia.
+
+    A tela de recarga do app ja tratava o campo - mostra "posicao 3 na fila" em
+    vez do texto generico -, mas nenhuma rota /app/* o populava, entao ele vinha
+    sempre com o default None do schema. Quem estava na fila nunca via seu
+    lugar, justamente na hora em que a informacao importa.
+    """
+    if session is None:
+        return None
+    detalhe = SessionDetail.model_validate(session)
+    if session.state == SessionState.QUEUED:
+        detalhe.queue_position = await session_service.queue_position(db, session)
+    return detalhe
 
 
 @router.get("/sessions/{session_id}/preview", response_model=RatingOut)
@@ -308,8 +330,54 @@ async def _own_session(db, session_id, user) -> ChargingSession:
 @router.post("/reservations", response_model=ReservationOut, status_code=201)
 async def create_reservation(payload: ReservationCreate, db: DbSession, user: DriverUser):
     """Agendamento com checagem de conflito na janela pedida."""
+    agora = datetime.now(UTC)
+
     if payload.ends_at <= payload.starts_at:
         raise HTTPException(status_code=422, detail="janela de reserva inválida")
+
+    # Janela no passado nao reserva nada e ainda entra no orcamento: load_budget
+    # soma as CONFIRMED cuja janela ja comecou, e uma que comecou ontem continua
+    # "corrente" ate acabar.
+    if payload.ends_at <= agora:
+        raise HTTPException(status_code=422, detail="não dá para agendar no passado")
+
+    # Um motorista nao pode segurar o site inteiro. Cada reserva confirmada
+    # desconta reserved_kw do orcamento durante a janela; sem teto, uma conta
+    # zerava a potencia disponivel e empurrava todas as recargas reais para a
+    # fila.
+    em_aberto = (
+        await db.execute(
+            select(func.count(Reservation.id)).where(
+                Reservation.user_id == user.id,
+                Reservation.status.in_(
+                    [ReservationStatus.PENDING, ReservationStatus.CONFIRMED]
+                ),
+                Reservation.ends_at > agora,
+            )
+        )
+    ).scalar_one()
+    if em_aberto >= MAX_RESERVAS_POR_MOTORISTA:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"você já tem {em_aberto} agendamentos em aberto "
+                f"(máximo {MAX_RESERVAS_POR_MOTORISTA}); cancele um para criar outro"
+            ),
+        )
+
+    # O veiculo entra na reserva e o rateio usa a potencia que ele aceita:
+    # aceitar o carro de outra pessoa deixaria o agendamento reservar com base
+    # num dado que nao e' do motorista.
+    if payload.vehicle_id is not None:
+        dono = (
+            await db.execute(
+                select(Vehicle.id).where(
+                    Vehicle.id == payload.vehicle_id, Vehicle.user_id == user.id
+                )
+            )
+        ).scalar_one_or_none()
+        if dono is None:
+            raise HTTPException(status_code=404, detail="veículo não encontrado")
 
     cp = (
         await db.execute(select(ChargePoint).where(ChargePoint.id == payload.charge_point_id))
