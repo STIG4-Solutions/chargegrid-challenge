@@ -397,10 +397,17 @@ async def apply_plan(
             cp.limit_kw = allocation.granted_kw
             if cp.status == ChargePointStatus.SUSPENDED:
                 # Voltou a caber no orcamento: libera o corte do reg 10000.
-                await send_command(
+                #
+                # O estado so muda se a liberacao passou - simetrico ao corte
+                # logo acima. Marcar CHARGING sem conferir deixava o reg 10000
+                # cortado com o banco dizendo que o ponto carrega:
+                # is_dispatchable virava verdadeiro e o alocador comprometia
+                # potencia com um ponto que nao entrega nada.
+                liberacao = await send_command(
                     db, cp, "set_dispatch_throttle", triggered_by=triggered_by, throttled=False
                 )
-                cp.status = ChargePointStatus.CHARGING
+                if liberacao.ok:
+                    cp.status = ChargePointStatus.CHARGING
             applied += 1
         else:
             failed += 1

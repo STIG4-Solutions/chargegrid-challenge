@@ -111,7 +111,7 @@ uvicorn app.main:app --reload
 ## Testes
 
 ```bash
-pytest -q          # 225 testes
+pytest -q          # 233 testes
 ruff check app     # lint
 ```
 
@@ -139,6 +139,7 @@ ruff check app     # lint
 | `test_idempotencia_cobranca.py` | o contrato de chave que o painel usa para retentar |
 | `test_indices_sessao_ativa.py` | as duas guardas de sessão ativa, no nível do banco |
 | `test_achados_de_revisao.py` | os oito achados restantes da revisão, um bloco cada |
+| `test_correcoes_da_revisao.py` | defeitos que as próprias correções introduziram |
 | `test_config_guard.py` | recusa subir em produção com segredo público |
 
 Os quatro `test_http_*` sobem a aplicação inteira sobre a mesma transação do
@@ -442,7 +443,7 @@ Tudo por ambiente (12-factor). Ver `.env.example`.
 | `ENABLE_WORKERS` | `true` | Desligue em réplicas que só servem HTTP |
 | `IDLE_GRACE_MINUTES` | `10` | Tolerância antes da taxa de ociosidade |
 | `QUEUE_TIMEOUT_MINUTES` | `30` | Espera máxima na fila antes de liberar o ponto |
-| `PAYMENT_PROVIDER` | `mock` | `pix` / `stripe` |
+| `PAYMENT_PROVIDER` | `mock` | `mock` ou `pix` — um nome fora dessa lista impede o boot, de propósito |
 | `SECRET_KEY` | — | **Obrigatória em staging/prod:** `openssl rand -hex 32` |
 
 Rodando com várias réplicas: deixe os workers em **uma só** (`ENABLE_WORKERS=false` nas demais) —

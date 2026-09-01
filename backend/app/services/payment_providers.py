@@ -51,10 +51,11 @@ class PaymentProvider(ABC):
     @abstractmethod
     async def refund(self, provider_ref: str, amount: Decimal) -> ChargeResponse: ...
 
-    # Segredo deste provedor. Cada estabelecimento tem o seu, guardado em
-    # SitePaymentMethod.provider_config; o do .env e' o fallback de instalacao
-    # unica.
-    config: dict = {}
+    def __init__(self, config: dict | None = None):
+        # Config do estabelecimento (SitePaymentMethod.provider_config). Fica na
+        # instancia, nao na classe: um dict como atributo de classe seria o mesmo
+        # objeto para todos os provedores de todos os sites.
+        self.config = config or {}
 
     @property
     def webhook_secret(self) -> str:
@@ -112,9 +113,6 @@ class PixProvider(PaymentProvider):
 
     name = "pix"
 
-    def __init__(self, config: dict | None = None):
-        self.config = config or {}
-
     async def create_charge(self, request: ChargeRequest) -> ChargeResponse:
         raise NotImplementedError(
             "Integrar com o PSP escolhido: POST /cob (Pix cobranca imediata), "
@@ -152,6 +150,8 @@ def get_provider(name: str | None = None, config: dict | None = None) -> Payment
             f"provedor de pagamento desconhecido: {escolhido!r} "
             f"(disponíveis: {', '.join(sorted(PROVIDERS))})"
         )
-    if provider_cls is PixProvider:
-        return PixProvider(config)
-    return provider_cls()
+    # A config vai para qualquer provedor, nao so o Pix. Como
+    # SitePaymentMethod.provider tem "mock" por padrao, tratar so o Pix
+    # descartava a config no caso mais comum - e o segredo de webhook do
+    # estabelecimento voltava a ser ignorado, que era o defeito a corrigir.
+    return provider_cls(config)

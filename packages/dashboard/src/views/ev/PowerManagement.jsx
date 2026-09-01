@@ -72,8 +72,12 @@ export default function PowerManagement() {
     recent.refetch({ silent: true })
   }, [stream.telemetry]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Recarrega as duas fontes. `silent` no overview mantinha o botão sem
+  // spinner e clicável durante a requisição, porque useApi só marca loading no
+  // caminho não-silencioso; o Async já preserva o conteúdo enquanto há dados,
+  // então o não-silencioso não pisca a tela.
   const reload = () => {
-    overview.refetch({ silent: true })
+    overview.refetch()
     recent.refetch({ silent: true })
   }
   const rebalance = useAction(() => power.rebalance(false), { onSuccess: reload })
@@ -462,6 +466,10 @@ function podeReceberPotencia(cp) {
   return cp.enabled && (cp.status === 'charging' || cp.status === 'suspended')
 }
 
+// `obrigatorio` espelha o NOT NULL da coluna. Um campo limpo vira null no
+// rascunho, e mandar null para uma coluna NOT NULL estourava um 500 sem
+// mensagem — o operador que apagasse o valor só para redigitar levava um erro
+// de servidor. Só `main_breaker_current_a` aceita nulo de verdade.
 const CAMPOS_ORCAMENTO = [
   { campo: 'grid_limit_kw', rotulo: 'Limite da rede (kW)', dica: 'Capacidade contratada no ponto de entrega', step: 1, obrigatorio: true },
   { campo: 'reserved_kw', rotulo: 'Reserva predial (kW)', dica: 'Potência protegida para as cargas não-EV', step: 1, obrigatorio: true },

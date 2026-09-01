@@ -248,12 +248,21 @@ async def throttle(
         # comprometer potencia com quem nao consome: exatamente o que o
         # paragrafo acima diz que esta branch existe para evitar.
         ativa = await session_service.active_session_for(db, cp.id)
-        carregando = ativa is not None and ativa.state in {
+        if ativa is None:
+            cp.status = ChargePointStatus.AVAILABLE
+        elif ativa.state in {
             SessionState.STARTING,
             SessionState.CHARGING,
             SessionState.SUSPENDED,
-        }
-        cp.status = ChargePointStatus.CHARGING if carregando else ChargePointStatus.AVAILABLE
+        }:
+            cp.status = ChargePointStatus.CHARGING
+        else:
+            # AUTHORIZING, QUEUED ou FINISHING: o motorista esta na vaga, mas
+            # nada e' entregue. Nem CHARGING - o alocador comprometeria potencia
+            # com quem nao consome - nem AVAILABLE, que faria o app anunciar
+            # como livre um ponto ocupado e o proximo toque tomar 409.
+            # PREPARING diz a verdade, e is_dispatchable ja o exclui do rateio.
+            cp.status = ChargePointStatus.PREPARING
     await db.commit()
     await db.refresh(cp)
     return cp

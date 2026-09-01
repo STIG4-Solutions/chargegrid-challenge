@@ -243,7 +243,12 @@ async def start_from_app(
         limit_kwh=limit_kwh,
     )
     session = await session_service.start(db, session, cp, triggered_by=f"driver:{user.email}")
-    return await session_service.get_session(db, session.id, with_events=True)
+    # Esta e' a chamada em que o motorista PODE cair na fila: se ela devolver
+    # queue_position nulo, a tela nao tem como mostrar a posicao no momento
+    # exato em que ela importa.
+    return await _com_posicao_na_fila(
+        db, await session_service.get_session(db, session.id, with_events=True)
+    )
 
 
 @router.get("/sessions", response_model=list[SessionOut])

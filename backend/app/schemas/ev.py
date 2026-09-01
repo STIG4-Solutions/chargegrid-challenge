@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime, time
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.enums import (
     AuthMethod,
@@ -384,6 +384,22 @@ class ReservationCreate(BaseModel):
     starts_at: datetime
     ends_at: datetime
     target_kwh: float | None = Field(default=None, gt=0)
+
+    @field_validator("starts_at", "ends_at")
+    @classmethod
+    def exige_fuso(cls, valor: datetime) -> datetime:
+        """Recusa horario sem fuso, em vez de adivinhar.
+
+        A rota compara a janela com datetime.now(UTC), e um valor ingenuo
+        estourava TypeError - o cliente recebia 500 no lugar de 422.
+
+        Assumir UTC seria pior que recusar: quem escrevesse "10:00" querendo
+        10h da manha em Sao Paulo teria a vaga reservada para as 07h, sem
+        nenhum aviso. Uma reserva errada em silencio e' pior que um erro claro.
+        """
+        if valor.tzinfo is None or valor.utcoffset() is None:
+            raise ValueError("informe o fuso horário (ex.: 2026-09-01T10:00:00-03:00)")
+        return valor
 
 
 class ReservationOut(ORMModel):

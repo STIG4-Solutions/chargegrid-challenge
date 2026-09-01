@@ -163,10 +163,30 @@ function TariffRow({ tariff, onSaved, onEditWindows, editandoJanelas }) {
   // ainda não confirmada era substituída pelo valor do servidor sem aviso. Quem
   // digitava um preço na linha 1 e mexia no interruptor da linha 2 perdia o que
   // tinha escrito.
-  const editandoRef = useRef(false)
+  // O guarda adia, não descarta.
+  //
+  // Ignorar a atualização enquanto o campo está focado protegia a edição, mas
+  // o efeito não voltava a rodar depois do blur — as demais colunas da linha
+  // ficavam com o valor de antes do refresh até a próxima mudança. Guardando o
+  // que chegou, o blur reaplica o que foi pulado, preservando só o campo que
+  // estava sendo editado.
+  const [editando, setEditando] = useState(null)
+  const pendenteRef = useRef(null)
+
   useEffect(() => {
-    if (!editandoRef.current) setDraft(tariff)
-  }, [tariff])
+    if (editando) {
+      pendenteRef.current = tariff
+      return
+    }
+    setDraft(tariff)
+  }, [tariff, editando])
+
+  const encerrarEdicao = (campo) => {
+    const chegou = pendenteRef.current
+    pendenteRef.current = null
+    setEditando(null)
+    if (chegou) setDraft((atual) => ({ ...chegou, [campo]: atual[campo] }))
+  }
 
   const save = useAction((payload) => tariffsApi.update(tariff.id, payload), { onSuccess: onSaved })
 
@@ -185,9 +205,9 @@ function TariffRow({ tariff, onSaved, onEditWindows, editandoJanelas }) {
       min="0"
       value={draft[field]}
       disabled={save.pending}
-      onFocus={() => { editandoRef.current = true }}
+      onFocus={() => setEditando(field)}
       onChange={(e) => setDraft({ ...draft, [field]: e.target.value })}
-      onBlur={() => { editandoRef.current = false; commit(field) }}
+      onBlur={() => { encerrarEdicao(field); commit(field) }}
       onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
     />
   )
@@ -335,11 +355,28 @@ function Simulator({ tariffs }) {
   // campos de 200, apresentado como "calculado pelo motor de tarifação da API".
   const pedidoRef = useRef(0)
 
+  // Resultado e erro passam pela mesma guarda de ordem.
+  //
+  // Só o sucesso estava protegido; `useAction` grava `error` em qualquer
+  // rejeição, e a tela troca o resultado inteiro por <ErrorState> quando ele
+  // existe. Uma requisição antiga que falhasse depois de uma nova ter dado
+  // certo apagava o valor bom e mostrava um erro sem relação com a tela.
+  //
+  // A ação não rejeita: devolve o desfecho junto do id, e quem chegou atrasado
+  // é descartado inteiro — sucesso ou falha.
+  const [erroCorrente, setErroCorrente] = useState(null)
+
   const simulate = useAction(
-    (id) => tariffsApi.simulate(form).then((r) => ({ id, r })),
+    (id) =>
+      tariffsApi
+        .simulate(form)
+        .then((r) => ({ id, r, erro: null }))
+        .catch((erro) => ({ id, r: null, erro })),
     {
-      onSuccess: ({ id, r }) => {
-        if (id === pedidoRef.current) setResult(r)
+      onSuccess: ({ id, r, erro }) => {
+        if (id !== pedidoRef.current) return
+        setErroCorrente(erro)
+        if (r) setResult(r)
       }
     }
   )
@@ -402,8 +439,8 @@ function Simulator({ tariffs }) {
 
       <hr className="hr" />
 
-      {simulate.error ? (
-        <ErrorState error={simulate.error} compact />
+      {erroCorrente ? (
+        <ErrorState error={erroCorrente} compact />
       ) : (
         <>
           <div className="total">

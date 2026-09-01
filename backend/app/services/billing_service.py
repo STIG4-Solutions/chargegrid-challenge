@@ -30,6 +30,36 @@ async def _next_code(db: AsyncSession) -> str:
     return f"INV-{number}"
 
 
+async def _amostras_cobraveis(db: AsyncSession, session: ChargingSession) -> list[TelemetrySample]:
+    """Telemetria que pode virar dinheiro.
+
+    `ingest` carimba a sessao em toda amostra, inclusive enquanto ela esta
+    AUTHORIZING ou QUEUED, e `apply_reading` recusa essas de proposito - nao se
+    cobra por recarga que nao comecou. A consulta pegava tudo, e os dois
+    caminhos discordavam sobre o mesmo dado.
+
+    Sem `started_at` a sessao nunca energizou: nao ha o que cobrar. Devolver a
+    lista completa nesse caso seria justamente o contrario do que esta funcao
+    existe para fazer - e `bill_session` aceita sessao em ERROR, que chega aqui
+    exatamente assim.
+
+    A previa usa o mesmo caminho de proposito: se ela filtrasse diferente, o
+    valor mostrado durante a recarga nao fecharia com a fatura emitida no fim.
+    """
+    if session.started_at is None:
+        return []
+
+    consulta = (
+        select(TelemetrySample)
+        .where(
+            TelemetrySample.session_id == session.id,
+            TelemetrySample.recorded_at >= session.started_at,
+        )
+        .order_by(TelemetrySample.recorded_at)
+    )
+    return list((await db.execute(consulta)).scalars().all())
+
+
 async def bill_session(db: AsyncSession, session: ChargingSession) -> Invoice:
     """Fatura uma sessao FINISHED. Idempotente: chamar duas vezes devolve a mesma fatura."""
     existing = (
@@ -56,22 +86,7 @@ async def bill_session(db: AsyncSession, session: ChargingSession) -> Invoice:
             )
         ).scalar_one_or_none()
 
-    # So o que foi entregue depois do inicio.
-    #
-    # `ingest` carimba a sessao em toda amostra, inclusive enquanto ela esta
-    # AUTHORIZING ou QUEUED, e `apply_reading` recusa essas de proposito - nao
-    # se cobra por recarga que nao comecou. Aqui elas entravam assim mesmo,
-    # porque a consulta pegava tudo: os dois caminhos discordavam sobre o mesmo
-    # dado, e a fatura ficava com o lado mais caro.
-    consulta = select(TelemetrySample).where(TelemetrySample.session_id == session.id)
-    if session.started_at is not None:
-        consulta = consulta.where(TelemetrySample.recorded_at >= session.started_at)
-
-    samples = list(
-        (await db.execute(consulta.order_by(TelemetrySample.recorded_at)))
-        .scalars()
-        .all()
-    )
+    samples = await _amostras_cobraveis(db, session)
 
     now = datetime.now(UTC)
     invoice = Invoice(
@@ -152,17 +167,7 @@ async def preview_session(db: AsyncSession, session: ChargingSession) -> dict:
             .options(selectinload(Tariff.windows))
         )
     ).scalar_one()
-    samples = list(
-        (
-            await db.execute(
-                select(TelemetrySample)
-                .where(TelemetrySample.session_id == session.id)
-                .order_by(TelemetrySample.recorded_at)
-            )
-        )
-        .scalars()
-        .all()
-    )
+    samples = await _amostras_cobraveis(db, session)
     return rate_session(
         session,
         tariff,
