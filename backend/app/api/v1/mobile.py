@@ -217,7 +217,7 @@ async def start_from_app(
     vehicle_id: uuid.UUID | None = None,
     preauth_amount: float = Query(default=50.0, ge=0),
     limit_kwh: float | None = Query(default=None, gt=0),
-) -> SessionDetail | None:
+) -> SessionDetail:
     """Iniciar recarga pelo app.
 
     A pre-autorizacao existe para o estabelecimento nao ficar com energia

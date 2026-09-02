@@ -27,10 +27,16 @@ services:
     env_file: .env
     environment:
       POSTGRES_HOST: db
-      SECRET_KEY: ${SECRET_KEY:?gere uma com: openssl rand -hex 32}
+      # Aspas obrigatorias: o ':' dentro da mensagem faz o YAML ler a linha
+      # como um mapa aninhado, e o arquivo inteiro deixa de parsear - o
+      # `docker compose up` do README falhava antes de subir qualquer coisa.
+      SECRET_KEY: '${SECRET_KEY:?gere uma com: openssl rand -hex 32}'
       CHARGER_DRIVER: ${CHARGER_DRIVER:-simulator}
       ENABLE_WORKERS: "true"
-      CORS_ORIGINS: '["http://localhost:5173"]'
+      # Sobreponivel pelo .env ou pelo shell, como o CHARGER_DRIVER acima.
+      # Fixo aqui, `environment:` vencia o `env_file:` e a guarda de producao
+      # ficava insoluvel: o operador editava o .env e nada mudava.
+      CORS_ORIGINS: '${CORS_ORIGINS:-["http://localhost:5173"]}'
     ports:
       - "8000:8000"
     # Migra, popula e sobe - um comando para a stack inteira ficar utilizavel.

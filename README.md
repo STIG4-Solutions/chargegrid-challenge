@@ -94,9 +94,16 @@ endereço costuma vir do ambiente e não do repositório:
 
 | Onde | Variável | Sem ela |
 |---|---|---|
-| Backend (CORS) | `CORS_ORIGINS` | domínio do painel + `localhost:5173` |
+| Backend (CORS) | `CORS_ORIGINS` | domínio do painel + `localhost:5173` — mas ver abaixo |
 | Painel | `VITE_API_URL` | domínio da API, embutido no build |
 | App | `EXPO_PUBLIC_API_URL` | máquina do bundle em dev; domínio no APK |
+
+> **Em `staging` e `prod`, `CORS_ORIGINS` é obrigatória.** O padrão inclui
+> `localhost` para o desenvolvimento funcionar sem configuração, e a aplicação
+> **recusa subir** com qualquer endereço local nesses ambientes. Sem isso ela
+> subiria deixando `localhost` liberado em produção — ou, na imagem Docker
+> (que não carrega `config/dominios.json`), com CORS só local e o painel real
+> bloqueado.
 
 O app resolve em três degraus: `EXPO_PUBLIC_API_URL`, depois o IP da máquina que
 serve o bundle (só existe com servidor de desenvolvimento), depois o domínio.
@@ -171,7 +178,7 @@ npm ls react           # tem que aparecer uma única
 ## Verificação
 
 ```bash
-npm run verify:api                         # 15 cenários do SDK com fetch simulado
+npm run verify:api                         # 17 cenários do SDK com fetch simulado
 npm run typecheck                          # tipos do SDK e do app contra o contrato
 npm run build                              # painel
 cd backend && python -m pytest -q          # 240 testes (precisa do Postgres)

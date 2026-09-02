@@ -22,8 +22,16 @@ let config: SdkConfig = {
  * qualquer requisição — é aqui que web e mobile divergem, e só aqui.
  */
 export function configureSdk(parcial: Partial<SdkConfig>): void {
-  config = { ...config, ...parcial }
-  if (parcial.baseUrl) config.baseUrl = parcial.baseUrl.replace(/\/$/, '')
+  // `baseUrl` vazia nao substitui o padrao.
+  //
+  // O spread aplicava tudo antes da checagem abaixo, entao uma string vazia
+  // apagava o endereco e a guarda seguinte - falsy - nunca o restaurava. As
+  // requisicoes saiam como `/api/v1/...`, relativas ao host estatico: 404 em
+  // HTML no lugar de JSON, e um WebSocket sem esquema. Nada disso da erro na
+  // configuracao; so' aparece na primeira chamada.
+  const { baseUrl, ...resto } = parcial
+  config = { ...config, ...resto }
+  if (baseUrl) config.baseUrl = baseUrl.replace(/\/$/, '')
 }
 
 export const getConfig = (): SdkConfig => config

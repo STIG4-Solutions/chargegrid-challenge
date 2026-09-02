@@ -191,12 +191,23 @@ function TariffRow({ tariff, onSaved, onEditWindows, editandoJanelas }) {
     setDraft(tariff)
   }, [tariff])
 
+  // Só preserva campo que foi realmente digitado.
+  //
+  // Focar sem alterar também marcava o campo como "em edição": se uma alteração
+  // concorrente chegasse nesse intervalo, o merge devolvia o valor antigo por
+  // cima dela e o commit seguinte a desfazia com um PATCH — revertendo em
+  // silêncio o que outra pessoa acabou de salvar.
+  const sujoRef = useRef(false)
+
   const encerrarEdicao = (campo) => {
     editandoRef.current = null
     const chegou = pendenteRef.current
+    const digitou = sujoRef.current
     pendenteRef.current = null
-    // Reaplica o que chegou durante a edição, preservando só o campo editado.
-    if (chegou) setDraft((atual) => ({ ...chegou, [campo]: atual[campo] }))
+    sujoRef.current = false
+    if (!chegou) return
+    // Sem digitação, o que chegou do servidor vale inteiro.
+    setDraft(digitou ? (atual) => ({ ...chegou, [campo]: atual[campo] }) : chegou)
   }
 
   const save = useAction((payload) => tariffsApi.update(tariff.id, payload), { onSuccess: onSaved })
@@ -217,7 +228,7 @@ function TariffRow({ tariff, onSaved, onEditWindows, editandoJanelas }) {
       value={draft[field]}
       disabled={save.pending}
       onFocus={() => { editandoRef.current = field }}
-      onChange={(e) => setDraft({ ...draft, [field]: e.target.value })}
+      onChange={(e) => { sujoRef.current = true; setDraft({ ...draft, [field]: e.target.value }) }}
       onBlur={() => { encerrarEdicao(field); commit(field) }}
       onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
     />

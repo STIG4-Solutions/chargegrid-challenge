@@ -87,6 +87,7 @@ const check = (nome, cond, extra = '') => {
 // 0. Hidratação: token já gravado no armazenamento vira sessão ativa.
 store.set('chargegrid.tokens', JSON.stringify({ access_token: 'novo', refresh_token: 'r2' }))
 const hidratados = await hydrateTokens()
+
 check('hydrateTokens le o armazenamento assincrono', hidratados?.access_token === 'novo')
 check('accessToken responde de forma sincrona apos hidratar', accessToken() === 'novo')
 
@@ -150,6 +151,18 @@ try {
 }
 check('sessao expirada notificada ao app', sessaoExpirou === 1, `chamadas=${sessaoExpirou}`)
 check('tokens descartados apos refresh recusado', currentTokens() === null && !store.has('chargegrid.tokens'))
+
+// Uma baseUrl vazia nao pode apagar a que ja esta configurada.
+//
+// O spread aplicava tudo antes da checagem de truthiness, entao '' zerava o
+// endereco: as requisicoes saiam relativas ao host - 404 em HTML no lugar de
+// JSON, e um WebSocket sem esquema. Nao da erro na configuracao; so' aparece
+// na primeira chamada.
+const wsAntes = socketUrl('/ws/site', accessToken())
+configureSdk({ baseUrl: '' })
+check('baseUrl vazia nao apaga a configurada', socketUrl('/ws/site', accessToken()) === wsAntes, socketUrl('/ws/site', accessToken()))
+configureSdk({ baseUrl: 'http://localhost:8000/' })
+check('barra final e removida', socketUrl('/ws/site', accessToken()) === wsAntes, socketUrl('/ws/site', accessToken()))
 
 rmSync(saida, { force: true })
 console.log(falhas === 0 ? '\nTodos os cenarios passaram.' : `\n${falhas} falha(s).`)
