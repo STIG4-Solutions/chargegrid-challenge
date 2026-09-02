@@ -8,8 +8,11 @@ import './assets/styles.css'
 
 // Liga o SDK ao ambiente do navegador. No app mobile, a única diferença é
 // trocar localStorage por AsyncStorage aqui.
+// __API_PADRAO__ vem de config/dominios.json, injetado pelo Vite no build.
+// VITE_API_URL continua ganhando dele: é assim que se aponta para outro
+// ambiente sem tocar em arquivo versionado.
 configureSdk({
-  baseUrl: import.meta.env?.VITE_API_URL || 'http://localhost:8000',
+  baseUrl: import.meta.env?.VITE_API_URL || __API_PADRAO__,
   storage: localStorage
 })
 

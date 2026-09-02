@@ -1,6 +1,8 @@
 """Configuração central da aplicação (12-factor: tudo vem do ambiente)."""
 
+import json
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, PostgresDsn, computed_field, model_validator
@@ -41,6 +43,37 @@ SEGREDOS_PUBLICOS = {
 SECRET_KEY_MIN = 32
 
 
+# Enderecos do projeto, lidos de config/dominios.json na raiz do repositorio.
+#
+# O arquivo e' a fonte unica: mudar o dominio ali muda backend, painel e app.
+# Cada consumidor ainda aceita variavel de ambiente por cima - aqui e'
+# CORS_ORIGINS -, porque em producao o endereco costuma vir do ambiente e nao
+# do repositorio.
+_RAIZ = Path(__file__).resolve().parents[3]
+
+
+def _dominios() -> dict:
+    arquivo = _RAIZ / "config" / "dominios.json"
+    try:
+        return json.loads(arquivo.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        # A imagem Docker copia so o backend: sem o arquivo, os defaults de
+        # desenvolvimento abaixo bastam, e producao passa CORS_ORIGINS.
+        return {}
+
+
+def _origens_padrao() -> list[str]:
+    d = _dominios()
+    origens = []
+    if d.get("app") and d.get("protocolo"):
+        origens.append(f"{d['protocolo']}://{d['app']}")
+    painel_dev = (d.get("desenvolvimento") or {}).get("painel", "http://localhost:5173")
+    # O painel de desenvolvimento continua liberado: sem isso, trabalhar
+    # localmente exigiria editar o .env a cada clone.
+    origens.extend([painel_dev, painel_dev.replace("localhost", "127.0.0.1")])
+    return origens
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", extra="ignore", case_sensitive=False
@@ -51,7 +84,7 @@ class Settings(BaseSettings):
     env: Literal["dev", "staging", "prod", "test"] = "dev"
     debug: bool = True
     api_v1_prefix: str = "/api/v1"
-    cors_origins: list[str] = ["http://localhost:5173"]
+    cors_origins: list[str] = Field(default_factory=_origens_padrao)
 
     # Banco
     postgres_host: str = "localhost"

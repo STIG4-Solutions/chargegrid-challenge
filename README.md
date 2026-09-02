@@ -76,6 +76,41 @@ Controlado por `METER_SOURCE`: `virtual` (padrão) ou `push`, que só aceita o q
 > No Windows, use `POSTGRES_HOST=127.0.0.1` e não `localhost`: o nome resolve para `::1` e o
 > asyncpg morre na negociação SSL.
 
+## Endereços: um arquivo só
+
+`config/dominios.json` é a fonte única. Mudar o domínio ali muda backend,
+painel e app:
+
+```json
+{
+  "protocolo": "https",
+  "api": "api.stig4-solutions.com",
+  "app": "stig4-solutions.com"
+}
+```
+
+Cada consumidor aceita **variável de ambiente por cima**, porque em produção o
+endereço costuma vir do ambiente e não do repositório:
+
+| Onde | Variável | Sem ela |
+|---|---|---|
+| Backend (CORS) | `CORS_ORIGINS` | domínio do painel + `localhost:5173` |
+| Painel | `VITE_API_URL` | domínio da API, embutido no build |
+| App | `EXPO_PUBLIC_API_URL` | máquina do bundle em dev; domínio no APK |
+
+O app resolve em três degraus: `EXPO_PUBLIC_API_URL`, depois o IP da máquina que
+serve o bundle (só existe com servidor de desenvolvimento), depois o domínio.
+É o `hostUri` nulo que distingue um APK instalado de uma sessão de
+desenvolvimento — não há flag para manter em dia.
+
+> **No APK o endereço é congelado no build.** Um app instalado não lê
+> configuração de servidor, então trocar de domínio exige gerar o pacote de
+> novo. Isso só mudaria com um app que buscasse a configuração ao abrir — o que
+> troca uma dependência de build por uma de rede no arranque.
+
+A base das URLs impressas nos adesivos de QR sai do mesmo arquivo. Sem isso, um
+adesivo já colado apontaria para o domínio antigo depois de qualquer troca.
+
 ## Por que um repositório só
 
 As features atravessam a fronteira o tempo todo nesta fase. Adicionar um campo costuma
@@ -139,7 +174,7 @@ npm ls react           # tem que aparecer uma única
 npm run verify:api                         # 15 cenários do SDK com fetch simulado
 npm run typecheck                          # tipos do SDK e do app contra o contrato
 npm run build                              # painel
-cd backend && python -m pytest -q          # 233 testes (precisa do Postgres)
+cd backend && python -m pytest -q          # 238 testes (precisa do Postgres)
 cd backend && python -m ruff check .
 cd backend && python -m scripts.smoke_test # 57 cenários ponta a ponta (API no ar)
 cd packages/mobile && npx expo export --platform android --output-dir .expo-bundle

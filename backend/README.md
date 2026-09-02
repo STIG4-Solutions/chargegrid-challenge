@@ -111,7 +111,7 @@ uvicorn app.main:app --reload
 ## Testes
 
 ```bash
-pytest -q          # 233 testes
+pytest -q          # 238 testes
 ruff check app     # lint
 ```
 
@@ -140,6 +140,7 @@ ruff check app     # lint
 | `test_indices_sessao_ativa.py` | as duas guardas de sessão ativa, no nível do banco |
 | `test_achados_de_revisao.py` | os oito achados restantes da revisão, um bloco cada |
 | `test_correcoes_da_revisao.py` | defeitos que as próprias correções introduziram |
+| `test_fonte_de_dominios.py` | endereços saem de `config/dominios.json`, não do código |
 | `test_config_guard.py` | recusa subir em produção com segredo público |
 
 Os quatro `test_http_*` sobem a aplicação inteira sobre a mesma transação do

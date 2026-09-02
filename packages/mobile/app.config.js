@@ -17,9 +17,14 @@
 // Sem a chave o app abre normalmente: a tela do mapa mostra um aviso no lugar
 // e a lista de estacoes continua entregando o essencial.
 const base = require('./app.json')
+// Fonte unica dos enderecos do projeto. Aqui o valor e' EMBUTIDO no APK no
+// momento do build - um app instalado nao le arquivo de configuracao do
+// servidor -, entao trocar de dominio exige gerar o pacote de novo.
+const dominios = require('../../config/dominios.json')
 
 module.exports = () => {
   const chaveDoMapa = process.env.GOOGLE_MAPS_API_KEY ?? ''
+    const apiPadrao = `${dominios.protocolo}://${dominios.api}`
 
   return {
     ...base.expo,
@@ -37,7 +42,13 @@ module.exports = () => {
     // para sempre. Um booleano em `extra` sobrevive a poda.
     extra: {
       ...(base.expo.extra ?? {}),
-      mapaConfigurado: chaveDoMapa.length > 0
+      mapaConfigurado: chaveDoMapa.length > 0,
+        // Endereco de producao, congelado no pacote. EXPO_PUBLIC_API_URL ainda
+        // ganha dele em tempo de build, que e' como o emulador e o aparelho na
+        // rede local apontam para a maquina de desenvolvimento.
+        apiPadrao,
+        // Base das URLs impressas nos adesivos de QR.
+        siteUrl: `${dominios.protocolo}://${dominios.app}`
     }
   }
 }
