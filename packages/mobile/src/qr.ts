@@ -45,6 +45,11 @@ export function codigoDoQr(conteudo: string): string | null {
  * A base vem de `SITE_URL`, que sai de config/dominios.json - o mesmo arquivo
  * que define o endereco da API. Deixa-la fixa aqui faria o adesivo apontar
  * para um dominio antigo depois de qualquer troca.
+ *
+ * Sem base, devolve o CODIGO PURO - um dos tres formatos aceitos. E' melhor
+ * que montar `/cp/CP-01`: aquilo ainda seria lido pelo app, mas nao abriria no
+ * navegador, que e' a unica razao de preferir a URL ao codigo. E o adesivo ja
+ * estaria impresso quando alguem notasse.
  */
 export const conteudoDoQr = (codigo: string, base = SITE_URL) =>
-  `${base}/cp/${codigo.toUpperCase()}`
+  base ? `${base}/cp/${codigo.toUpperCase()}` : codigo.toUpperCase()

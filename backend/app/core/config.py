@@ -62,6 +62,10 @@ def _dominios() -> dict:
         return {}
 
 
+def _e_local(origem: str) -> bool:
+    return any(marca in origem for marca in ("localhost", "127.0.0.1", "0.0.0.0", "[::1]"))
+
+
 def _origens_padrao() -> list[str]:
     d = _dominios()
     origens = []
@@ -182,6 +186,25 @@ class Settings(BaseSettings):
             problemas.append("POSTGRES_PASSWORD é um valor público do repositório.")
         if self.debug:
             problemas.append("DEBUG=true expõe stack trace ao cliente. Use DEBUG=false.")
+
+        # QUALQUER endereco local na lista de producao e' problema - nao apenas
+        # uma lista inteiramente local.
+        #
+        # Sao dois cenarios distintos e os dois passavam antes. Na imagem Docker
+        # o config/dominios.json nao existe (o build usa contexto ./backend), o
+        # default fica so com os enderecos de desenvolvimento e o painel real
+        # toma erro de CORS. Rodando de um checkout, o arquivo existe e o default
+        # traz o dominio JUNTO dos locais: a API sobe limpa e deixa localhost
+        # permanentemente liberado em producao.
+        #
+        # Exigir que TODAS fossem locais deixava o segundo caso passar - que e'
+        # o mais perigoso dos dois, porque nao da nenhum sintoma.
+        locais = [origem for origem in self.cors_origins if _e_local(origem)]
+        if locais:
+            problemas.append(
+                f"CORS_ORIGINS contém endereço local em {self.env}: {', '.join(locais)}. "
+                "Defina CORS_ORIGINS apenas com os domínios reais."
+            )
 
         if problemas:
             itens = "".join(f"\n  - {item}" for item in problemas)

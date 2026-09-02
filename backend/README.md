@@ -111,7 +111,7 @@ uvicorn app.main:app --reload
 ## Testes
 
 ```bash
-pytest -q          # 238 testes
+pytest -q          # 240 testes
 ruff check app     # lint
 ```
 
@@ -433,6 +433,15 @@ continuam valendo.
 ---
 
 ## Configuração
+
+> **Em produção, `CORS_ORIGINS` é obrigatória.** A imagem Docker é construída
+> com contexto `./backend` — de propósito, para o backend fazer deploy sozinho
+> sem arrastar `node_modules` —, então `config/dominios.json` não existe dentro
+> dela e o CORS cai no padrão de desenvolvimento. A aplicação **recusa subir**
+> em `staging` ou `prod` com CORS só local: sem essa guarda ela subiria normal e
+> o painel tomaria erro de CORS, que é dos sintomas mais difíceis de ligar à
+> causa.
+
 
 Tudo por ambiente (12-factor). Ver `.env.example`.
 

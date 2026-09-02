@@ -39,7 +39,13 @@ const apiPadrao = (Constants.expoConfig?.extra?.apiPadrao as string | undefined)
 export const API_URL =
   process.env.EXPO_PUBLIC_API_URL || baseUrlDeDesenvolvimento() || apiPadrao
 
-/** Base das URLs impressas nos adesivos de QR. */
+/**
+ * Base das URLs impressas nos adesivos de QR, de config/dominios.json.
+ *
+ * Vazia quando o app roda fora do `app.config.js`. Quem gera o adesivo trata
+ * esse caso (ver `conteudoDoQr`) em vez de repetir o dominio aqui, que e'
+ * justamente o que a fonte unica existe para evitar.
+ */
 export const SITE_URL = (Constants.expoConfig?.extra?.siteUrl as string | undefined) ?? ''
 
 /**

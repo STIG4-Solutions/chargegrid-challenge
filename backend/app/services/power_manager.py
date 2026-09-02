@@ -408,6 +408,13 @@ async def apply_plan(
                 )
                 if liberacao.ok:
                     cp.status = ChargePointStatus.CHARGING
+                else:
+                    # O teto foi escrito, mas o reg 10000 continua cortado: o
+                    # ponto nao voltou. Contar como aplicado faria o log dizer
+                    # sucesso para um ponto que nao entrega nada - e o log e' o
+                    # unico lugar onde isso apareceria.
+                    failed += 1
+                    continue
             applied += 1
         else:
             failed += 1

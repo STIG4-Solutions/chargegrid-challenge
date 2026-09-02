@@ -4,11 +4,21 @@ import pytest
 
 from app.core.config import SECRET_KEY_DEV, WEBHOOK_SECRET_DEV, Settings
 
+SEGREDOS_DEV = {
+    "secret_key": "a" * 64,
+    "payment_webhook_secret": "x",
+    "postgres_password": "y",
+}
+
 SEGURO = {
     "secret_key": "a" * 64,
     "payment_webhook_secret": "segredo-real-do-psp",
     "postgres_password": "senha-forte-do-banco",
     "debug": False,
+    # Producao com CORS so local significa que o dominio nao chegou a
+    # configuracao - a API sobe e o painel e' bloqueado. Faz parte de "prod
+    # configurado corretamente".
+    "cors_origins": ["https://stig4-solutions.com"],
 }
 
 
@@ -76,3 +86,15 @@ def test_staging_tambem_e_protegido():
     """Staging costuma ter dado real — a mesma régua vale."""
     with pytest.raises(ValueError, match="SECRET_KEY"):
         Settings(env="staging", **{**SEGURO, "secret_key": SECRET_KEY_DEV})
+
+
+def test_prod_com_cors_so_local_e_recusado():
+    """A imagem Docker nao carrega config/dominios.json: sem CORS_ORIGINS no
+    ambiente, o default cai no painel de desenvolvimento e o painel real toma
+    erro de CORS - sintoma dificil de ligar a causa."""
+    with pytest.raises(ValueError, match="CORS_ORIGINS"):
+        _prod(cors_origins=["http://localhost:5173"])
+
+
+def test_dev_com_cors_local_continua_normal():
+    Settings(env="dev", cors_origins=["http://localhost:5173"], **SEGREDOS_DEV)

@@ -170,21 +170,32 @@ function TariffRow({ tariff, onSaved, onEditWindows, editandoJanelas }) {
   // ficavam com o valor de antes do refresh até a próxima mudança. Guardando o
   // que chegou, o blur reaplica o que foi pulado, preservando só o campo que
   // estava sendo editado.
-  const [editando, setEditando] = useState(null)
+  // O efeito depende só de `tariff`, de propósito.
+  //
+  // Ter `editando` nas dependências fazia o efeito rodar de novo no blur — e aí
+  // ele desfazia a mesclagem que `encerrarEdicao` tinha acabado de aplicar,
+  // devolvendo o valor do servidor por cima do que foi digitado. A mesclagem
+  // virava código morto: o campo voltava sozinho enquanto o PATCH corria, e se
+  // ele falhasse o valor digitado sumia de vez.
+  //
+  // O sinalizador é ref e não estado justamente para não entrar em dependência.
+  const editandoRef = useRef(null)
   const pendenteRef = useRef(null)
 
   useEffect(() => {
-    if (editando) {
+    if (editandoRef.current) {
+      // Guarda para reaplicar no blur, em vez de descartar.
       pendenteRef.current = tariff
       return
     }
     setDraft(tariff)
-  }, [tariff, editando])
+  }, [tariff])
 
   const encerrarEdicao = (campo) => {
+    editandoRef.current = null
     const chegou = pendenteRef.current
     pendenteRef.current = null
-    setEditando(null)
+    // Reaplica o que chegou durante a edição, preservando só o campo editado.
     if (chegou) setDraft((atual) => ({ ...chegou, [campo]: atual[campo] }))
   }
 
@@ -205,7 +216,7 @@ function TariffRow({ tariff, onSaved, onEditWindows, editandoJanelas }) {
       min="0"
       value={draft[field]}
       disabled={save.pending}
-      onFocus={() => setEditando(field)}
+      onFocus={() => { editandoRef.current = field }}
       onChange={(e) => setDraft({ ...draft, [field]: e.target.value })}
       onBlur={() => { encerrarEdicao(field); commit(field) }}
       onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
