@@ -72,6 +72,14 @@ navegador sem F5.
 
 ## Subindo em 1 comando
 
+> Este caminho ficou quebrado por bastante tempo, em duas camadas: o
+> `docker-compose.yml` não parseava (um `:` sem aspas dentro da mensagem do
+> `SECRET_KEY`) e a imagem não instalava o `email-validator` que o `EmailStr`
+> dos schemas exige — a máquina de desenvolvimento costuma tê-lo por tabela,
+> então a falha só aparecia no contêiner. Ambos corrigidos; a stack sobe e o
+> teste de fumaça passa contra ela.
+
+
 ```bash
 cp .env.example .env
 docker compose up --build

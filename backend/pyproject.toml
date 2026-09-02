@@ -6,7 +6,11 @@ requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.30.6",
-    "pydantic>=2.9.0",
+    # O extra [email] traz o email-validator, que o EmailStr dos schemas exige.
+    # Sem ele a aplicacao importa e quebra na montagem do schema - so' que a
+    # maquina de desenvolvimento costuma te-lo por tabela, entao a falha so
+    # aparece na imagem, que instala estrito deste arquivo.
+    "pydantic[email]>=2.9.0",
     "pydantic-settings>=2.5.0",
     "sqlalchemy[asyncio]>=2.0.35",
     "asyncpg>=0.29.0",

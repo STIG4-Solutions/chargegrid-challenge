@@ -199,20 +199,28 @@ function TariffRow({ tariff, onSaved, onEditWindows, editandoJanelas }) {
   // silêncio o que outra pessoa acabou de salvar.
   const sujoRef = useRef(false)
 
+  /** Encerra a edição do campo e diz se ele foi realmente digitado. */
   const encerrarEdicao = (campo) => {
     editandoRef.current = null
     const chegou = pendenteRef.current
     const digitou = sujoRef.current
     pendenteRef.current = null
     sujoRef.current = false
-    if (!chegou) return
     // Sem digitação, o que chegou do servidor vale inteiro.
-    setDraft(digitou ? (atual) => ({ ...chegou, [campo]: atual[campo] }) : chegou)
+    if (chegou) setDraft(digitou ? (atual) => ({ ...chegou, [campo]: atual[campo] }) : chegou)
+    return digitou
   }
 
   const save = useAction((payload) => tariffsApi.update(tariff.id, payload), { onSuccess: onSaved })
 
   // Só grava quando o campo perde o foco: cada tecla digitada não vira um PATCH.
+  //
+  // E só quando ele foi de fato digitado. `commit` lê `draft` do render atual —
+  // o `setDraft` de `encerrarEdicao` é agrupado e ainda não aplicou —, então
+  // num campo apenas focado ele comparava o valor VELHO contra o novo que
+  // chegou do servidor, via diferença e disparava um PATCH com o velho:
+  // desfazia em silêncio o que outra pessoa acabou de salvar, com a tela já
+  // mostrando o valor certo.
   const commit = (field) => {
     const value = Number(draft[field])
     if (Number.isNaN(value) || value === Number(tariff[field])) return
@@ -229,7 +237,7 @@ function TariffRow({ tariff, onSaved, onEditWindows, editandoJanelas }) {
       disabled={save.pending}
       onFocus={() => { editandoRef.current = field }}
       onChange={(e) => { sujoRef.current = true; setDraft({ ...draft, [field]: e.target.value }) }}
-      onBlur={() => { encerrarEdicao(field); commit(field) }}
+      onBlur={() => { if (encerrarEdicao(field)) commit(field) }}
       onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
     />
   )
