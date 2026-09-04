@@ -18,3 +18,8 @@ __pycache__/
 .env
 .env.*
 !.env.example
+
+# Configuracoes locais do editor e do sistema operacional
+.idea/
+.DS_Store
+Thumbs.db

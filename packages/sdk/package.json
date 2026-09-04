@@ -10,7 +10,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "gen:types": "openapi-typescript ../../backend/openapi.json -o src/schema.ts",
+    "gen:types": "openapi-typescript ../../apps/api/openapi.json -o src/schema.ts",
     "verify": "node scripts/verify-api-client.mjs",
     "typecheck": "tsc --noEmit"
   },

@@ -1,0 +1,52 @@
+# Ambiente local: docker compose --env-file apps/api/.env up --build
+# Mantem o nome de projeto anterior e seu volume backend_chargegrid_pgdata.
+# Instalacoes que usavam -p ou COMPOSE_PROJECT_NAME devem manter esse valor.
+name: backend
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?defina POSTGRES_USER no .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+      POSTGRES_DB: ${POSTGRES_DB:?defina POSTGRES_DB no .env}
+    ports:
+      - "5432:5432"
+    volumes:
+      - chargegrid_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: ./apps/api
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: ./apps/api/.env
+    environment:
+      POSTGRES_HOST: db
+      # Aspas obrigatorias: o ':' dentro da mensagem faz o YAML ler a linha
+      # como um mapa aninhado, e o arquivo inteiro deixa de parsear - o
+      # `docker compose up` do README falhava antes de subir qualquer coisa.
+      SECRET_KEY: '${SECRET_KEY:?gere uma com: openssl rand -hex 32}'
+      CHARGER_DRIVER: ${CHARGER_DRIVER:-simulator}
+      ENABLE_WORKERS: "true"
+      # Sobreponivel pelo .env ou pelo shell, como o CHARGER_DRIVER acima.
+      # Fixo aqui, `environment:` vencia o `env_file:` e a guarda de producao
+      # ficava insoluvel: o operador editava o .env e nada mudava.
+      CORS_ORIGINS: '${CORS_ORIGINS:-["http://localhost:5173"]}'
+    ports:
+      - "8000:8000"
+    # Migra, popula e sobe - um comando para a stack inteira ficar utilizavel.
+    # O seed imprime as senhas sorteadas se SEED_*_PASSWORD nao estiver definido.
+    command: >
+      sh -c "alembic upgrade head &&
+             python -m app.seed &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+volumes:
+  chargegrid_pgdata:

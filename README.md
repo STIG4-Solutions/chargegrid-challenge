@@ -9,9 +9,9 @@ e sem OCPP não existe cobrança. A plataforma cobre esses três vazios.
 
 | Parte | Onde | Stack | Para quem |
 |---|---|---|---|
-| API | `backend/` | Python · FastAPI · PostgreSQL | — |
-| Painel comercial | `packages/dashboard/` | React 19 · Vite | operador do estabelecimento |
-| App do motorista | `packages/mobile/` | React Native · Expo (iOS + Android) | usuário final |
+| API | `apps/api/` | Python · FastAPI · PostgreSQL | — |
+| Painel comercial | `apps/admin/` | React 19 · Vite | operador do estabelecimento |
+| App do motorista | `apps/mobile/` | React Native · Expo (iOS + Android) | usuário final |
 | Cliente compartilhado | `packages/sdk/` | TypeScript | os dois clientes |
 
 ## Rodar
@@ -19,16 +19,16 @@ e sem OCPP não existe cobrança. A plataforma cobre esses três vazios.
 **Backend** (sobe Postgres, migra, popula e serve):
 
 ```bash
-cd backend
-cp .env.example .env
-docker compose up --build          # API em http://localhost:8000
+cp apps/api/.env.example apps/api/.env
+# Preencha os valores de apps/api/.env antes de continuar.
+npm run infra:up          # API em http://localhost:8000
 ```
 
 **Painel:**
 
 ```bash
 npm install
-cp .env.example .env               # VITE_API_URL=http://localhost:8000
+cp apps/admin/.env.example apps/admin/.env  # VITE_API_URL=http://localhost:8000
 npm run dev                        # http://localhost:5173
 ```
 
@@ -40,11 +40,11 @@ npm run mobile                     # ou mobile:android / mobile:ios
 
 Isso abre no **Expo Go** — escaneie o QR do terminal, ou tecle `a`/`i` para
 emulador. Para o app com ícone próprio na gaveta, sem o Expo Go no meio, o
-build sai pela nuvem (`packages/mobile/README.md` explica por que não sai
+build sai pela nuvem (`apps/mobile/README.md` explica por que não sai
 localmente no Windows):
 
 ```bash
-cd packages/mobile && npx eas-cli build -p android --profile preview
+cd apps/mobile && npx eas-cli build -p android --profile preview
 ```
 
 Contas criadas pelo seed:
@@ -56,11 +56,11 @@ Contas criadas pelo seed:
 | Motorista | `joao.silva@email.com` | `SEED_DRIVER_PASSWORD` |
 
 **Não há senha escrita no repositório.** Deixe essas variáveis em branco no
-`backend/.env` e o seed sorteia uma senha para cada perfil, imprimindo-as **uma única
+`apps/api/.env` e o seed sorteia uma senha para cada perfil, imprimindo-as **uma única
 vez** ao rodar — anote. Preencha-as se quiser senhas estáveis entre recriações do banco.
 
 Para o painel oferecer os atalhos de login em desenvolvimento, repita as senhas em
-`VITE_DEMO_*_PASSWORD` no `.env` da raiz; sem isso os botões não aparecem e você digita.
+`VITE_DEMO_*_PASSWORD` no `apps/admin/.env`; sem isso os botões não aparecem e você digita.
 
 ### Medição do site
 
@@ -68,17 +68,20 @@ Não há smart meter físico ligado a esta instalação, então um worker sintet
 na mesma tabela que um medidor real alimentaria: geração solar em meia senoide entre 6h e 18h,
 consumo do prédio maior em horário comercial, bateria descarregando na ponta (18h–21h).
 Nada mais no sistema sabe que a origem é sintética — trocar por um coletor Modbus é substituir
-`backend/app/workers/virtual_meter.py`, sem tocar no domínio.
+`apps/api/app/workers/virtual_meter.py`, sem tocar no domínio.
 
 Controlado por `METER_SOURCE`: `virtual` (padrão) ou `push`, que só aceita o que chegar por
 `POST /power/meter-readings`.
+
+Os comandos acima partem da raiz do repositorio. Veja [desenvolvimento local](docs/development.md),
+[estrutura do repositorio](docs/repository-structure.md) e [como contribuir](CONTRIBUTING.md).
 
 > No Windows, use `POSTGRES_HOST=127.0.0.1` e não `localhost`: o nome resolve para `::1` e o
 > asyncpg morre na negociação SSL.
 
 ## Endereços: um arquivo só
 
-`config/dominios.json` é a fonte única. Mudar o domínio ali muda backend,
+`config/domains.json` é a fonte única. Mudar o domínio ali muda backend,
 painel e app:
 
 ```json
@@ -102,7 +105,7 @@ endereço costuma vir do ambiente e não do repositório:
 > `localhost` para o desenvolvimento funcionar sem configuração, e a aplicação
 > **recusa subir** com qualquer endereço local nesses ambientes. Sem isso ela
 > subiria deixando `localhost` liberado em produção — ou, na imagem Docker
-> (que não carrega `config/dominios.json`), com CORS só local e o painel real
+> (que não carrega `config/domains.json`), com CORS só local e o painel real
 > bloqueado.
 
 O app resolve em três degraus: `EXPO_PUBLIC_API_URL`, depois o IP da máquina que
@@ -126,7 +129,7 @@ tela que o consome. Aqui isso é **um commit atômico**, verificável de uma vez
 seriam dois ou três commits em repositórios diferentes, com uma janela em que ficam
 inconsistentes.
 
-O backend continua fazendo deploy sozinho: o Docker constrói com contexto `./backend` e não
+O backend continua fazendo deploy sozinho: o Docker constrói com contexto `./apps/api` e não
 arrasta `node_modules`. Vale dividir quando o backend tiver cadência própria de release, ou
 quando mais de uma pessoa passar a mexer só num lado.
 
@@ -157,7 +160,7 @@ o mesmo arquivo, e não existe artefato intermediário para ficar desatualizado.
 Os tipos vêm do contrato, não de cópia manual:
 
 ```bash
-npm run gen:types      # backend/openapi.json -> packages/sdk/src/schema.ts
+npm run gen:types      # apps/api/openapi.json -> packages/sdk/src/schema.ts
 npm run typecheck      # onde a incompatibilidade aparece
 ```
 
@@ -181,10 +184,10 @@ npm ls react           # tem que aparecer uma única
 npm run verify:api                         # 17 cenários do SDK com fetch simulado
 npm run typecheck                          # tipos do SDK e do app contra o contrato
 npm run build                              # painel
-cd backend && python -m pytest -q          # 254 testes (precisa do Postgres)
-cd backend && python -m ruff check .
-cd backend && python -m scripts.smoke_test # 57 cenários ponta a ponta (API no ar)
-cd packages/mobile && npx expo export --platform android --output-dir .expo-bundle
+cd apps/api && python -m pytest -q          # 254 testes (precisa do Postgres)
+cd apps/api && python -m ruff check .
+cd apps/api && python -m scripts.smoke_test # 57 cenários ponta a ponta (API no ar)
+cd apps/mobile && npx expo export --platform android --output-dir .expo-bundle
 ```
 
 O `verify:api` roda contra um armazenamento **assíncrono de propósito** — o do React Native.
@@ -192,19 +195,24 @@ Se passa nele, passa no `localStorage` síncrono da web.
 
 ## Estrutura
 
-```
-backend/                  API FastAPI — README próprio
-  app/                    domínio, drivers MODBUS, workers, serviços
-  alembic/                5 migrations
-  openapi.json            contrato — fonte dos tipos do SDK
-  scripts/smoke_test.py   57 cenários ponta a ponta
-  docker-compose.yml      Postgres + API em um comando
-docs/                     instruções do desafio, datasheet e mapa MODBUS do HCA G2
+```text
+apps/
+  api/                    API FastAPI, migrations, testes e Dockerfile
+  admin/                  painel comercial React + Vite
+  mobile/                 app do motorista React Native + Expo
 packages/
-  sdk/                    @chargegrid/sdk — README na seção acima
-  dashboard/              painel comercial (réplica do SEMS+ + Recarga EV)
-  mobile/                 app do motorista — README próprio
+  sdk/                    cliente TypeScript compartilhado pelos dois apps
+config/
+  domains.json            enderecos publicos compartilhados
+docs/
+  challenge/              escopo e materiais da mentoria
+  references/goodwe/      datasheet, manual e mapa MODBUS do HCA G2
+.github/                  modelo de pull request
+compose.yaml              ambiente local PostgreSQL + API
 ```
+
+A landing page, quando iniciada, fica em `apps/landing`. As convencoes estao em
+[docs/repository-structure.md](docs/repository-structure.md).
 
 ## Paleta
 
