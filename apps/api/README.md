@@ -2,8 +2,8 @@
 
 API de orquestração de recarga EV para **estabelecimentos comerciais** (FIAP × GoodWe, EV Challenge 2026).
 
-Serve os dois clientes do repositório com o mesmo domínio: o **painel comercial**
-(`apps/admin`, React + Vite, seção Recarga EV) e o **app do motorista**
+Serve os dois clientes do repositório com o mesmo domínio: o **dashboard comercial**
+(`apps/dashboard`, React + Vite, seção Recarga EV) e o **app do motorista**
 (`apps/mobile`, React Native + Expo). Ambos consomem a API pelo `@chargegrid/sdk`
 (`packages/sdk`), cujos tipos são gerados do `openapi.json` deste diretório.
 
@@ -143,8 +143,8 @@ ruff check app     # lint
 | `test_sessao_por_motorista.py` | uma vaga por motorista de cada vez |
 | `test_http_isolamento.py` | fatura e sessão entre motoristas e entre estabelecimentos |
 | `test_falhas_terminais.py` | qual bit encerra a recarga e qual é só alarme |
-| `test_corte_do_operador.py` | o corte manual do painel não é desfeito por sessão nova |
-| `test_idempotencia_cobranca.py` | o contrato de chave que o painel usa para retentar |
+| `test_corte_do_operador.py` | o corte manual do dashboard não é desfeito por sessão nova |
+| `test_idempotencia_cobranca.py` | o contrato de chave que o dashboard usa para retentar |
 | `test_indices_sessao_ativa.py` | as duas guardas de sessão ativa, no nível do banco |
 | `test_achados_de_revisao.py` | os oito achados restantes da revisão, um bloco cada |
 | `test_correcoes_da_revisao.py` | defeitos que as próprias correções introduziram |
@@ -184,7 +184,7 @@ python -m scripts.smoke_test http://host:porta
 ## O que roda sem ninguém clicar
 
 Estes laços são o que transforma consulta periódica em operação de tempo real. Rodam no servidor,
-independem do painel estar aberto, e são a razão de a tela mudar sozinha.
+independem do dashboard estar aberto, e são a razão de a tela mudar sozinha.
 
 | Rotina | Cadência | O que faz |
 |---|---|---|
@@ -193,14 +193,14 @@ independem do painel estar aberto, e são a razão de a tela mudar sozinha.
 | promoção da fila | 15 s | Energiza quem espera, na ordem, enquanto o orçamento comportar |
 | expiração de agendamento | 5 s | Reserva não usada devolve a potência ao rateio |
 | expiração da fila | 5 s | Sessão que esperou demais libera o eletroposto |
-| marcação offline | 90 s | Ponto sem leitura recente vira `offline` — não pode aparecer saudável no painel |
+| marcação offline | 90 s | Ponto sem leitura recente vira `offline` — não pode aparecer saudável no dashboard |
 
 Com mais de uma réplica, deixe os workers em **uma só** (`ENABLE_WORKERS=false` nas demais): dois
 pollers escrevendo no mesmo eletroposto brigam pelo registrador 10029.
 
 ## Autenticação
 
-O painel e o app usam o mesmo emissor. Papéis: `admin` e `operator` acessam o painel comercial,
+O dashboard e o app usam o mesmo emissor. Papéis: `admin` e `operator` acessam o dashboard comercial,
 `driver` só o escopo do app — um motorista recebe **403** em qualquer rota de gestão.
 
 | Endpoint | Uso |
@@ -231,12 +231,12 @@ O resultado vira escrita no reg. **10029** (`Maximum Charging Power`). Para cort
 derrubar sessões, o reg. **10000** (`EMS Energy Dispatch`) força o ponto ao mínimo.
 
 Dois tetos, não um: `rated_kw` é o limite físico do equipamento e `operator_max_kw` é a política
-que o operador define no painel. O rateio distribui a potência disponível mas **nunca sobe acima
+que o operador define no dashboard. O rateio distribui a potência disponível mas **nunca sobe acima
 da política** — sem essa separação, o ciclo automático devolveria o ponto ao nominal 15 segundos
-depois de o operador ajustar o slider, e o controle do painel não controlaria nada. Vale o mesmo
+depois de o operador ajustar o slider, e o controle do dashboard não controlaria nada. Vale o mesmo
 para `operator_throttled`: um corte manual sobrevive ao poller e ao rateio até o operador liberar.
 
-**"Potência alocada" conta só quem pode puxar.** O número que o painel compara com o disponível
+**"Potência alocada" conta só quem pode puxar.** O número que o dashboard compara com o disponível
 soma o teto dos pontos despacháveis — carregando ou suspensos —, não de todos. Somar o limite de
 pontos ociosos, na fila ou cortados inflava o total com tetos que ninguém está usando e acendia um
 alerta de *excede a disponibilidade* com o site inteiro tranquilo.
@@ -418,9 +418,9 @@ o preço cobrado continua explicável, que é o requisito para cobrança dinâmi
 
 ---
 
-## O que cada tela do painel chama
+## O que cada tela do dashboard chama
 
-O seed reproduz o cenário que o painel exibe — mesmos códigos de ponto, tarifas e perfis —,
+O seed reproduz o cenário que o dashboard exibe — mesmos códigos de ponto, tarifas e perfis —,
 então dá para conferir tela contra endpoint:
 
 | Tela | Chamada |
@@ -448,7 +448,7 @@ continuam valendo.
 > sem arrastar `node_modules` —, então `config/domains.json` não existe dentro
 > dela e o CORS cai no padrão de desenvolvimento. A aplicação **recusa subir**
 > em `staging` ou `prod` com CORS só local: sem essa guarda ela subiria normal e
-> o painel tomaria erro de CORS, que é dos sintomas mais difíceis de ligar à
+> o dashboard tomaria erro de CORS, que é dos sintomas mais difíceis de ligar à
 > causa.
 
 
@@ -563,7 +563,7 @@ proponha `drop_index` neles.
 **Decisão do operador tem que persistir em campo próprio, nunca só no estado observado.**
 `operator_max_kw` e `operator_throttled` existem por isso: o poller (5 s) e o rateio (15 s)
 reescrevem `limit_kw` e `status` continuamente, então qualquer intenção guardada apenas nesses
-campos é desfeita em segundos — e o controle do painel parece funcionar e reverte sozinho.
+campos é desfeita em segundos — e o controle do dashboard parece funcionar e reverte sozinho.
 
 **Todo estado que bloqueia o ponto precisa de rota de saída.** `ACTIVE_SESSION_STATES` impede uma
 segunda sessão no mesmo eletroposto; se algum desses estados não transiciona para `FINISHING` ou

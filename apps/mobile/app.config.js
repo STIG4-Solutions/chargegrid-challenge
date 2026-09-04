@@ -48,7 +48,7 @@ module.exports = () => {
         // rede local apontam para a maquina de desenvolvimento.
         apiPadrao,
         // Base das URLs impressas nos adesivos de QR.
-        siteUrl: `${dominios.protocolo}://${dominios.app}`
+        siteUrl: `${dominios.protocolo}://${dominios.site}`
     }
   }
 }

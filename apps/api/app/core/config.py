@@ -45,7 +45,7 @@ SECRET_KEY_MIN = 32
 
 # Enderecos do projeto, lidos de config/domains.json na raiz do repositorio.
 #
-# O arquivo e' a fonte unica: mudar o dominio ali muda backend, painel e app.
+# O arquivo e' a fonte unica: mudar o dominio ali muda API, dashboard e site publico.
 # Cada consumidor ainda aceita variavel de ambiente por cima - aqui e'
 # CORS_ORIGINS -, porque em producao o endereco costuma vir do ambiente e nao
 # do repositorio.
@@ -71,12 +71,12 @@ def _e_local(origem: str) -> bool:
 def _origens_padrao() -> list[str]:
     d = _dominios()
     origens = []
-    if d.get("app") and d.get("protocolo"):
-        origens.append(f"{d['protocolo']}://{d['app']}")
-    painel_dev = (d.get("desenvolvimento") or {}).get("painel", "http://localhost:5173")
-    # O painel de desenvolvimento continua liberado: sem isso, trabalhar
+    if d.get("dashboard") and d.get("protocolo"):
+        origens.append(f"{d['protocolo']}://{d['dashboard']}")
+    dashboard_dev = (d.get("desenvolvimento") or {}).get("dashboard", "http://localhost:5173")
+    # O dashboard de desenvolvimento continua liberado: sem isso, trabalhar
     # localmente exigiria editar o .env a cada clone.
-    origens.extend([painel_dev, painel_dev.replace("localhost", "127.0.0.1")])
+    origens.extend([dashboard_dev, dashboard_dev.replace("localhost", "127.0.0.1")])
     return origens
 
 

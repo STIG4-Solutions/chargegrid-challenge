@@ -1,6 +1,6 @@
 """A fonte unica de enderecos, e quem a consome.
 
-config/domains.json alimenta backend, painel e app. O valor so vale se os tres
+config/domains.json alimenta API, dashboard e app. O valor so vale se os tres
 lerem o mesmo arquivo - e o jeito de isso se perder e' alguem escrever um
 endereco fixo de novo em algum canto.
 """
@@ -15,17 +15,17 @@ ARQUIVO = RAIZ / "config" / "domains.json"
 def test_o_arquivo_existe_e_tem_o_essencial():
     d = json.loads(ARQUIVO.read_text(encoding="utf-8"))
     assert d["protocolo"] in {"http", "https"}
-    assert d["api"] and d["app"]
+    assert d["api"] and d["dashboard"] and d["site"]
 
 
 def test_cors_deriva_do_arquivo():
     from app.core.config import _origens_padrao
 
     d = json.loads(ARQUIVO.read_text(encoding="utf-8"))
-    assert f"{d['protocolo']}://{d['app']}" in _origens_padrao()
+    assert f"{d['protocolo']}://{d['dashboard']}" in _origens_padrao()
 
 
-def test_o_painel_de_desenvolvimento_continua_liberado():
+def test_o_dashboard_de_desenvolvimento_continua_liberado():
     """Sem isso, trabalhar localmente exigiria editar o .env a cada clone."""
     from app.core.config import _origens_padrao
 
@@ -47,11 +47,11 @@ def test_nenhum_endereco_de_producao_fixo_no_codigo():
     import re
 
     d = json.loads(ARQUIVO.read_text(encoding="utf-8"))
-    dominio = re.escape(d["app"])
+    dominios = [re.escape(d[chave]) for chave in ("api", "dashboard", "site")]
     alvos = [
         RAIZ / "apps" / "api" / "app",
         RAIZ / "packages" / "sdk" / "src",
-        RAIZ / "apps" / "admin" / "src",
+        RAIZ / "apps" / "dashboard" / "src",
         RAIZ / "apps" / "mobile" / "src",
     ]
     achados = []
@@ -60,6 +60,7 @@ def test_nenhum_endereco_de_producao_fixo_no_codigo():
             if f.suffix not in {".py", ".ts", ".tsx", ".js", ".jsx"} or "schema.ts" in f.name:
                 continue
             for n, linha in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
-                if re.search(dominio, linha) and not linha.lstrip().startswith(("#", "*", "//")):
+                tem_dominio = any(re.search(dominio, linha) for dominio in dominios)
+                if tem_dominio and not linha.lstrip().startswith(("#", "*", "//")):
                     achados.append(f"{f.relative_to(RAIZ)}:{n}")
     assert not achados, f"endereço fixo fora de config/domains.json: {achados}"

@@ -7,7 +7,7 @@ O ChargeGrid usa um monorepo com aplicacoes independentes e um SDK compartilhado
 | Caminho | Responsabilidade |
 | --- | --- |
 | `apps/api` | API FastAPI, migrations, testes, scripts Python e Dockerfile |
-| `apps/admin` | Painel administrativo e operacional React + Vite |
+| `apps/dashboard` | Dashboard comercial e operacional React + Vite |
 | `apps/mobile` | Aplicativo do motorista React Native + Expo |
 | `packages/sdk` | Cliente da API, autenticacao e utilitarios compartilhados pelos clientes |
 | `config/domains.json` | Enderecos publicos usados como padrao pelas aplicacoes |
@@ -22,15 +22,15 @@ Os diretorios internos de cada aplicacao seguem sua organizacao atual. O SDK e i
 
 - Diretorios e arquivos gerais: ingles, minusculas e `kebab-case`, sem espacos ou acentos.
 - Nomes convencionais de ferramentas: preservar `README.md`, `CONTRIBUTING.md`, `Dockerfile`, `package.json` e outros nomes reconhecidos.
-- Pacotes JavaScript: `@chargegrid/admin`, `@chargegrid/mobile` e `@chargegrid/sdk`.
+- Pacotes JavaScript: `@chargegrid/dashboard`, `@chargegrid/mobile` e `@chargegrid/sdk`.
 - Projeto Python: `chargegrid-api`.
 - Repositorio: `chargegrid-challenge`; produto: ChargeGrid Intelligence.
 
-As propriedades de `config/domains.json` conservam o contrato existente em portugues. Renomear o arquivo nao altera suas chaves nem os dominios configurados. Identificadores de distribuicao mobile e o projeto EAS tambem permanecem os mesmos.
+`config/domains.json` separa os enderecos publicos da API, do dashboard comercial e do site. Identificadores de distribuicao mobile e o projeto EAS permanecem os mesmos.
 
 ## Configuracoes e ambiente
 
-Cada aplicacao tem seu proprio `.env.example` e carrega seu `.env` local. A raiz nao possui um arquivo de ambiente compartilhado pelos frontends. O Compose recebe explicitamente `apps/api/.env` por `--env-file`; o admin le `apps/admin/.env` e o Expo le `apps/mobile/.env`.
+Cada aplicacao tem seu proprio `.env.example` e carrega seu `.env` local. A raiz nao possui um arquivo de ambiente compartilhado pelos frontends. O Compose recebe explicitamente `apps/api/.env` por `--env-file`; o dashboard le `apps/dashboard/.env` e o Expo le `apps/mobile/.env`.
 
 Mantenha Vite, Metro, Expo, TypeScript e Python junto dos respectivos projetos. Configuracoes de editor e finais de linha ficam na raiz em `.editorconfig` e `.gitattributes`. O arquivo de dominios contem configuracao publica, nunca segredos.
 
@@ -46,7 +46,7 @@ Arquivos locais ignorados pelo Git nao acompanham automaticamente as movimentaco
 
 | Local anterior | Local atual |
 | --- | --- |
-| `.env` na raiz | `apps/admin/.env` |
+| `.env` na raiz | `apps/dashboard/.env` |
 | `backend/.env` | `apps/api/.env` |
 | `packages/mobile/.env` | `apps/mobile/.env` |
 

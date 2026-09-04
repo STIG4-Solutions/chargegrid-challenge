@@ -1,8 +1,8 @@
 {
-  "name": "@chargegrid/admin",
+  "name": "@chargegrid/dashboard",
   "version": "1.0.0",
   "private": true,
-  "description": "Painel comercial ChargeGrid — réplica do SEMS+ com a seção Recarga EV",
+  "description": "Dashboard comercial ChargeGrid — réplica do SEMS+ com a seção Recarga EV",
   "type": "module",
   "scripts": {
     "dev": "vite",

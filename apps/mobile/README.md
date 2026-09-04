@@ -4,7 +4,7 @@ App multiplataforma (iOS + Android) em **React Native + Expo**. É o cliente do
 usuário final do desafio ChargeGrid Intelligence: encontrar uma estação, iniciar
 a recarga, acompanhar o custo e encerrar.
 
-Consome a mesma API do painel comercial através do **`@chargegrid/sdk`**
+Consome a mesma API do dashboard comercial através do **`@chargegrid/sdk`**
 (`packages/sdk`) — nenhuma chamada `fetch` mora aqui.
 
 ## Rodar
@@ -292,7 +292,7 @@ tarifação que emite a fatura** — não é uma estimativa paralela.
    não o enxerga nem recarrega quando ele muda.
 2. **`nodeModulesPaths`** — procura dependências no app antes da raiz.
 
-Não há resolver customizado de React ali, e isso é uma escolha: painel e app
+Não há resolver customizado de React ali, e isso é uma escolha: dashboard e app
 declaram **a mesma versão** (`19.2.3`, exigida pelo React Native 0.86), então o
 npm iça uma cópia só para a raiz do workspace e o SDK não tem como carregar
 outra. Se as versões voltarem a divergir, o Metro precisará de um
@@ -300,7 +300,7 @@ outra. Se as versões voltarem a divergir, o Metro precisará de um
 com *"Invalid hook call"*.
 
 O SDK é consumido como **código-fonte TypeScript**, sem etapa de build: o Metro
-o compila junto com o app, do mesmo jeito que o Vite faz no painel.
+o compila junto com o app, do mesmo jeito que o Vite faz no dashboard.
 
 Para conferir que o bundle fecha nas duas plataformas sem precisar de aparelho:
 

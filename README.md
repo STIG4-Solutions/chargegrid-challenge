@@ -10,7 +10,7 @@ e sem OCPP não existe cobrança. A plataforma cobre esses três vazios.
 | Parte | Onde | Stack | Para quem |
 |---|---|---|---|
 | API | `apps/api/` | Python · FastAPI · PostgreSQL | — |
-| Painel comercial | `apps/admin/` | React 19 · Vite | operador do estabelecimento |
+| Dashboard comercial | `apps/dashboard/` | React 19 · Vite | operador do estabelecimento |
 | App do motorista | `apps/mobile/` | React Native · Expo (iOS + Android) | usuário final |
 | Cliente compartilhado | `packages/sdk/` | TypeScript | os dois clientes |
 
@@ -24,11 +24,11 @@ cp apps/api/.env.example apps/api/.env
 npm run infra:up          # API em http://localhost:8000
 ```
 
-**Painel:**
+**Dashboard:**
 
 ```bash
 npm install
-cp apps/admin/.env.example apps/admin/.env  # VITE_API_URL=http://localhost:8000
+cp apps/dashboard/.env.example apps/dashboard/.env  # VITE_API_URL=http://localhost:8000
 npm run dev                        # http://localhost:5173
 ```
 
@@ -59,8 +59,8 @@ Contas criadas pelo seed:
 `apps/api/.env` e o seed sorteia uma senha para cada perfil, imprimindo-as **uma única
 vez** ao rodar — anote. Preencha-as se quiser senhas estáveis entre recriações do banco.
 
-Para o painel oferecer os atalhos de login em desenvolvimento, repita as senhas em
-`VITE_DEMO_*_PASSWORD` no `apps/admin/.env`; sem isso os botões não aparecem e você digita.
+Para o dashboard oferecer os atalhos de login em desenvolvimento, repita as senhas em
+`VITE_DEMO_*_PASSWORD` no `apps/dashboard/.env`; sem isso os botões não aparecem e você digita.
 
 ### Medição do site
 
@@ -82,13 +82,14 @@ Os comandos acima partem da raiz do repositorio. Veja [desenvolvimento local](do
 ## Endereços: um arquivo só
 
 `config/domains.json` é a fonte única. Mudar o domínio ali muda backend,
-painel e app:
+dashboard e app:
 
 ```json
 {
   "protocolo": "https",
   "api": "api.stig4-solutions.com",
-  "app": "stig4-solutions.com"
+  "dashboard": "dashboard.stig4-solutions.com",
+  "site": "stig4-solutions.com"
 }
 ```
 
@@ -97,15 +98,15 @@ endereço costuma vir do ambiente e não do repositório:
 
 | Onde | Variável | Sem ela |
 |---|---|---|
-| Backend (CORS) | `CORS_ORIGINS` | domínio do painel + `localhost:5173` — mas ver abaixo |
-| Painel | `VITE_API_URL` | domínio da API, embutido no build |
+| Backend (CORS) | `CORS_ORIGINS` | domínio do dashboard + `localhost:5173` — mas ver abaixo |
+| Dashboard | `VITE_API_URL` | domínio da API, embutido no build |
 | App | `EXPO_PUBLIC_API_URL` | máquina do bundle em dev; domínio no APK |
 
 > **Em `staging` e `prod`, `CORS_ORIGINS` é obrigatória.** O padrão inclui
 > `localhost` para o desenvolvimento funcionar sem configuração, e a aplicação
 > **recusa subir** com qualquer endereço local nesses ambientes. Sem isso ela
 > subiria deixando `localhost` liberado em produção — ou, na imagem Docker
-> (que não carrega `config/domains.json`), com CORS só local e o painel real
+> (que não carrega `config/domains.json`), com CORS só local e o dashboard real
 > bloqueado.
 
 O app resolve em três degraus: `EXPO_PUBLIC_API_URL`, depois o IP da máquina que
@@ -133,7 +134,7 @@ O backend continua fazendo deploy sozinho: o Docker constrói com contexto `./ap
 arrasta `node_modules`. Vale dividir quando o backend tiver cadência própria de release, ou
 quando mais de uma pessoa passar a mexer só num lado.
 
-Uma demonstração autônoma do painel — que roda sem backend nenhum, com um servidor falso em
+Uma demonstração autônoma do dashboard — que roda sem backend nenhum, com um servidor falso em
 memória — vive à parte, em
 [`demo-charge-grid`](https://github.com/STIG4-Solutions/demo-charge-grid).
 
@@ -144,7 +145,7 @@ token, tradução de erro, formatação e os hooks de dados. O que difere entre 
 em uma linha, no arranque de cada app:
 
 ```js
-configureSdk({ baseUrl, storage: localStorage })   // painel
+configureSdk({ baseUrl, storage: localStorage })   // dashboard
 configureSdk({ baseUrl, storage: AsyncStorage })   // app do motorista
 ```
 
@@ -183,7 +184,7 @@ npm ls react           # tem que aparecer uma única
 ```bash
 npm run verify:api                         # 17 cenários do SDK com fetch simulado
 npm run typecheck                          # tipos do SDK e do app contra o contrato
-npm run build                              # painel
+npm run build                              # dashboard
 cd apps/api && python -m pytest -q          # 254 testes (precisa do Postgres)
 cd apps/api && python -m ruff check .
 cd apps/api && python -m scripts.smoke_test # 57 cenários ponta a ponta (API no ar)
@@ -198,7 +199,7 @@ Se passa nele, passa no `localStorage` síncrono da web.
 ```text
 apps/
   api/                    API FastAPI, migrations, testes e Dockerfile
-  admin/                  painel comercial React + Vite
+  dashboard/              dashboard comercial React + Vite
   mobile/                 app do motorista React Native + Expo
 packages/
   sdk/                    cliente TypeScript compartilhado pelos dois apps

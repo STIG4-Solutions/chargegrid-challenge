@@ -1,18 +1,19 @@
 {
   "_comentario": [
-    "Fonte unica dos enderecos do projeto. Editar aqui muda backend, painel e app.",
+    "Fonte unica dos enderecos do projeto. Editar aqui muda API, dashboard e site publico.",
     "Cada consumidor aceita variavel de ambiente por cima, para nao precisar",
     "editar arquivo em desenvolvimento nem em outro ambiente.",
     "",
     "  backend  CORS_ORIGINS",
-    "  painel   VITE_API_URL",
+    "  dashboard VITE_API_URL",
     "  app      EXPO_PUBLIC_API_URL  (embutida no APK no momento do build)"
   ],
   "protocolo": "https",
   "api": "api.stig4-solutions.com",
-  "app": "stig4-solutions.com",
+  "dashboard": "dashboard.stig4-solutions.com",
+  "site": "stig4-solutions.com",
   "desenvolvimento": {
     "api": "http://localhost:8000",
-    "painel": "http://localhost:5173"
+    "dashboard": "http://localhost:5173"
   }
 }

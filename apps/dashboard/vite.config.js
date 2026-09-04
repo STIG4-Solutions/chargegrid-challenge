@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs'
 // tendo precedência, que é como o desenvolvimento local e qualquer outro
 // ambiente apontam para outro lugar sem editar arquivo versionado.
 // Tolera o arquivo ausente, como o backend faz: quem empacotar
-// apps/admin sem a raiz do repositorio merece um aviso, nao um ENOENT
+// apps/dashboard sem a raiz do repositorio merece um aviso, nao um ENOENT
 // sem contexto antes de o Vite imprimir qualquer coisa.
 function enderecoDaApi() {
   try {

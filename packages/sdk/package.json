@@ -2,7 +2,7 @@
   "name": "@chargegrid/sdk",
   "version": "0.1.0",
   "private": true,
-  "description": "Cliente da API ChargeGrid compartilhado pelo painel web e pelo app do motorista",
+  "description": "Cliente da API ChargeGrid compartilhado pelo dashboard web e pelo app do motorista",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
