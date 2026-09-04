@@ -41,6 +41,12 @@ export const power = {
   budget: () => api.get<T.Orcamento>('/power/budget'),
   updateBudget: (dados: Record<string, unknown>) => api.patch<T.Orcamento>('/power/budget', dados),
   plan: () => api.get<T.PlanoDeRateio>('/power/plan'),
+  /** Projeta a demanda das proximas horas contra o contrato. */
+  demandForecast: (horas = 6) =>
+    api.get<Record<string, unknown>>('/power/demand/forecast', { horas }),
+  /** Quanto o rateio poupou de ultrapassagem no periodo. */
+  avoidedCost: (dias = 30) =>
+    api.get<Record<string, unknown>>('/power/demand/avoided-cost', { dias }),
   rebalance: (dryRun = false) =>
     api.post<Record<string, unknown>>('/power/rebalance', undefined, { dry_run: dryRun }),
   setLimit: (id: string, limitKw: number) =>

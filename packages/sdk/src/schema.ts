@@ -273,6 +273,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/power/demand/forecast": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Demand Forecast
+         * @description Projeta a demanda das proximas horas contra o contrato.
+         *
+         *     Responde a pergunta que so' aparece na conta do mes seguinte: "com o que
+         *     esta carregando agora, eu estouro a demanda contratada?".
+         */
+        get: operations["demand_forecast_api_v1_power_demand_forecast_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/power/demand/avoided-cost": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Demand Avoided Cost
+         * @description Quanto o rateio poupou de ultrapassagem no periodo.
+         */
+        get: operations["demand_avoided_cost_api_v1_power_demand_avoided_cost_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions": {
         parameters: {
             query?: never;
@@ -2552,6 +2595,69 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ChargePointOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    demand_forecast_api_v1_power_demand_forecast_get: {
+        parameters: {
+            query?: {
+                horas?: number;
+                dias_de_historico?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    demand_avoided_cost_api_v1_power_demand_avoided_cost_get: {
+        parameters: {
+            query?: {
+                dias?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Validation Error */

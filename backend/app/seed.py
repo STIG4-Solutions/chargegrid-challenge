@@ -90,6 +90,11 @@ async def seed() -> None:
             allow_pv_kw=True,
             allow_battery_kw=True,
             battery_min_soc=20.0,
+            # Contrato de demanda. A tarifa e' a ordem de grandeza tipica de um
+            # A4 comercial no Sudeste; o valor real vem da fatura do cliente.
+            # Sem ela o custo evitado sai em kW e nao em reais.
+            contracted_demand_kw=75.0,
+            demand_tariff_brl_per_kw=28.50,
         )
         db.add(site)
         await db.flush()

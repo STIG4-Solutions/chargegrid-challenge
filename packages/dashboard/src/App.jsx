@@ -16,6 +16,7 @@ import EvCharging from './views/ev/EvCharging.jsx'
 import PowerManagement from './views/ev/PowerManagement.jsx'
 import SessionCycle from './views/ev/SessionCycle.jsx'
 import TariffPayment from './views/ev/TariffPayment.jsx'
+import DemandContract from './views/ev/DemandContract.jsx'
 
 export default function App() {
   const { status } = useAuth()
@@ -52,6 +53,7 @@ export default function App() {
               <Route path="power" element={<PowerManagement />} />
               <Route path="sessions" element={<SessionCycle />} />
               <Route path="tariff" element={<TariffPayment />} />
+              <Route path="demand" element={<DemandContract />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/station_monitor" replace />} />

@@ -36,6 +36,17 @@ class Site(UUIDMixin, TimestampMixin, Base):
     allow_battery_kw: Mapped[bool] = mapped_column(default=True, nullable=False)
     battery_min_soc: Mapped[float] = mapped_column(Numeric(5, 2), default=20, nullable=False)
 
+    # Contrato de demanda com a distribuidora (Grupo A).
+    #
+    # `grid_limit_kw` e' o teto que o rateio respeita momento a momento;
+    # `contracted_demand_kw` e' o que esta no contrato e vira conta no fim do
+    # mes. Costumam ser iguais, mas nao precisam: da' para operar com folga
+    # abaixo do contratado. Nulo cai no grid_limit_kw.
+    contracted_demand_kw: Mapped[float | None] = mapped_column(Numeric(8, 2))
+    demand_tariff_brl_per_kw: Mapped[float] = mapped_column(
+        Numeric(10, 2), default=0, nullable=False, doc="R$/kW de demanda contratada"
+    )
+
     default_tariff_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("tariffs.id", ondelete="SET NULL")
     )

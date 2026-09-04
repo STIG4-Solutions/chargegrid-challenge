@@ -4,7 +4,8 @@ import { NavLink, Outlet } from 'react-router-dom'
 const modules = [
   { to: '/ev/power', label: 'Gerenciamento de Potência' },
   { to: '/ev/sessions', label: 'Ciclo da Sessão' },
-  { to: '/ev/tariff', label: 'Tarifação & Pagamento' }
+  { to: '/ev/tariff', label: 'Tarifação & Pagamento' },
+  { to: '/ev/demand', label: 'Demanda Contratada' }
 ]
 
 export default function EvCharging() {

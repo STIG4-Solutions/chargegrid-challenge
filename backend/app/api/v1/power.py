@@ -25,7 +25,7 @@ from app.schemas.ev import (
     SetLimitRequest,
     SiteSettingsOut,
 )
-from app.services import power_manager, session_service
+from app.services import demand_service, power_manager, session_service
 from app.services.command_service import send_command
 
 router = APIRouter(prefix="/power", tags=["recarga ev · potência"])
@@ -291,3 +291,36 @@ async def _apply_limit(db, cp: ChargePoint, limit_kw: float, actor: str) -> None
     cp.limit_kw = target
     # Vira teto de politica: o rateio automatico nao sobe acima disso.
     cp.operator_max_kw = target
+
+
+@router.get("/demand/forecast")
+async def demand_forecast(
+    db: DbSession,
+    site_id: ScopedSiteId,
+    _: OperatorUser,
+    horas: int = Query(default=6, ge=1, le=24),
+    dias_de_historico: int = Query(default=7, ge=1, le=60),
+) -> dict:
+    """Projeta a demanda das proximas horas contra o contrato.
+
+    Responde a pergunta que so' aparece na conta do mes seguinte: "com o que
+    esta carregando agora, eu estouro a demanda contratada?".
+    """
+    site = (await db.execute(select(Site).where(Site.id == site_id))).scalar_one()
+    previsao = await demand_service.prever_demanda(
+        db, site, horizonte_horas=horas, dias_de_historico=dias_de_historico
+    )
+    return previsao.as_dict()
+
+
+@router.get("/demand/avoided-cost")
+async def demand_avoided_cost(
+    db: DbSession,
+    site_id: ScopedSiteId,
+    _: OperatorUser,
+    dias: int = Query(default=30, ge=1, le=365),
+) -> dict:
+    """Quanto o rateio poupou de ultrapassagem no periodo."""
+    site = (await db.execute(select(Site).where(Site.id == site_id))).scalar_one()
+    resultado = await demand_service.custo_evitado(db, site, dias=dias)
+    return resultado.as_dict()

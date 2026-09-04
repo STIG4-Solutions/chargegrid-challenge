@@ -657,6 +657,122 @@
         }
       }
     },
+    "/api/v1/power/demand/forecast": {
+      "get": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "Demand Forecast",
+        "description": "Projeta a demanda das proximas horas contra o contrato.\n\nResponde a pergunta que so' aparece na conta do mes seguinte: \"com o que\nesta carregando agora, eu estouro a demanda contratada?\".",
+        "operationId": "demand_forecast_api_v1_power_demand_forecast_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "horas",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 24,
+              "minimum": 1,
+              "default": 6,
+              "title": "Horas"
+            }
+          },
+          {
+            "name": "dias_de_historico",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 60,
+              "minimum": 1,
+              "default": 7,
+              "title": "Dias De Historico"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Demand Forecast Api V1 Power Demand Forecast Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/power/demand/avoided-cost": {
+      "get": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "Demand Avoided Cost",
+        "description": "Quanto o rateio poupou de ultrapassagem no periodo.",
+        "operationId": "demand_avoided_cost_api_v1_power_demand_avoided_cost_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "dias",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 365,
+              "minimum": 1,
+              "default": 30,
+              "title": "Dias"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Demand Avoided Cost Api V1 Power Demand Avoided Cost Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sessions": {
       "get": {
         "tags": [

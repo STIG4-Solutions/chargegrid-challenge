@@ -460,6 +460,17 @@ def agendamento(client: httpx.Client, op: dict) -> None:
     cp = next(p for p in pontos if p["status"] == "available" and not p["operator_throttled"])
     antes = client.get(f"{API}/power/budget", headers=op).json()
 
+    # Limpa reserva em aberto de uma execucao anterior.
+    #
+    # O cenario termina consumindo a reserva, entao numa execucao completa nao
+    # sobra nada. Mas se ela for interrompida no meio - a API reiniciada, por
+    # exemplo -, a reserva fica CONFIRMED e a janela de 30 minutos bloqueia
+    # todas as execucoes seguintes por sobreposicao. Cancelar antes torna o
+    # cenario idempotente de verdade, e nao so quando tudo da certo.
+    for antiga in client.get(f"{API}/app/reservations", headers=motorista).json():
+        if antiga["status"] in ("pending", "confirmed"):
+            client.delete(f"{API}/app/reservations/{antiga['id']}", headers=motorista)
+
     r = client.post(
         f"{API}/app/reservations",
         json={
