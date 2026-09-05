@@ -12,7 +12,7 @@ Serve os dois clientes do repositório com o mesmo domínio: o **dashboard comer
 > clientes, não na tela do usuário. Como tudo vive no mesmo repositório, a mudança do
 > backend e a adaptação dos clientes cabem num commit só.
 
-**Stack:** Python 3.11+ · FastAPI · SQLAlchemy 2 (async) · PostgreSQL 16 · Alembic · pymodbus
+**Stack:** Python 3.11+ · FastAPI · SQLAlchemy 2 (async) · PostgreSQL 18 · Alembic · pymodbus
 
 ---
 

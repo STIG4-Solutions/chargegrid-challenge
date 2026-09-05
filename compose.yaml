@@ -1,11 +1,12 @@
 # Ambiente local: docker compose --env-file apps/api/.env up --build
-# Mantem o nome de projeto anterior e seu volume backend_chargegrid_pgdata.
+# Mantem o nome de projeto anterior. O PostgreSQL 18 usa um volume versionado
+# proprio, deixando intacto um eventual backend_chargegrid_pgdata do PostgreSQL 16.
 # Instalacoes que usavam -p ou COMPOSE_PROJECT_NAME devem manter esse valor.
 name: backend
 
 services:
   db:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_USER: ${POSTGRES_USER:?defina POSTGRES_USER no .env}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
@@ -13,7 +14,8 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - chargegrid_pgdata:/var/lib/postgresql/data
+      # Desde o PostgreSQL 18, a imagem oficial persiste neste diretorio.
+      - chargegrid_pgdata_v18:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
@@ -49,4 +51,4 @@ services:
              uvicorn app.main:app --host 0.0.0.0 --port 8000"
 
 volumes:
-  chargegrid_pgdata:
+  chargegrid_pgdata_v18:

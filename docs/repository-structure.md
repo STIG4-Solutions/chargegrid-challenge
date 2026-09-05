@@ -52,6 +52,6 @@ Arquivos locais ignorados pelo Git nao acompanham automaticamente as movimentaco
 
 Depois, execute `npm ci` na raiz e recrie o ambiente virtual Python em `apps/api`, caso use um. Ajuste configuracoes locais da IDE e integracoes externas que apontem para os diretorios anteriores.
 
-O Compose fixa `name: backend` para manter o nome de projeto usado anteriormente pelo diretorio do backend. Assim, uma instalacao com o padrao antigo continua associada ao volume `backend_chargegrid_pgdata`. Se voce utilizava `-p` ou `COMPOSE_PROJECT_NAME`, continue usando o mesmo valor. Confirme o volume existente antes de iniciar; nao remova volumes como parte da reorganizacao.
+O Compose fixa `name: backend` para manter o nome de projeto usado anteriormente pelo diretorio do backend. A imagem do PostgreSQL 18 usa o novo volume `backend_chargegrid_pgdata_v18`, montado em `/var/lib/postgresql`. Um eventual volume antigo `backend_chargegrid_pgdata`, criado pelo PostgreSQL 16, permanece intacto para recuperacao ou migracao. Se voce utilizava `-p` ou `COMPOSE_PROJECT_NAME`, continue usando o mesmo valor.
 
 Veja [desenvolvimento local](development.md) para os comandos atuais e [como contribuir](../CONTRIBUTING.md) para o fluxo de trabalho.
