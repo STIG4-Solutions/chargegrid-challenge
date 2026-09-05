@@ -74,7 +74,8 @@ Controlado por `METER_SOURCE`: `virtual` (padrão) ou `push`, que só aceita o q
 `POST /power/meter-readings`.
 
 Os comandos acima partem da raiz do repositorio. Veja [desenvolvimento local](docs/development.md),
-[estrutura do repositorio](docs/repository-structure.md) e [como contribuir](CONTRIBUTING.md).
+[estrutura do repositorio](docs/repository-structure.md), [deploy da API](docs/api-deployment.md)
+e [como contribuir](CONTRIBUTING.md).
 
 > No Windows, use `POSTGRES_HOST=127.0.0.1` e não `localhost`: o nome resolve para `::1` e o
 > asyncpg morre na negociação SSL.
