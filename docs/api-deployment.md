@@ -3,6 +3,8 @@
 Este roteiro configura primeiro o staging do protótipo. A imagem fica no GHCR,
 a API executa na Azure e o PostgreSQL 18 fica no Neon. O domínio é gerenciado
 pela Cloudflare. A publicação da imagem já é automática; o deploy na Azure é manual.
+O projeto é privado: mantenha o repositório e o pacote GHCR privados. A Azure
+autentica no GHCR com uma credencial de leitura armazenada como secret do registry.
 
 ## O que já foi verificado
 
@@ -21,8 +23,11 @@ Digest registrado pelo build:
 sha256:5aae684b1123349e50fea7c22639e1f326c89d0302eb7304858843e0c5823ec2
 ```
 
-O teste de acesso anônimo ao GHCR retornou `UNAUTHORIZED`: liberar o pacote
-é o primeiro passo. O build confirma o empacotamento e a publicação; não executa
+O repositório foi confirmado como `PRIVATE`. O teste de acesso anônimo ao GHCR
+retornou `UNAUTHORIZED`, comportamento esperado para uma imagem privada. A
+credencial de inspeção não tem `read:packages`, portanto não confirmou o campo
+de visibilidade do pacote pela API. Confira `Private` em Package settings.
+O build confirma o empacotamento e a publicação; não executa
 a suíte de testes, migrations ou conexão com o Neon. Esses últimos ainda precisam
 ser validados em staging. Nenhum recurso Azure foi criado por este roteiro.
 
@@ -31,23 +36,33 @@ contém o arquivo. Isso não impede testar a imagem de `main` em staging: o ambi
 é determinado pela configuração do Container App. Para futuros builds por push em
 `staging`, integre também o workflow nessa branch pelo fluxo de PR da equipe.
 
-## 1. Liberar o pacote GHCR
+## 1. Configurar acesso ao GHCR privado
 
 1. Abra a organização `STIG4-Solutions` no GitHub e entre em **Packages**.
 2. Abra `chargegrid-api` e **Package settings**.
-3. Em **Danger Zone**, use **Change visibility** e selecione **Public**.
-4. Confirme usando o nome solicitado na tela. É necessário acesso de administrador
-   ao pacote; tornar o repositório público não torna o pacote público automaticamente.
+3. Confira que a visibilidade é **Private**. A visibilidade do pacote é independente
+   da visibilidade do repositório. Não torne o pacote público.
+4. Confira que o usuário que fornecerá a credencial à Azure tem leitura do pacote,
+   por acesso herdado do repositório ou por permissão explícita.
 
-O GitHub não permite tornar privado novamente um pacote público. Essa escolha é
-adequada para a imagem pública do challenge; segredos são configurados na Azure.
-O `.dockerignore` da API exclui `.env` e `.env.*`, exceto o exemplo sem credenciais.
+No GitHub, abra **Settings > Developer settings > Personal access tokens >
+Tokens (classic) > Generate new token (classic)**. Use o nome
+`azure-chargegrid-ghcr-pull`, uma expiração definida (por exemplo, 90 dias) e
+somente o escopo `read:packages`. O GHCR usa PAT classic para esse acesso externo.
+Autorize SSO se a organização exigir. A conta proprietária do token precisa ter
+acesso de leitura ao pacote; o token não concede acesso adicional à conta.
 
-Se tiver Docker, confirme o acesso sem credenciais em uma sessão não autenticada:
+Cadastre na Azure o usuário GitHub proprietário do PAT e o PAT como senha do
+registry. O token fica como secret do registry, não como variável de ambiente do
+FastAPI. Não o coloque no repositório, em mensagens ou em comandos versionados.
+Renove a credencial antes de expirar: reinícios e novas réplicas podem precisar
+baixar a imagem novamente. Para separar revogação e rotação, podem ser usados
+PATs diferentes para staging e produção.
 
-```bash
-docker pull ghcr.io/stig4-solutions/chargegrid-api:sha-91a85eafa38f2e7197e45775962d29a43c2313d6
-```
+O workflow continua publicando com o `GITHUB_TOKEN` temporário automático. O PAT
+da Azure serve somente para download; não precisa de `write:packages`,
+`delete:packages` ou `repo`. O `.dockerignore` da API exclui `.env` e `.env.*`,
+exceto o exemplo sem credenciais.
 
 ## 2. Preparar o Neon e os segredos
 
@@ -96,8 +111,10 @@ No Azure Portal, procure **Container Apps** e clique em **Create**.
 | Container Apps environment | Criar `cae-chargegrid-staging` |
 | Workload profile | Consumption |
 | Image source | Docker Hub or other registries |
-| Image type | Public |
+| Image type | Private |
 | Registry server | `ghcr.io` |
+| Registry username | Usuário GitHub proprietário do PAT, por exemplo `Merlottera` |
+| Registry password | PAT classic com `read:packages`, armazenado como secret do registry |
 | Image | `stig4-solutions/chargegrid-api` |
 | Image tag | `sha-91a85eafa38f2e7197e45775962d29a43c2313d6` |
 | CPU / Memory | 0.5 vCPU / 1 GiB |
@@ -109,7 +126,9 @@ No Azure Portal, procure **Container Apps** e clique em **Create**.
 | Minimum / Maximum replicas | `1` / `1` durante a configuração |
 | Revision mode | Single |
 
-Se a tela pedir uma referência única de imagem, cole o endereço completo do passo 1.
+Se a tela pedir uma referência única de imagem, cole o endereço completo da seção
+"O que já foi verificado". Para um Container App existente, configure as credenciais
+do registry antes de criar a revisão com essa imagem privada.
 A Azure termina o HTTPS na porta pública 443 e encaminha para o Uvicorn na porta
 interna 8000. Não é preciso expor PostgreSQL, configurar VM ou instalar Docker na Azure.
 
@@ -257,7 +276,7 @@ ocorrer enquanto os workers consultam o banco periodicamente.
 
 | Sintoma | Verificação |
 | --- | --- |
-| Imagem não inicia / unauthorized | Visibilidade Public, registry `ghcr.io` e tag completa |
+| Imagem não inicia / unauthorized | Registry `ghcr.io`, tag completa, usuário proprietário do PAT, `read:packages`, acesso ao pacote, validade e SSO |
 | `unexpected keyword argument 'sslmode'` ou `channel_binding` | Usar a URL com `?ssl=verify-full` |
 | `root certificate file ... does not exist` | Configurar `PGSSLROOTCERT` com o caminho dos certificados Linux acima |
 | Configuração insegura / campo obrigatório ausente | Secrets, `POSTGRES_PASSWORD`, `DEBUG=false` e CORS sem localhost |
