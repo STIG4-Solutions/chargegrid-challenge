@@ -220,7 +220,7 @@ npm ls react           # tem que aparecer uma única
 npm run verify:api                         # 17 cenários do SDK com fetch simulado
 npm run typecheck                          # tipos do SDK e do app contra o contrato
 npm run build                              # dashboard
-cd apps/api && python -m pytest -q          # 394 testes (precisa do Postgres)
+cd apps/api && python -m pytest -q          # 399 testes (precisa do Postgres)
 cd apps/api && python -m ruff check .
 cd apps/api && python -m scripts.smoke_test # 57 cenários ponta a ponta (API no ar)
 cd apps/mobile && npx expo export --platform android --output-dir .expo-bundle

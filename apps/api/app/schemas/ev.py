@@ -365,6 +365,10 @@ class InvoiceOut(ORMModel):
     status: InvoiceStatus
     currency: str
     subtotal: float
+    # Sem ele, `subtotal` e `total` nao fecham na tela: total = subtotal -
+    # discount. Faltava desde sempre, e so' apareceu quando o teste de
+    # cobertura de schema passou a exigir uma decisao por coluna.
+    discount: float
     total: float
     processing_fee: float
     net_amount: float

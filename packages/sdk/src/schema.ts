@@ -1512,6 +1512,8 @@ export interface components {
             currency: string;
             /** Subtotal */
             subtotal: number;
+            /** Discount */
+            discount: number;
             /** Total */
             total: number;
             /** Processing Fee */

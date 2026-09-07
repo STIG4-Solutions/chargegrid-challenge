@@ -5199,6 +5199,10 @@
             "type": "number",
             "title": "Subtotal"
           },
+          "discount": {
+            "type": "number",
+            "title": "Discount"
+          },
           "total": {
             "type": "number",
             "title": "Total"
@@ -5254,6 +5258,7 @@
           "status",
           "currency",
           "subtotal",
+          "discount",
           "total",
           "processing_fee",
           "net_amount",

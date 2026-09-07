@@ -119,7 +119,7 @@ uvicorn app.main:app --reload
 ## Testes
 
 ```bash
-pytest -q          # 394 testes
+pytest -q          # 399 testes
 ruff check app     # lint
 ```
 
@@ -157,6 +157,7 @@ ruff check app     # lint
 | `test_limites_e_horario.py` | o teto que o motorista pede, e quando compensa começar |
 | `test_push_e_recibo.py` | o que vibra no bolso, e o documento que vai para o contador |
 | `test_reportes_e_frota.py` | o defeito que o sensor nao ve, e o rateio por centro de custo |
+| `test_cobertura_de_schema.py` | campo que o modelo tem e a resposta descarta em silêncio |
 | `test_config_guard.py` | recusa subir em produção com segredo público |
 
 Os quatro `test_http_*` sobem a aplicação inteira sobre a mesma transação do
