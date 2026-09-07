@@ -487,14 +487,61 @@ const CAMPOS_ORCAMENTO = [
   { campo: 'battery_min_soc', rotulo: 'SOC mínimo da bateria (%)', dica: 'Abaixo disso a bateria não alimenta a recarga', step: 1, obrigatorio: true }
 ]
 
+// Rótulo legível de cada chave, para o aviso de edição concorrente não dizer
+// "allow_pv_kw" a quem opera o estabelecimento.
+const ROTULO_ORCAMENTO = {
+  ...Object.fromEntries(CAMPOS_ORCAMENTO.map((c) => [c.campo, c.rotulo])),
+  allow_pv_kw: 'contar solar',
+  allow_battery_kw: 'contar bateria'
+}
+
+// Campos booleanos do orçamento; entram no diff junto com os numéricos.
+const CHAVES_ORCAMENTO = [
+  ...CAMPOS_ORCAMENTO.map((c) => c.campo),
+  'allow_pv_kw',
+  'allow_battery_kw'
+]
+
 function BudgetEditor({ settings, onSaved }) {
   const [aberto, setAberto] = useState(false)
   const [rascunho, setRascunho] = useState(settings)
 
+  // O que o operador VIU quando abriu o painel. É contra isto que o diff é
+  // calculado — não contra `settings`, que continua chegando do polling.
+  const baseRef = useRef(settings)
+
   // Enquanto o painel está fechado, acompanha o servidor; aberto, preserva a edição.
   useEffect(() => {
-    if (!aberto) setRascunho(settings)
+    if (!aberto) {
+      setRascunho(settings)
+      baseRef.current = settings
+    }
   }, [settings, aberto])
+
+  // Só o que este operador mexeu vai no PATCH.
+  //
+  // Enviar o rascunho inteiro revertia, em silêncio, o que outra pessoa tivesse
+  // mudado enquanto o painel estava aberto: o rascunho congela no momento da
+  // abertura, então um campo que eu nem toquei viajava com o valor velho por
+  // cima do novo. Com `reserved_kw` isso derruba a proteção das cargas do
+  // prédio — o site passa a distribuir potência que não tem.
+  const alteracoes = Object.fromEntries(
+    CHAVES_ORCAMENTO.filter((campo) => {
+      const meu = rascunho[campo]
+      const base = baseRef.current[campo]
+      return typeof meu === 'boolean' ? meu !== base : Number(meu ?? 0) !== Number(base ?? 0)
+    }).map((campo) => [campo, rascunho[campo]])
+  )
+
+  // Campos que mudaram no servidor desde a abertura e que EU não toquei.
+  // Vão ser preservados pelo diff, mas o operador precisa saber que a tela
+  // mostrava outro número quando ele começou.
+  const mudouAtras = CHAVES_ORCAMENTO.filter((campo) => {
+    if (campo in alteracoes) return false
+    const base = baseRef.current[campo]
+    const agora = settings[campo]
+    return typeof agora === 'boolean' ? agora !== base : Number(agora ?? 0) !== Number(base ?? 0)
+  })
 
   const salvar = useAction(
     (payload) => power.updateBudget(payload),
@@ -505,10 +552,7 @@ function BudgetEditor({ settings, onSaved }) {
     ({ campo, obrigatorio }) => obrigatorio && (rascunho[campo] === null || rascunho[campo] === undefined)
   )
 
-  const alterado = CAMPOS_ORCAMENTO.some(
-    ({ campo }) => Number(rascunho[campo] ?? 0) !== Number(settings[campo] ?? 0)
-  ) || rascunho.allow_pv_kw !== settings.allow_pv_kw
-    || rascunho.allow_battery_kw !== settings.allow_battery_kw
+  const alterado = Object.keys(alteracoes).length > 0
 
   if (!aberto) {
     return (
@@ -583,11 +627,22 @@ function BudgetEditor({ settings, onSaved }) {
           </p>
         )}
 
+        {mudouAtras.length > 0 && (
+          <p className="muted" style={{ marginTop: 12, fontSize: 13 }}>
+            Outra pessoa alterou{' '}
+            {mudouAtras
+              .map((campo) => ROTULO_ORCAMENTO[campo] ?? campo)
+              .join(', ')}{' '}
+            enquanto este painel estava aberto. Esses valores <strong>não</strong> serão
+            sobrescritos — só o que você mudou é enviado. Feche e reabra para ver os atuais.
+          </p>
+        )}
+
       <div className="flex gap-8" style={{ marginTop: 16 }}>
         <button
           className="btn btn-primary btn-sm"
           disabled={salvar.pending || !alterado || faltando.length > 0}
-          onClick={() => salvar.run(rascunho)}
+          onClick={() => salvar.run(alteracoes)}
         >
           {salvar.pending ? <Spinner size={12} /> : null} Salvar e reaplicar
         </button>

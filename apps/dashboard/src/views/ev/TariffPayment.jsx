@@ -622,8 +622,23 @@ const DIAS = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D']
 const NOMES_DIAS = ['segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado', 'domingo']
 const TODOS_OS_DIAS = 0b1111111
 
+// Identidade estável de cada linha do editor, para o React não reaproveitar o
+// nó errado.
+//
+// As linhas têm botão de remover, e com a chave sendo o índice o React casa
+// posição, não item: apagar a segunda de três faz o nó que mostrava a terceira
+// assumir os dados dela mesma — mas mantendo foco e seleção onde estavam. Quem
+// estava digitando um preço continua digitando, agora na janela errada. Como
+// isto define quanto o cliente paga, o erro é silencioso e caro.
+//
+// `crypto.randomUUID` não existe no Hermes do app, mas aqui é navegador. Ainda
+// assim, contador + tempo evita depender disso e não custa nada.
+let proximaChave = 0
+const novaChave = () => `janela-${Date.now().toString(36)}-${proximaChave++}`
+
 function janelaVazia() {
   return {
+    _chave: novaChave(),
     label: 'Nova janela',
     day_mask: TODOS_OS_DIAS,
     starts_at: '18:00',
@@ -637,6 +652,9 @@ function janelaVazia() {
 function WindowEditor({ tariff, onSaved, onClose }) {
   const [janelas, setJanelas] = useState(() =>
     (tariff.windows || []).map((w) => ({
+      // A janela existente tem id no servidor; a nova ainda não. Uma chave de
+      // cliente cobre os dois casos com a mesma regra.
+      _chave: w.id ? `janela-${w.id}` : novaChave(),
       label: w.label || '',
       day_mask: w.day_mask,
       starts_at: (w.starts_at || '00:00').slice(0, 5),
@@ -651,7 +669,13 @@ function WindowEditor({ tariff, onSaved, onClose }) {
     () =>
       tariffsApi.replaceWindows(
         tariff.id,
-        janelas.map((j) => ({ ...j, starts_at: `${j.starts_at}:00`, ends_at: `${j.ends_at}:00` }))
+        // `_chave` é identidade de renderização: sai antes de ir para a API,
+        // que rejeitaria o campo desconhecido.
+        janelas.map(({ _chave, ...j }) => ({
+          ...j,
+          starts_at: `${j.starts_at}:00`,
+          ends_at: `${j.ends_at}:00`
+        }))
       ),
     { onSuccess: () => { onSaved(); onClose() } }
   )
@@ -678,7 +702,7 @@ function WindowEditor({ tariff, onSaved, onClose }) {
       </div>
 
       {janelas.map((j, i) => (
-        <div className="window-row" key={i}>
+        <div className="window-row" key={j._chave}>
           <input className="input" value={j.label} placeholder="Ponta"
                  onChange={(e) => editar(i, 'label', e.target.value)} />
           <input className="input" type="time" value={j.starts_at}

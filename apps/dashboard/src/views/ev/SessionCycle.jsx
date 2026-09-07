@@ -333,8 +333,11 @@ function CostBreakdown({ preview }) {
       </div>
       <table className="table compact">
         <tbody>
-          {lines.map((line, i) => (
-            <tr key={i}>
+          {/* `kind` + descrição identifica a linha melhor que a posição: o
+              motor insere "mínimo" e "ociosidade" no meio conforme a sessão
+              avança, e o índice então aponta para outra coisa. */}
+          {lines.map((line) => (
+            <tr key={`${line.kind}-${line.description}`}>
               <td>{line.description}</td>
               <td className="muted text-right">
                 {num(line.quantity, 2)} {line.unit} × {brl(line.unit_price)}
@@ -361,8 +364,11 @@ function Timeline({ events }) {
         Linha do tempo
       </div>
       <ul className="timeline">
-        {events.map((event, i) => (
-          <li key={i}>
+        {/* Os eventos chegam em ordem e só crescem, então o índice funcionaria
+            hoje. O instante + tipo continua funcionando se algum dia deixarem
+            de crescer só pelo fim. */}
+        {events.map((event) => (
+          <li key={`${event.occurred_at}-${event.event_type}`}>
             <span className="muted">{dateTime(event.occurred_at)}</span>
             <span>
               {event.message ||
