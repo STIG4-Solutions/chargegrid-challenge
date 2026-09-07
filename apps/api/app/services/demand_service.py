@@ -40,6 +40,13 @@ JANELA_MIN = 15
 TOLERANCIA = 0.05
 MULTIPLICADOR_ULTRAPASSAGEM = 2.0
 
+# Janelas de 15 min necessarias para a recomendacao valer como conselho.
+# A tarifa de demanda e cobrada pelo MAIOR pico do mes: recomendar demanda
+# menor sem ter medido o suficiente para ter visto esse pico e o erro caro -
+# a ultrapassagem sai ao dobro, todo mes. Um dia cheio sao 96 janelas; abaixo
+# disso a conta continua sendo devolvida, mas marcada como nao confiavel.
+JANELAS_MINIMAS_CONFIANCA = 96
+
 
 @dataclass
 class FatiaPrevista:
@@ -392,4 +399,150 @@ async def custo_evitado(
         custo_sem_rateio_brl=ultra_sem * tarifa * MULTIPLICADOR_ULTRAPASSAGEM,
         janelas_analisadas=len(janelas),
         momento_do_pico=momento_pico,
+    )
+
+
+@dataclass
+class OpcaoDeContrato:
+    demanda_kw: float
+    custo_fixo_brl: float
+    custo_ultrapassagem_brl: float
+    janelas_excedidas: int
+
+    @property
+    def custo_total_brl(self) -> float:
+        return self.custo_fixo_brl + self.custo_ultrapassagem_brl
+
+    def as_dict(self) -> dict:
+        return {
+            "demanda_kw": round(self.demanda_kw, 1),
+            "custo_fixo_brl": round(self.custo_fixo_brl, 2),
+            "custo_ultrapassagem_brl": round(self.custo_ultrapassagem_brl, 2),
+            "custo_total_brl": round(self.custo_total_brl, 2),
+            "janelas_excedidas": self.janelas_excedidas,
+        }
+
+
+@dataclass
+class SimulacaoDeContrato:
+    atual_kw: float
+    tarifa_brl_por_kw: float
+    pico_medido_kw: float
+    janelas_analisadas: int
+    dias: int
+    opcoes: list[OpcaoDeContrato] = field(default_factory=list)
+
+    @property
+    def melhor(self) -> OpcaoDeContrato | None:
+        return min(self.opcoes, key=lambda o: o.custo_total_brl) if self.opcoes else None
+
+    @property
+    def atual(self) -> OpcaoDeContrato | None:
+        return min(
+            self.opcoes, key=lambda o: abs(o.demanda_kw - self.atual_kw), default=None
+        )
+
+    def as_dict(self) -> dict:
+        melhor, atual = self.melhor, self.atual
+        economia = 0.0
+        if melhor and atual:
+            economia = max(0.0, atual.custo_total_brl - melhor.custo_total_brl)
+        return {
+            "atual_kw": round(self.atual_kw, 1),
+            "tarifa_brl_por_kw": round(self.tarifa_brl_por_kw, 2),
+            "tarifa_configurada": self.tarifa_brl_por_kw > 0,
+            "pico_medido_kw": round(self.pico_medido_kw, 2),
+            "janelas_analisadas": self.janelas_analisadas,
+            "confiavel": self.janelas_analisadas >= JANELAS_MINIMAS_CONFIANCA,
+            "janelas_minimas": JANELAS_MINIMAS_CONFIANCA,
+            "dias": self.dias,
+            "melhor_kw": round(melhor.demanda_kw, 1) if melhor else None,
+            "economia_mensal_brl": round(economia, 2),
+            "custo_atual_brl": round(atual.custo_total_brl, 2) if atual else 0.0,
+            "custo_melhor_brl": round(melhor.custo_total_brl, 2) if melhor else 0.0,
+            "opcoes": [o.as_dict() for o in self.opcoes],
+        }
+
+
+async def _picos_por_janela(
+    db: AsyncSession, site_id: uuid.UUID, desde: datetime
+) -> list[float]:
+    """Media de cada janela de 15 min - a grandeza que a distribuidora fatura."""
+    leituras = (
+        (
+            await db.execute(
+                select(SiteMeterReading)
+                .where(
+                    SiteMeterReading.site_id == site_id,
+                    SiteMeterReading.recorded_at >= desde,
+                )
+                .order_by(SiteMeterReading.recorded_at)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    baldes: dict[datetime, list[float]] = {}
+    for leitura in leituras:
+        marca = leitura.recorded_at.replace(
+            minute=(leitura.recorded_at.minute // JANELA_MIN) * JANELA_MIN,
+            second=0,
+            microsecond=0,
+        )
+        baldes.setdefault(marca, []).append(float(leitura.grid_import_kw))
+
+    return [sum(vs) / len(vs) for vs in baldes.values()]
+
+
+async def simular_contrato(
+    db: AsyncSession, site: Site, *, dias: int = 30, passo_kw: float = 5.0
+) -> SimulacaoDeContrato:
+    """Qual demanda contratar, dado o que o site realmente consumiu.
+
+    Contratar demais e' pagar por kW que nunca se usa - o valor contratado e'
+    cobrado inteiro, tenha sido atingido ou nao. Contratar de menos e' pagar
+    ultrapassagem ao dobro. O minimo dessa soma nao e' obvio a olho, e a
+    intuicao costuma errar para o lado caro: contrata-se com folga por medo da
+    penalidade, e paga-se folga o ano todo.
+
+    A simulacao percorre valores de contrato sobre o historico real e mostra a
+    curva. E' uma conta que so' pode ser feita por quem tem a medicao - que e'
+    exatamente o que este sistema coleta.
+    """
+    desde = datetime.now(UTC) - timedelta(days=dias)
+    janelas = await _picos_por_janela(db, site.id, desde)
+    tarifa = float(site.demand_tariff_brl_per_kw)
+    atual = float(site.contracted_demand_kw or site.grid_limit_kw)
+    pico = max(janelas, default=0.0)
+
+    opcoes: list[OpcaoDeContrato] = []
+    if janelas:
+        # Varre do menor multiplo do passo ate 30% acima do pico medido: abaixo
+        # disso a ultrapassagem domina, acima e' so' desperdicio.
+        maior = max(pico * 1.3, atual * 1.1)
+        candidato = passo_kw
+        while candidato <= maior:
+            teto = candidato * (1 + TOLERANCIA)
+            excedidas = [j for j in janelas if j > teto]
+            # A ultrapassagem e' faturada sobre o MAIOR excedente do mes, nao
+            # sobre cada janela: uma vez que se estoura, o dano do mes esta feito.
+            pior = max((j - teto for j in excedidas), default=0.0)
+            opcoes.append(
+                OpcaoDeContrato(
+                    demanda_kw=candidato,
+                    custo_fixo_brl=candidato * tarifa,
+                    custo_ultrapassagem_brl=pior * tarifa * MULTIPLICADOR_ULTRAPASSAGEM,
+                    janelas_excedidas=len(excedidas),
+                )
+            )
+            candidato += passo_kw
+
+    return SimulacaoDeContrato(
+        atual_kw=atual,
+        tarifa_brl_por_kw=tarifa,
+        pico_medido_kw=pico,
+        janelas_analisadas=len(janelas),
+        dias=dias,
+        opcoes=opcoes,
     )

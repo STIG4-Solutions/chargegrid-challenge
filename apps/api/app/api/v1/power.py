@@ -25,7 +25,7 @@ from app.schemas.ev import (
     SetLimitRequest,
     SiteSettingsOut,
 )
-from app.services import demand_service, power_manager, session_service
+from app.services import demand_service, maintenance_service, power_manager, session_service
 from app.services.command_service import send_command
 
 router = APIRouter(prefix="/power", tags=["recarga ev · potência"])
@@ -324,3 +324,36 @@ async def demand_avoided_cost(
     site = (await db.execute(select(Site).where(Site.id == site_id))).scalar_one()
     resultado = await demand_service.custo_evitado(db, site, dias=dias)
     return resultado.as_dict()
+
+
+@router.get("/demand/contract-simulator")
+async def demand_contract_simulator(
+    db: DbSession,
+    site_id: ScopedSiteId,
+    _: OperatorUser,
+    dias: int = Query(default=30, ge=7, le=365),
+    passo_kw: float = Query(default=5.0, ge=1.0, le=25.0),
+) -> dict:
+    """Qual demanda contratar, dado o consumo real medido.
+
+    Contratar demais paga folga o ano todo; de menos, paga ultrapassagem ao
+    dobro. O minimo dessa soma so' aparece com a medicao na mao.
+    """
+    site = (await db.execute(select(Site).where(Site.id == site_id))).scalar_one()
+    return (await demand_service.simular_contrato(db, site, dias=dias, passo_kw=passo_kw)).as_dict()
+
+
+@router.get("/maintenance/attention")
+async def maintenance_attention(
+    db: DbSession,
+    site_id: ScopedSiteId,
+    _: OperatorUser,
+    dias: int = Query(default=30, ge=1, le=365),
+) -> dict:
+    """Pontos que vem falhando com frequencia, pela recorrencia dos episodios.
+
+    O painel de estado mostra o que esta ruim agora. Este mostra o que vai
+    quebrar - um conector que abre "falha da trava" tres vezes na semana ainda
+    funciona, e nao vai continuar funcionando.
+    """
+    return await maintenance_service.pontos_em_atencao(db, site_id, dias=dias)

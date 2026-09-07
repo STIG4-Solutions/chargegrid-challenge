@@ -8,10 +8,12 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
@@ -134,3 +136,38 @@ class ChargePointConnection(UUIDMixin, TimestampMixin, Base):
     options: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
 
     charge_point = relationship("ChargePoint", back_populates="connection")
+
+
+class ChargePointFault(UUIDMixin, TimestampMixin, Base):
+    """Um episodio de falha: da primeira leitura que a viu ate a que nao viu mais.
+
+    `charge_points.active_faults` diz o que esta acontecendo agora. Esta tabela
+    diz o que ja aconteceu - e e' so' com ela que da' para responder "este ponto
+    tem falhado mais que os outros?", que e' a pergunta da manutencao.
+
+    O indice unico parcial garante um episodio aberto por ponto e rotulo: o
+    poller reencontra a mesma falha a cada ciclo de 5 segundos, e sem ele um
+    minuto de falha viraria doze episodios.
+    """
+
+    __tablename__ = "charge_point_faults"
+    __table_args__ = (
+        Index("ix_charge_point_faults_cp_time", "charge_point_id", "first_seen_at"),
+        Index(
+            "uq_falha_aberta_por_ponto",
+            "charge_point_id",
+            "label",
+            unique=True,
+            postgresql_where=text("resolved_at IS NULL"),
+        ),
+    )
+
+    charge_point_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("charge_points.id", ondelete="CASCADE"), nullable=False
+    )
+    label: Mapped[str] = mapped_column(String(120), nullable=False)
+    terminal: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ciclos: Mapped[int] = mapped_column(Integer, default=1, nullable=False)

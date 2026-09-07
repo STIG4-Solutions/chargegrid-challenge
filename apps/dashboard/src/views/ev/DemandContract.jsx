@@ -13,6 +13,7 @@ import { Async } from '../../components/Async.jsx'
 export default function DemandContract() {
   const previsao = useApi(() => power.demandForecast(8), [], { pollMs: 60000 })
   const evitado = useApi(() => power.avoidedCost(30), [], { pollMs: 300000 })
+  const contrato = useApi(() => power.contractSimulator(30), [], { pollMs: 600000 })
 
   return (
     <div>
@@ -32,6 +33,15 @@ export default function DemandContract() {
         onRetry={evitado.refetch}
       >
         {evitado.data && <Evitado d={evitado.data} />}
+      </Async>
+
+      <Async
+        loading={contrato.loading}
+        error={contrato.error}
+        data={contrato.data}
+        onRetry={contrato.refetch}
+      >
+        {contrato.data && <Simulador d={contrato.data} />}
       </Async>
     </div>
   )
@@ -214,6 +224,117 @@ function Evitado({ d }) {
         Demanda contratada de {num(d.contratada_kw, 1)} kW, com 5% de tolerância regulatória; o
         excedente é faturado ao dobro da tarifa. Maior pico do período em{' '}
         {d.momento_do_pico ? new Date(d.momento_do_pico).toLocaleString('pt-BR') : '—'}.
+      </p>
+    </div>
+  )
+}
+
+/**
+ * Simulador de contrato.
+ *
+ * Contratar demais paga folga o ano inteiro — o valor contratado é cobrado
+ * tenha sido atingido ou não. Contratar de menos paga ultrapassagem ao dobro.
+ * O mínimo dessa soma não é óbvio a olho, e a intuição erra para o lado caro:
+ * contrata-se com folga por medo da penalidade.
+ *
+ * É uma conta que só quem tem a medição consegue fazer.
+ */
+function Simulador({ d }) {
+  if (!d.opcoes?.length) {
+    return (
+      <div className="card" style={{ marginTop: 16 }}>
+        <h3 style={{ margin: '0 0 4px', fontSize: 15 }}>Simulador de contrato</h3>
+        <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+          Ainda não há medição suficiente no período para simular.
+        </p>
+      </div>
+    )
+  }
+
+  const melhor = d.melhor_kw
+  const vale = d.economia_mensal_brl > 0
+  const maiorCusto = Math.max(...d.opcoes.map((o) => o.custo_total_brl))
+
+  return (
+    <div className="card" style={{ marginTop: 16 }}>
+      <h3 style={{ margin: '0 0 4px', fontSize: 15 }}>Simulador de contrato</h3>
+      <p className="muted" style={{ margin: '0 0 16px', fontSize: 13 }}>
+        {d.janelas_analisadas} janelas medidas em {d.dias} dias, pico de {num(d.pico_medido_kw, 1)} kW.
+        Cada linha soma o custo fixo da demanda contratada com a penalidade de ultrapassagem que
+        aquele contrato teria gerado sobre este mesmo histórico.
+      </p>
+
+      {!d.confiavel && (
+        <p
+          style={{
+            margin: '0 0 16px',
+            padding: '10px 12px',
+            borderRadius: 6,
+            border: '1px solid var(--aviso-borda, #d9a441)',
+            background: 'var(--aviso-fundo, rgba(217, 164, 65, 0.12))',
+            fontSize: 13,
+          }}
+        >
+          <strong>Amostra insuficiente para decidir.</strong> A tarifa de demanda e cobrada pelo
+          maior pico do mes, e {d.janelas_analisadas} de {d.janelas_minimas} janelas nao bastam
+          para afirmar que esse pico ja apareceu. Reduzir a demanda contratada com base nisto
+          arrisca pagar ultrapassagem ao dobro todo mes. Use os numeros abaixo como ordem de
+          grandeza, nao como recomendacao.
+        </p>
+      )}
+
+      {!d.tarifa_configurada ? (
+        <p className="muted" style={{ fontSize: 13 }}>
+          Informe a tarifa de demanda do contrato para ver os valores em reais.
+        </p>
+      ) : (
+        <div className="grid grid-3" style={{ marginBottom: 16 }}>
+          <Stat rotulo="Contrato atual" valor={`${num(d.atual_kw, 0)} kW`} nota={brl(d.custo_atual_brl) + ' por mês'} />
+          <Stat rotulo="Melhor contrato" valor={`${num(melhor, 0)} kW`} nota={brl(d.custo_melhor_brl) + ' por mês'} />
+          <Stat
+            rotulo="Economia mensal"
+            valor={brl(d.economia_mensal_brl)}
+            nota={vale ? `${brl(d.economia_mensal_brl * 12)} por ano` : 'o contrato atual já é o melhor'}
+            destaque={vale}
+          />
+        </div>
+      )}
+
+      <table className="table">
+        <thead>
+          <tr><th>Demanda</th><th>Custo fixo</th><th>Ultrapassagem</th><th>Total</th><th>Janelas excedidas</th></tr>
+        </thead>
+        <tbody>
+          {d.opcoes.map((o) => {
+            const ehMelhor = o.demanda_kw === melhor
+            const ehAtual = Math.abs(o.demanda_kw - d.atual_kw) < 0.01
+            return (
+              <tr key={o.demanda_kw} style={ehMelhor ? { background: 'var(--sems-header-row)' } : undefined}>
+                <td style={{ fontWeight: ehMelhor || ehAtual ? 600 : 400 }}>
+                  {num(o.demanda_kw, 0)} kW
+                  {ehMelhor && <span className="badge badge-green" style={{ marginLeft: 8 }}>melhor</span>}
+                  {ehAtual && <span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>atual</span>}
+                </td>
+                <td>{brl(o.custo_fixo_brl)}</td>
+                <td style={o.custo_ultrapassagem_brl > 0 ? { color: 'var(--sems-red)' } : undefined}>
+                  {brl(o.custo_ultrapassagem_brl)}
+                </td>
+                <td style={{ fontWeight: 600 }}>{brl(o.custo_total_brl)}</td>
+                <td>
+                  <span style={{ display: 'inline-block', width: 60, height: 4, background: 'var(--sems-border)', borderRadius: 2, marginRight: 8, verticalAlign: 'middle' }}>
+                    <span style={{ display: 'block', width: `${(o.custo_total_brl / maiorCusto) * 100}%`, height: '100%', background: ehMelhor ? 'var(--sems-green, #4cd268)' : 'var(--sems-red)', borderRadius: 2 }} />
+                  </span>
+                  {o.janelas_excedidas}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+
+      <p className="muted" style={{ margin: '12px 0 0', fontSize: 12 }}>
+        A ultrapassagem é calculada sobre o maior excedente do período, não sobre cada janela:
+        uma vez que se estoura, o dano do mês está feito.
       </p>
     </div>
   )

@@ -44,6 +44,15 @@ export const power = {
   /** Projeta a demanda das proximas horas contra o contrato. */
   demandForecast: (horas = 6) =>
     api.get<Record<string, unknown>>('/power/demand/forecast', { horas }),
+  /** Qual demanda contratar, dado o consumo real medido. */
+  contractSimulator: (dias = 30, passoKw = 5) =>
+    api.get<Record<string, unknown>>('/power/demand/contract-simulator', {
+      dias,
+      passo_kw: passoKw
+    }),
+  /** Pontos que vem falhando com frequencia. */
+  maintenanceAttention: (dias = 30) =>
+    api.get<Record<string, unknown>>('/power/maintenance/attention', { dias }),
   /** Quanto o rateio poupou de ultrapassagem no periodo. */
   avoidedCost: (dias = 30) =>
     api.get<Record<string, unknown>>('/power/demand/avoided-cost', { dias }),

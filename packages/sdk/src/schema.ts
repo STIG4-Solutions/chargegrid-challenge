@@ -316,6 +316,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/power/demand/contract-simulator": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Demand Contract Simulator
+         * @description Qual demanda contratar, dado o consumo real medido.
+         *
+         *     Contratar demais paga folga o ano todo; de menos, paga ultrapassagem ao
+         *     dobro. O minimo dessa soma so' aparece com a medicao na mao.
+         */
+        get: operations["demand_contract_simulator_api_v1_power_demand_contract_simulator_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/power/maintenance/attention": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Maintenance Attention
+         * @description Pontos que vem falhando com frequencia, pela recorrencia dos episodios.
+         *
+         *     O painel de estado mostra o que esta ruim agora. Este mostra o que vai
+         *     quebrar - um conector que abre "falha da trava" tres vezes na semana ainda
+         *     funciona, e nao vai continuar funcionando.
+         */
+        get: operations["maintenance_attention_api_v1_power_maintenance_attention_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions": {
         parameters: {
             query?: never;
@@ -2641,6 +2688,69 @@ export interface operations {
         };
     };
     demand_avoided_cost_api_v1_power_demand_avoided_cost_get: {
+        parameters: {
+            query?: {
+                dias?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    demand_contract_simulator_api_v1_power_demand_contract_simulator_get: {
+        parameters: {
+            query?: {
+                dias?: number;
+                passo_kw?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    maintenance_attention_api_v1_power_maintenance_attention_get: {
         parameters: {
             query?: {
                 dias?: number;

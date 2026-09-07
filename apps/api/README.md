@@ -119,7 +119,7 @@ uvicorn app.main:app --reload
 ## Testes
 
 ```bash
-pytest -q          # 254 testes
+pytest -q          # 267 testes
 ruff check app     # lint
 ```
 
@@ -150,6 +150,7 @@ ruff check app     # lint
 | `test_correcoes_da_revisao.py` | defeitos que as próprias correções introduziram |
 | `test_fonte_de_dominios.py` | endereços saem de `config/domains.json`, não do código |
 | `test_demanda.py` | previsão de estouro e custo evitado — a conta que vira dinheiro |
+| `test_contrato_e_manutencao.py` | qual demanda contratar, e qual ponto vai quebrar |
 | `test_config_guard.py` | recusa subir em produção com segredo público |
 
 Os quatro `test_http_*` sobem a aplicação inteira sobre a mesma transação do

@@ -109,12 +109,38 @@ class SimulatedChargePointDriver(ChargePointDriver):
             session_duration_s=s["duration_s"],
             power_sources=["grid", "pv"] if power > 0 else [],
             faults=list(s["faults"]),
+            operational_flags=self._alarmes_simulados(now),
             start_mode="backend" if s["charging"] else None,
             serial_number=f"SIM{self.charge_point_id[:8].upper()}",
             firmware_version="1.00.00",
             rated_kw=s["rated_kw"],
             phase_type="single_phase" if s["rated_kw"] <= 7.5 else "three_phase",
         )
+
+    def _alarmes_simulados(self, now: datetime) -> list[str]:
+        """Alarmes intermitentes, para o simulador exercitar a manutencao.
+
+        O medidor virtual ja sintetiza a curva do dia; isto e' o equivalente do
+        lado do carregador. Sao ALARMES do registrador 10005 - nao encerram
+        sessao, exatamente como o hardware real -, entao o simulador continua
+        entregando energia normalmente.
+
+        Deterministico pela hora e pelo ponto, nao aleatorio: um alarme que
+        aparece e some sozinho a cada leitura viraria ruido e nao serie. Assim
+        um ponto especifico "esquenta" em janelas previsiveis, que e' o padrao
+        que a manutencao preditiva existe para encontrar.
+
+        Some inteiro com CHARGER_DRIVER=modbus: la' os bits vem do equipamento.
+        """
+        if not self.state["charging"]:
+            return []
+        # Um ponto entre quatro, em ~10 min de cada hora carregando.
+        semente = sum(ord(c) for c in self.charge_point_id[:8])
+        if semente % 4 != now.hour % 4:
+            return []
+        if not 20 <= now.minute < 30:
+            return []
+        return ["Alarme de sobretemperatura no cabo"]
 
     async def set_power_limit(self, kw: float) -> CommandResult:
         self.state["limit_kw"] = round(

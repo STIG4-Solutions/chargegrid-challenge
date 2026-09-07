@@ -22,6 +22,7 @@ export default function PowerManagement() {
   // O poller do backend varre a cada 5s; sem WebSocket, 10s de fallback bastam.
   const overview = useApi(() => power.overview(), [], { pollMs: 10000 })
   const recent = useApi(() => sessionsApi.list({ limit: 50 }), [], { pollMs: 15000 })
+  const manutencao = useApi(() => power.maintenanceAttention(30), [], { pollMs: 120000 })
   const stream = useSiteStream()
 
   // O evento do WebSocket chega antes do próximo poll: aplica na hora.
@@ -115,6 +116,15 @@ export default function PowerManagement() {
             />
           </>
         )}
+      </Async>
+
+      <Async
+        loading={manutencao.loading}
+        error={manutencao.error}
+        data={manutencao.data}
+        onRetry={manutencao.refetch}
+      >
+        {manutencao.data && <Manutencao d={manutencao.data} />}
       </Async>
     </div>
   )
@@ -585,6 +595,80 @@ function BudgetEditor({ settings, onSaved }) {
           Cancelar
         </button>
       </div>
+    </div>
+  )
+}
+
+/**
+ * Manutenção pela recorrência, não pelo estado.
+ *
+ * A tabela acima mostra o que está ruim agora. Esta mostra o que vem falhando:
+ * um conector que abre "falha da trava" três vezes na semana ainda funciona, e
+ * não vai continuar funcionando. No instante em que se olha o painel de estado,
+ * ele está normal — por isso o problema só aparece quando para.
+ */
+function Manutencao({ d }) {
+  if (d.sem_ocorrencias) {
+    return (
+      <div className="card" style={{ marginTop: 16 }}>
+        <h3 style={{ margin: '0 0 4px', fontSize: 15 }}>Manutenção preditiva</h3>
+        <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+          Nenhum ponto registrou falha recorrente nos últimos {d.dias} dias.
+        </p>
+      </div>
+    )
+  }
+
+  const cor = { alta: 'var(--sems-red)', media: 'var(--sems-yellow, #ffcc00)', baixa: 'var(--sems-text-dim)' }
+  const rotulo = { alta: 'Alta', media: 'Média', baixa: 'Baixa' }
+
+  return (
+    <div className="card" style={{ marginTop: 16 }}>
+      <h3 style={{ margin: '0 0 4px', fontSize: 15 }}>Manutenção preditiva</h3>
+      <p className="muted" style={{ margin: '0 0 16px', fontSize: 13 }}>
+        {d.total_episodios} episódios em {d.dias} dias, agrupados por ponto. Vêm dos 65 bits de
+        diagnóstico do carregador — a mesma fonte do estado atual, mas ao longo do tempo.
+      </p>
+
+      <table className="table">
+        <thead>
+          <tr><th>Ponto</th><th>Prioridade</th><th>Episódios</th><th>Sintomas</th></tr>
+        </thead>
+        <tbody>
+          {d.pontos.map((p) => (
+            <tr key={p.charge_point_id}>
+              <td>
+                <div style={{ fontWeight: 600 }}>{p.code}</div>
+                <div className="muted" style={{ fontSize: 12 }}>{p.name}</div>
+              </td>
+              <td>
+                <span style={{ color: cor[p.prioridade], fontWeight: 600 }}>{rotulo[p.prioridade]}</span>
+                {p.tem_falha_aberta && (
+                  <div className="muted" style={{ fontSize: 12 }}>em curso agora</div>
+                )}
+              </td>
+              <td>{p.episodios}</td>
+              <td>
+                {p.sintomas.map((s) => (
+                  <div key={s.label} style={{ marginBottom: 4 }}>
+                    <span style={{ color: s.terminal ? 'var(--sems-red)' : 'inherit' }}>
+                      {s.label}
+                    </span>
+                    <span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>
+                      {s.episodios}× · último em {dateTime(s.ultima_vez)}
+                    </span>
+                  </div>
+                ))}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <p className="muted" style={{ margin: '12px 0 0', fontSize: 12 }}>
+        Prioridade alta significa que a falha já encerrou uma recarga. Média é alarme recorrente —
+        ainda não parou nada, e é onde a manutenção preventiva custa menos.
+      </p>
     </div>
   )
 }

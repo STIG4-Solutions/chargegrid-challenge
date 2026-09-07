@@ -773,6 +773,122 @@
         }
       }
     },
+    "/api/v1/power/demand/contract-simulator": {
+      "get": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "Demand Contract Simulator",
+        "description": "Qual demanda contratar, dado o consumo real medido.\n\nContratar demais paga folga o ano todo; de menos, paga ultrapassagem ao\ndobro. O minimo dessa soma so' aparece com a medicao na mao.",
+        "operationId": "demand_contract_simulator_api_v1_power_demand_contract_simulator_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "dias",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 365,
+              "minimum": 7,
+              "default": 30,
+              "title": "Dias"
+            }
+          },
+          {
+            "name": "passo_kw",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 25.0,
+              "minimum": 1.0,
+              "default": 5.0,
+              "title": "Passo Kw"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Demand Contract Simulator Api V1 Power Demand Contract Simulator Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/power/maintenance/attention": {
+      "get": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "Maintenance Attention",
+        "description": "Pontos que vem falhando com frequencia, pela recorrencia dos episodios.\n\nO painel de estado mostra o que esta ruim agora. Este mostra o que vai\nquebrar - um conector que abre \"falha da trava\" tres vezes na semana ainda\nfunciona, e nao vai continuar funcionando.",
+        "operationId": "maintenance_attention_api_v1_power_maintenance_attention_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "dias",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 365,
+              "minimum": 1,
+              "default": 30,
+              "title": "Dias"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Maintenance Attention Api V1 Power Maintenance Attention Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sessions": {
       "get": {
         "tags": [

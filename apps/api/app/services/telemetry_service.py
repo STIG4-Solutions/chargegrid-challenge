@@ -12,7 +12,7 @@ from app.core.config import settings
 from app.core.logging import get_logger
 from app.drivers import modbus_map
 from app.drivers.base import ChargePointReading
-from app.models.charge_point import ChargePoint
+from app.models.charge_point import ChargePoint, ChargePointFault
 from app.models.enums import AuthMethod, ChargePointStatus, SessionState, StopReason
 from app.models.tariff import Tariff
 from app.models.telemetry import TelemetrySample
@@ -60,6 +60,7 @@ async def ingest(db: AsyncSession, charge_point: ChargePoint, reading: ChargePoi
     # atencao. So a falha terminal vira last_fault_code.
     charge_point.active_faults = [*reading.faults, *reading.operational_flags]
     charge_point.last_fault_code = reading.faults[0] if reading.faults else None
+    await _registrar_falhas(db, charge_point, reading, now)
     if reading.serial_number and not charge_point.serial_number:
         charge_point.serial_number = reading.serial_number
     if reading.firmware_version:
@@ -208,3 +209,57 @@ async def mark_stale_offline(db: AsyncSession) -> int:
         cp.status = ChargePointStatus.OFFLINE
         cp.current_kw = 0
     return len(stale)
+
+
+async def _registrar_falhas(
+    db: AsyncSession, charge_point: ChargePoint, reading: ChargePointReading, agora: datetime
+) -> None:
+    """Mantem o historico de episodios de falha do ponto.
+
+    `active_faults` no ponto e' um retrato que este mesmo ciclo sobrescreve.
+    Aqui guardamos a linha do tempo: cada rotulo que aparece abre um episodio,
+    cada ciclo que ele persiste avanca o contador, e o ciclo em que ele some o
+    fecha.
+
+    Sem isto nao ha como responder "este ponto falha mais que os outros?", que
+    e' a unica pergunta que transforma alarme em manutencao.
+    """
+    presentes = {(rotulo, True) for rotulo in reading.faults}
+    presentes |= {(rotulo, False) for rotulo in reading.operational_flags}
+    rotulos_agora = {rotulo for rotulo, _ in presentes}
+
+    abertos = (
+        (
+            await db.execute(
+                select(ChargePointFault).where(
+                    ChargePointFault.charge_point_id == charge_point.id,
+                    ChargePointFault.resolved_at.is_(None),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    por_rotulo = {f.label: f for f in abertos}
+
+    for rotulo, terminal in presentes:
+        episodio = por_rotulo.get(rotulo)
+        if episodio is None:
+            db.add(
+                ChargePointFault(
+                    charge_point_id=charge_point.id,
+                    label=rotulo,
+                    terminal=terminal,
+                    first_seen_at=agora,
+                    last_seen_at=agora,
+                    ciclos=1,
+                )
+            )
+        else:
+            episodio.last_seen_at = agora
+            episodio.ciclos += 1
+
+    # Sumiu da leitura: o episodio acabou.
+    for rotulo, episodio in por_rotulo.items():
+        if rotulo not in rotulos_agora:
+            episodio.resolved_at = agora
