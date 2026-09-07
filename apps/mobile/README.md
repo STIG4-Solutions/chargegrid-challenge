@@ -261,7 +261,9 @@ mas por dois caracteres de margem.
 
 ## Telas
 
-Quatro abas — **Mapa**, **Agenda**, **Histórico** e **Perfil** — com telas empilhadas sobre elas.
+Quatro abas — **Mapa**, **Agenda**, **Histórico** e **Perfil** — com telas empilhadas sobre
+elas. Uma quinta, **Frota**, aparece só para quem é gestor: a API responde 403 para os
+demais, e uma aba que só mostra erro é pior que aba nenhuma.
 
 | Tela | Arquivo | Endpoints (via SDK) |
 |---|---|---|
@@ -274,8 +276,19 @@ Quatro abas — **Mapa**, **Agenda**, **Histórico** e **Perfil** — com telas 
 | Histórico (recargas e faturas) | `src/screens/HistoryScreen.tsx` | `app.mySessions`, `app.myInvoices` |
 | Perfil (carteira e veículos) | `src/screens/ProfileScreen.tsx` | `app.myVehicles`, `app.addVehicle`, `app.topUpWallet` |
 | Ler QR do carregador | `src/screens/ScannerScreen.tsx` | `app.chargePointByCode` |
+| Frota (só gestor) | `src/screens/FleetScreen.tsx` | `app.fleetReport` |
 
-Todas as dezessete operações do escopo `/app/*` têm tela.
+Componentes que vivem fora das telas, porque aparecem em mais de uma:
+
+| Componente | Arquivo | O que faz |
+|---|---|---|
+| Teto da recarga | `src/LimiteDaRecarga.tsx` | "pare em 30 kWh / 45 min / R$ 50" antes de iniciar |
+| Quando começar | `src/QuandoComecar.tsx` | compara agora com o melhor horário à frente |
+| Reportar problema | `src/ReportarProblema.tsx` | categoria fechada + detalhe opcional |
+| Recibo | `src/BotaoRecibo.tsx` | busca o HTML da API, vira PDF e abre o compartilhamento |
+| Push | `src/push.ts` | registra o aparelho no login, remove no logout |
+
+Todas as operações do escopo `/app/*` têm tela ou componente.
 
 A tela de recarga mostra a **fila de espera**: quando não há potência livre, a
 sessão entra em `queued` com a posição na fila e começa sozinha assim que o
@@ -381,6 +394,47 @@ Quem reserva o espaço depende de onde a tela está:
 
 Os dois utilitários estão em `src/components.tsx`. **Não use `useRecuoInferior()` numa tela de
 aba**: a barra de abas já reserva a base e o recuo sairia contado duas vezes.
+
+## Notificação push
+
+Registro no **login**, não na abertura do app: pedir permissão de notificação para quem ainda
+não entrou é pedir antes de haver o que notificar, e a recusa é permanente — o sistema não
+pergunta de novo.
+
+O logout desregistra **antes** de descartar o token, senão a chamada sai sem credencial e o
+aparelho continua recebendo as notificações de quem saiu. E o token pertence ao aparelho, não à
+pessoa: celular emprestado sem o reaponte faria o segundo motorista receber os avisos do
+primeiro, com código da recarga e valor.
+
+Tudo em `src/push.ts` falha em silêncio de propósito. Push é um extra: permissão negada,
+emulador, serviço fora do ar — o app continua funcionando exatamente como antes. Um erro de
+registro não pode impedir alguém de carregar o carro.
+
+Três coisas que atrapalham quem for testar:
+
+- **emulador não recebe push.** `Device.isDevice` corta antes de tentar; sem isso o console
+  enche de erro toda vez que o app abre em desenvolvimento.
+- **sem canal, o Android 8+ descarta a notificação** sem avisar ninguém. O canal `recargas` é
+  criado no registro.
+- **o servidor precisa entregar de verdade.** Com `PUSH_PROVIDER=log` (o padrão) ele monta a
+  mensagem e registra — todo o caminho é exercitado até a borda, mas nada sai. Para chegar no
+  aparelho: `PUSH_PROVIDER=expo` na API e credenciais FCM no projeto EAS.
+
+## Recibo em PDF
+
+`expo-print` converte o HTML que a **API** devolve; o app não monta o documento. Se montasse, os
+números dependeriam da versão instalada — dois motoristas com builds diferentes gerariam
+documentos diferentes para a mesma fatura.
+
+Sem app de compartilhamento (raro, mas acontece em aparelho corporativo travado) cai em
+`Print.printAsync`, e o diálogo do sistema oferece "salvar como PDF". Diferente do push, aqui o
+erro **aparece na tela**: o motorista pediu o documento, então precisa saber se não saiu.
+
+## Módulos nativos
+
+`expo-notifications`, `expo-print`, `expo-sharing` e `expo-device` entraram junto com essas
+features. São nativos: exigem **build novo**, não entram por atualização OTA. Os plugins estão
+declarados no `app.json`.
 
 ## O que ainda não tem
 

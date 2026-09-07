@@ -14,7 +14,7 @@ e sem OCPP não existe cobrança. A plataforma cobre esses três vazios.
 | App do motorista | `apps/mobile/` | React Native · Expo (iOS + Android) | usuário final |
 | Cliente compartilhado | `packages/sdk/` | TypeScript | os dois clientes |
 
-## O que o painel faz
+## O que cada lado faz
 
 A seção **Recarga EV** tem sete abas. As três primeiras operam o presente; as quatro últimas
 decidem o futuro — é onde o painel deixa de relatar e passa a recomendar.
@@ -29,8 +29,24 @@ decidem o futuro — é onde o painel deixa de relatar e passa a recomendar.
 | Regras de Prioridade | quem carrega quando falta potência, e por quê |
 | Visão de Rede | qual praça segura a operação (aparece com mais de um site) |
 
-O app do motorista cobre o outro lado: encontrar estação, ler o QR do carregador, iniciar e
-acompanhar a recarga, agendar vaga, ver faturas e gerenciar veículos e carteira.
+### App do motorista
+
+O básico já estava lá: encontrar estação, ler o QR do carregador, iniciar e acompanhar a
+recarga, agendar vaga, ver faturas e gerenciar veículos e carteira. O que veio depois usa dados
+que a API já produzia e ninguém mostrava:
+
+| Recurso | O que muda para quem dirige |
+|---|---|
+| Teto da recarga | "carregue até 30 kWh / 45 min / R$ 50" — o servidor já parava sozinho, faltava a tela |
+| Quando começar | "comece às 21h e pague 33% menos", pelo mesmo motor que vai faturar |
+| Notificação push | recarga concluída, vez na fila, parada por falha — sem precisar do app aberto |
+| Recibo em PDF | o documento que vai para a prestação de contas da empresa |
+| Reportar problema | cabo cortado e vaga ocupada não têm sensor; o motorista vê antes |
+| Modo frota | gasto por centro de custo, para quem paga a conta de vários carros |
+
+Dois deles fecham ciclo com o painel: o reporte alimenta a manutenção preditiva — um ponto com
+duas reclamações e nenhum sinal de sensor sobe para prioridade alta —, e o conselho de horário
+sai das mesmas janelas tarifárias que o operador configura.
 
 ## Rodar
 

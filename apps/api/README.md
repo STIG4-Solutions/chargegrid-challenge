@@ -414,13 +414,136 @@ errado devolveria 200 vazio, indistinguível de uma praça sem movimento.
 Dashboard e app compartilham domínio, serviços e banco — o que muda é o escopo: o motorista
 só enxerga o que é dele.
 
+### Encontrar e carregar
+
 `GET /app/stations` (mapa com disponibilidade e preço, ordenado por distância) ·
 `GET /app/stations/{site_id}/charge-points` (vagas da estação) ·
 `GET /app/charge-points/by-code/{código}` (QR colado no carregador) ·
-`POST /app/sessions` (iniciar com pré-autorização) · `GET /app/sessions/active` ·
-`GET /app/sessions/{id}/preview` (custo pelo mesmo motor que fatura) · `POST /app/sessions/{id}/stop` ·
-`POST /app/reservations` (agendamento com checagem de conflito) · `GET /app/invoices` ·
-`POST /app/wallet/topup`.
+`POST /app/sessions` (iniciar) · `GET /app/sessions/active` ·
+`GET /app/sessions/{id}/preview` (custo pelo mesmo motor que fatura) ·
+`POST /app/sessions/{id}/stop` ·
+`POST /app/reservations` (agendamento com checagem de conflito) ·
+`GET /app/invoices` · `POST /app/wallet/topup`.
+
+### Teto da recarga
+
+`POST /app/sessions` aceita `limit_kwh`, `limit_minutes` e `limit_amount`. Quem os aplica é a
+ingestão de telemetria: `reached_limit` encerra a sessão no primeiro que for atingido. A rota
+só os registra.
+
+**A pré-autorização também encerra a sessão.** Um teto de R$ 80 sobre a pré-autorização padrão
+de R$ 50 nunca seria alcançado — a recarga pararia nos 50 e o motorista veria o próprio limite
+ignorado, sem erro nenhum. A rota eleva a pré-autorização ao teto pedido: não dá para gastar
+mais do que se autorizou.
+
+### Quando começar
+
+| Endpoint | Uso |
+|---|---|
+| `GET /app/charge-points/{id}/when-to-start` | Compara começar agora com o melhor horário à frente |
+
+A conta caminha a sessão pelas janelas horárias com o mesmo `resolve_rates` que vai faturar
+depois, em passos de 15 min — uma recarga longa atravessa a virada no meio, e o preço médio que
+ela paga não é o de nenhuma das duas pontas. Comparar preço de tabela erraria justamente as
+sessões que mais importam.
+
+Economia irrelevante não vira conselho: são **duas** barreiras, R$ 1 **e** 5%. Cinco por cento
+de R$ 3 continua sendo troco, e R$ 1 numa recarga de R$ 200 não paga a espera. Tarifa sem
+janela devolve `disponivel: false` em vez de "o melhor horário é agora", que soaria como
+análise sendo a ausência dela.
+
+### Notificação push
+
+| Endpoint | Uso |
+|---|---|
+| `POST /app/push-devices` | Registra (ou reaponta) o aparelho |
+| `DELETE /app/push-devices/{token}` | Remove ao sair da conta |
+
+O app fazia polling, o que cobre quem está com a tela aberta. O momento em que a notificação
+importa é o outro: o motorista foi almoçar, a recarga terminou, e o conector fica ocupado
+gerando taxa de ociosidade para ele e fila para os demais.
+
+Os eventos já existiam em `session_events`; o que faltava era para onde mandar e o registro de
+que já foi mandado. `session_events.notified_at` é um **outbox na própria tabela de eventos** —
+o evento já é a fonte da verdade, e duplicar criaria duas histórias que podem divergir.
+
+Notificáveis: recarga concluída, promovido na fila, encerrada por falha. A lista é curta de
+propósito — notificar cada transição treina o motorista a ignorar, e aí a que importa também
+passa despercebida.
+
+Três decisões que só aparecem quando algo dá errado:
+
+- **falha no envio não marca nada.** Marcar transformaria "não entreguei" em "entreguei" e a
+  notificação sumiria para sempre, sem erro visível em lugar nenhum.
+- **evento com mais de 30 min não vira push.** "Venha buscar o carro" duas horas atrasado é
+  pior que nada: o motorista já foi embora.
+- **a migração 0012 marca todo o histórico como notificado.** Sem isso a primeira volta do
+  worker num banco em uso dispararia dezenas de avisos sobre carros levados para casa dias atrás.
+
+O envio roda em worker (`PUSH_INTERVAL_S`, padrão 20 s), não no momento da gravação: um serviço
+de push lento travaria a transição de estado da sessão — o carro deixaria de ser liberado
+porque a Expo caiu. Provedor plugável como o de pagamento; nome desconhecido estoura em vez de
+cair no simulador.
+
+### Recibo da recarga
+
+| Endpoint | Uso |
+|---|---|
+| `GET /app/invoices/{id}/receipt` | Dados do recibo, para a tela montar o resumo |
+| `GET /app/invoices/{id}/receipt.html` | O documento, pronto para virar PDF no aparelho |
+
+**A taxa do adquirente não entra.** `net_amount = total - processing_fee`: quem paga a taxa é o
+estabelecimento, descontada do que recebe. O motorista pagou `total`, e mostrar a taxa no recibo
+dele diria que pagou algo que não pagou — num documento que vai para prestação de contas, isso
+é pior que incompleto.
+
+O HTML é renderizado no servidor. Montá-lo no app faria os números dependerem da versão
+instalada: dois motoristas com builds diferentes gerariam documentos diferentes para a mesma
+fatura.
+
+### Reportar problema no ponto
+
+| Endpoint | Uso |
+|---|---|
+| `POST /app/charge-points/{id}/reports` | Reporta um problema visto no ponto |
+| `GET /app/charge-points/{id}/reports` | Os reportes que **este** motorista fez ali |
+
+Fecha o ciclo com a manutenção preditiva. `charge_point_faults` cobre o que o equipamento sabe
+de si — bits de registrador. Não cobre cabo cortado, tela apagada, vaga tomada por um carro a
+combustão nem adesivo de QR arrancado: nesses casos o ponto reporta "disponível" com toda a
+sinceridade, porque do ponto de vista dele está tudo bem.
+
+Por isso **dois reportes abertos sem nenhum sinal do sensor sobem o ponto para prioridade
+alta**, com o rótulo `so_humano`. Se a manutenção esperasse o equipamento concordar, esperaria
+por uma confirmação que nesses casos nunca vem.
+
+Categorias fechadas, no schema e no banco. Campo livre sozinho vira depoimento, e depoimento não
+agrega: três pessoas descrevendo o mesmo cabo rompido com palavras diferentes viram três
+problemas num relatório que deveria mostrar um.
+
+A lista de reportes de um ponto é informação do operador — o motorista só recupera os próprios.
+
+### Modo frota
+
+| Endpoint | Uso |
+|---|---|
+| `GET /app/fleet/report?mes=AAAA-MM` | Relatório mensal por centro de custo |
+| `GET /app/fleet/vehicles` | Carros da frota e suas áreas |
+| `PUT /app/fleet/vehicles/{id}/cost-center` | Define a área de um carro |
+
+Quem dirige não é quem paga. O centro de custo mora no **veículo**, não na pessoa: o carro
+pertence a um departamento e roda com motoristas diferentes — amarrar na pessoa erraria toda vez
+que alguém pega o carro de outra área, que é o caso comum.
+
+`fleet_manager` é um recorte de **leitura** sobre o papel de motorista, não um papel novo.
+Torná-lo `operator` lhe daria o painel de estabelecimentos onde a frota nem carrega; deixá-lo
+motorista comum o cegaria para o gasto de todos.
+
+O mês fecha pela **emissão da fatura**, não pelo início da recarga: uma sessão que começa 31/03
+às 23h e termina 01/04 às 2h pertence à fatura de abril, e é a fatura que o financeiro concilia.
+Fatura cancelada não entra — somaria dinheiro que ninguém pagou à conta de uma área. Carro sem
+centro de custo **aparece** no relatório em vez de sumir num filtro: escondê-lo faria o total não
+bater com a fatura, a pior forma de esconder um problema de cadastro.
 
 O que o motorista vê é deliberadamente menor que a visão do operador: `StationPointOut` traz
 código, conector, potência nominal e disponibilidade — limite de potência, registrador Modbus
@@ -462,14 +585,15 @@ quem disparou) — perícia de falha em campo depende disso.
 
 ## Modelo de dados
 
-22 tabelas. As de série temporal (`telemetry_samples`, `site_meter_readings`, `command_logs`,
+25 tabelas. As de série temporal (`telemetry_samples`, `site_meter_readings`, `command_logs`,
 `audit_logs`) recebem índice **BRIN** — ordens de grandeza menor que B-tree quando as linhas
 já chegam ordenadas no tempo, que é o caso do poller.
 
 ```
 sites ─┬─ charge_points ─┬─ charge_point_connections
        │                 ├─ telemetry_samples
-       │                 └─ charge_point_faults
+       │                 ├─ charge_point_faults      (o que o sensor vê)
+       │                 └─ charge_point_reports     (o que a pessoa vê)
        ├─ tariffs ─── tariff_windows
        ├─ site_payment_methods
        ├─ site_meter_readings
@@ -477,8 +601,15 @@ sites ─┬─ charge_points ─┬─ charge_point_connections
        └─ charging_sessions ─┬─ session_events
                              └─ invoices ─┬─ invoice_lines
                                           └─ payments
-users ─┬─ vehicles   ├─ rfid_cards   └─ reservations
+fleets ── users ─┬─ vehicles      (o centro de custo mora aqui)
+                 ├─ rfid_cards
+                 ├─ reservations
+                 └─ push_devices
 ```
+
+As duas fontes de defeito ficam **separadas de propósito**. `charge_point_faults` tem bit e
+contagem de ciclos; `charge_point_reports` tem categoria e texto de gente. Forçar um formato no
+outro perderia justamente o que cada uma sabe — e a manutenção preditiva lê as duas.
 
 `charge_point_faults` guarda **episódios**, não estado: `charge_points.active_faults` é um
 retrato que o poller sobrescreve a cada ciclo, e manutenção preditiva depende de recorrência.
