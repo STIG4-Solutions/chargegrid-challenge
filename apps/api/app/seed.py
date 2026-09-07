@@ -111,13 +111,18 @@ async def seed() -> None:
             free_minutes=5,
             min_charge=5.00,
         )
+        # Ponta 50% acima da fora de ponta. A razao nao e' arbitraria: na tarifa
+        # branca da ANEEL a ponta chega a dobrar a fora de ponta, entao 1,5x e'
+        # conservador para um operador que revende. Com os 7% que havia aqui
+        # antes, a diferenca sumia no arredondamento e o conselho de horario do
+        # app - "comece as 21h e pague menos" - nao tinha o que recomendar.
         peak.windows.append(
             TariffWindow(
                 label="Ponta",
                 day_mask=WEEKDAYS,
                 starts_at=time(18, 0),
                 ends_at=time(21, 0),
-                price_per_kwh=1.50,
+                price_per_kwh=2.10,
                 idle_fee_per_min=0.20,
             )
         )
