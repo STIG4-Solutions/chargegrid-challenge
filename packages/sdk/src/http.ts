@@ -80,6 +80,10 @@ export async function request<T>(caminho: string, opcoes: RequestOptions = {}): 
   if (!tokensHidratados()) await hydrateTokens()
 
   const url = new URL(apiUrl(caminho))
+  // O site escolhido entra antes dos params da chamada, para que uma rota que
+  // passe o próprio site_id explicitamente continue vencendo o seletor.
+  const { siteId } = getConfig()
+  if (siteId) url.searchParams.set('site_id', siteId)
   if (params) {
     for (const [chave, valor] of Object.entries(params)) {
       if (valor !== undefined && valor !== null && valor !== '') {

@@ -119,7 +119,7 @@ uvicorn app.main:app --reload
 ## Testes
 
 ```bash
-pytest -q          # 316 testes
+pytest -q          # 330 testes
 ruff check app     # lint
 ```
 
@@ -153,6 +153,7 @@ ruff check app     # lint
 | `test_contrato_e_manutencao.py` | qual demanda contratar, e qual ponto vai quebrar |
 | `test_utilizacao.py` | ocupacao e receita por ponto — o denominador honesto |
 | `test_regras_de_prioridade.py` | quem carrega quando falta potencia, e por que |
+| `test_multi_site.py` | admin escolhe a praca; operador nunca sai da dele |
 | `test_config_guard.py` | recusa subir em produção com segredo público |
 
 Os quatro `test_http_*` sobem a aplicação inteira sobre a mesma transação do

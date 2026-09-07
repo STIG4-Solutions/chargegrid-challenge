@@ -6,7 +6,7 @@ import uuid
 from typing import Annotated
 
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Query, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -79,20 +79,51 @@ AdminUser = Annotated[User, Depends(require_admin)]
 DriverUser = Annotated[User, Depends(require_driver)]
 
 
-async def get_scoped_site_id(db: DbSession, user: OperatorUser) -> uuid.UUID:
-    """Site do operador logado.
+async def get_scoped_site_id(
+    db: DbSession,
+    user: OperatorUser,
+    site_id: Annotated[
+        uuid.UUID | None, Query(description="admin: escolhe o site da rede")
+    ] = None,
+) -> uuid.UUID:
+    """Site em que a requisicao opera.
 
-    Multi-tenant por construcao: o operador so enxerga o proprio estabelecimento.
-    Admin sem site vinculado cai no primeiro site (cenario de instalacao unica).
+    Multi-tenant por construcao. A assimetria entre os dois papeis e deliberada:
+
+      OPERADOR - sempre o proprio estabelecimento. O parametro `site_id` da
+      query e ignorado por completo, nao rejeitado: rejeitar com 403 avisaria
+      que o id existe. Como o valor nunca chega a ser lido, nao ha caminho em
+      que um operador alcance dado de outro site alterando a URL.
+
+      ADMIN - pode escolher, porque e' quem administra a rede inteira e precisa
+      comparar praca com praca. Sem escolha explicita, cai no proprio site e,
+      nao tendo um, no primeiro cadastrado (instalacao unica).
+
+    O site escolhido pelo admin e' conferido contra o banco antes de voltar: sem
+    isso, um uuid digitado errado nao daria erro nenhum - as consultas apenas
+    filtrariam por um id inexistente e a tela mostraria um site vazio, que se
+    parece exatamente com uma praca sem movimento.
     """
+    if user.site_id is not None and user.role != UserRole.ADMIN:
+        return user.site_id
+
+    if user.role == UserRole.ADMIN and site_id is not None:
+        existe = (
+            await db.execute(select(Site.id).where(Site.id == site_id))
+        ).scalar_one_or_none()
+        if existe is None:
+            raise HTTPException(status_code=404, detail="site não encontrado")
+        return existe
+
     if user.site_id is not None:
         return user.site_id
-    site_id = (
+
+    primeiro = (
         await db.execute(select(Site.id).order_by(Site.created_at).limit(1))
     ).scalar_one_or_none()
-    if site_id is None:
+    if primeiro is None:
         raise HTTPException(status_code=404, detail="nenhum site cadastrado")
-    return site_id
+    return primeiro
 
 
 ScopedSiteId = Annotated[uuid.UUID, Depends(get_scoped_site_id)]

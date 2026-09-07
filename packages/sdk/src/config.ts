@@ -7,6 +7,15 @@ export interface SdkConfig {
   storage: TokenStorage
   /** Chamado quando a renovação do token é recusada e a sessão morre. */
   onSessionExpired?: () => void
+  /**
+   * Site escolhido pelo admin, anexado como `site_id` a toda requisição.
+   *
+   * Fica aqui, e não em cada chamada, porque o seletor precisa valer para as
+   * telas que já existem sem reescrevê-las. A API ignora o parâmetro para
+   * operador — quem não é admin continua preso ao próprio site, mesmo que
+   * este valor seja definido no cliente.
+   */
+  siteId?: string | null
 }
 
 const PREFIXO_API = '/api/v1'

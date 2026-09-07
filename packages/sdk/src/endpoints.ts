@@ -53,6 +53,11 @@ export const power = {
   /** Pontos que vem falhando com frequencia. */
   maintenanceAttention: (dias = 30) =>
     api.get<Record<string, unknown>>('/power/maintenance/attention', { dias }),
+  /** Sites que o usuario pode escolher no seletor (operador ve so o proprio). */
+  visibleSites: () => api.get<Record<string, unknown>[]>('/power/sites'),
+  /** As pracas lado a lado. So admin. */
+  portfolio: (dias = 30) =>
+    api.get<Record<string, unknown>>('/power/sites/portfolio', { dias }),
   /** Regras de prioridade nomeadas do site. */
   priorityRules: () => api.get<Record<string, unknown>[]>('/power/priority-rules'),
   createPriorityRule: (dados: Record<string, unknown>) =>

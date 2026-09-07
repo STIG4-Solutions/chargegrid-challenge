@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Query, Response
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.core.deps import DbSession, OperatorUser, ScopedSiteId
+from app.core.deps import AdminUser, CurrentUser, DbSession, OperatorUser, ScopedSiteId
 from app.models.charge_point import ChargePoint, ChargePointConnection
 from app.models.enums import ChargePointStatus, SessionState
 from app.models.priority_rule import PriorityRule
@@ -31,6 +31,7 @@ from app.schemas.ev import (
 from app.services import (
     demand_service,
     maintenance_service,
+    portfolio_service,
     power_manager,
     priority_service,
     session_service,
@@ -513,3 +514,27 @@ async def preview_priority_rules(
             for p in pontos
         ],
     }
+
+
+# ------------------------------------------------------------------- multi-site
+
+
+@router.get("/sites")
+async def list_visible_sites(db: DbSession, user: CurrentUser) -> list[dict]:
+    """Sites que este usuário pode escolher no seletor do painel.
+
+    Operador recebe só o próprio. A lista também é superfície de informação:
+    não adianta o escopo barrar a consulta se o seletor entrega os nomes e as
+    cidades da rede inteira.
+    """
+    return await portfolio_service.sites_visiveis(db, user)
+
+
+@router.get("/sites/portfolio")
+async def sites_portfolio(
+    db: DbSession,
+    _: AdminUser,
+    dias: int = Query(default=30, ge=1, le=365),
+) -> dict:
+    """As praças lado a lado. Só admin — é a visão da rede, não a de um site."""
+    return await portfolio_service.visao_da_rede(db, dias=dias)
