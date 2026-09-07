@@ -191,6 +191,32 @@
         "summary": "Overview",
         "description": "Tudo que a tela de potencia precisa em uma chamada.",
         "operationId": "overview_api_v1_power_overview_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -201,13 +227,18 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/v1/power/budget": {
@@ -217,6 +248,32 @@
         ],
         "summary": "Get Budget",
         "operationId": "get_budget_api_v1_power_budget_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -227,13 +284,18 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ]
+        }
       },
       "patch": {
         "tags": [
@@ -241,15 +303,41 @@
         ],
         "summary": "Update Budget",
         "operationId": "update_budget_api_v1_power_budget_patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PowerBudgetUpdate"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -272,12 +360,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/v1/power/meter-readings": {
@@ -288,15 +371,41 @@
         "summary": "Push Meter Reading",
         "description": "Entrada do smart meter / inversor GoodWe.\n\nEnquanto a API de EV Chargers do SEMS+ nao existe, esta rota e o ponto de\nintegracao: um coletor no site empurra as leituras para ca.",
         "operationId": "push_meter_reading_api_v1_power_meter_readings_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/MeterReadingIn"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "202": {
@@ -320,12 +429,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/v1/power/plan": {
@@ -336,6 +440,32 @@
         "summary": "Preview Plan",
         "description": "Previa do rateio sem escrever nada no hardware.",
         "operationId": "preview_plan_api_v1_power_plan_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -346,13 +476,18 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/v1/power/rebalance": {
@@ -380,6 +515,25 @@
               "title": "Dry Run"
             },
             "description": "calcula e não aplica"
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
           }
         ],
         "responses": {
@@ -414,27 +568,58 @@
         ],
         "summary": "List Charge Points",
         "operationId": "list_charge_points_api_v1_power_charge_points_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/ChargePointOut"
                   },
-                  "type": "array",
                   "title": "Response List Charge Points Api V1 Power Charge Points Get"
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ]
+        }
       },
       "post": {
         "tags": [
@@ -442,15 +627,41 @@
         ],
         "summary": "Create Charge Point",
         "operationId": "create_charge_point_api_v1_power_charge_points_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ChargePointCreate"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -473,12 +684,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/v1/power/charge-points/{charge_point_id}": {
@@ -503,6 +709,25 @@
               "format": "uuid",
               "title": "Charge Point Id"
             }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
           }
         ],
         "requestBody": {
@@ -562,6 +787,25 @@
               "format": "uuid",
               "title": "Charge Point Id"
             }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
           }
         ],
         "requestBody": {
@@ -631,6 +875,25 @@
               "default": true,
               "title": "Enabled"
             }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
           }
         ],
         "responses": {
@@ -694,6 +957,25 @@
               "default": 7,
               "title": "Dias De Historico"
             }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
           }
         ],
         "responses": {
@@ -746,6 +1028,25 @@
               "default": 30,
               "title": "Dias"
             }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
           }
         ],
         "responses": {
@@ -810,6 +1111,25 @@
               "default": 5.0,
               "title": "Passo Kw"
             }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
           }
         ],
         "responses": {
@@ -862,6 +1182,25 @@
               "default": 30,
               "title": "Dias"
             }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
           }
         ],
         "responses": {
@@ -872,6 +1211,498 @@
                 "schema": {
                   "type": "object",
                   "title": "Response Maintenance Attention Api V1 Power Maintenance Attention Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/power/utilization/by-point": {
+      "get": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "Utilization By Point",
+        "description": "Ocupacao, receita e ociosidade de cada ponto.\n\nResponde onde colocar o proximo ponto e onde tirar um: o ranking e por\nreceita por hora DISPONIVEL, entao um ponto que passou a semana em falha\nnao aparece como ocioso - aparece com menos horas no denominador.",
+        "operationId": "utilization_by_point_api_v1_power_utilization_by_point_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "dias",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 365,
+              "minimum": 1,
+              "default": 30,
+              "title": "Dias"
+            }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Utilization By Point Api V1 Power Utilization By Point Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/power/priority-rules": {
+      "get": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "List Priority Rules",
+        "operationId": "list_priority_rules_api_v1_power_priority_rules_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PriorityRuleOut"
+                  },
+                  "title": "Response List Priority Rules Api V1 Power Priority Rules Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "Create Priority Rule",
+        "operationId": "create_priority_rule_api_v1_power_priority_rules_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PriorityRuleIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PriorityRuleOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/power/priority-rules/{regra_id}": {
+      "put": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "Update Priority Rule",
+        "operationId": "update_priority_rule_api_v1_power_priority_rules__regra_id__put",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "regra_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Regra Id"
+            }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PriorityRuleIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PriorityRuleOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "Delete Priority Rule",
+        "operationId": "delete_priority_rule_api_v1_power_priority_rules__regra_id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "regra_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Regra Id"
+            }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/power/priority-rules/preview": {
+      "get": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "Preview Priority Rules",
+        "description": "Qual regra pegaria cada ponto, no horário informado.\n\nExiste porque a regra so' se manifesta quando falta potencia - e ai' ja e'\ntarde para descobrir que a janela da frota noturna estava invertida. Aqui o\noperador testa \"as 23h, quem tem prioridade?\" antes de precisar.",
+        "operationId": "preview_priority_rules_api_v1_power_priority_rules_preview_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "hora",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "HH:MM local; padrão = agora",
+              "title": "Hora"
+            },
+            "description": "HH:MM local; padrão = agora"
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Preview Priority Rules Api V1 Power Priority Rules Preview Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/power/sites": {
+      "get": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "List Visible Sites",
+        "description": "Sites que este usuário pode escolher no seletor do painel.\n\nOperador recebe só o próprio. A lista também é superfície de informação:\nnão adianta o escopo barrar a consulta se o seletor entrega os nomes e as\ncidades da rede inteira.",
+        "operationId": "list_visible_sites_api_v1_power_sites_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response List Visible Sites Api V1 Power Sites Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/power/sites/portfolio": {
+      "get": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "Sites Portfolio",
+        "description": "As praças lado a lado. Só admin — é a visão da rede, não a de um site.",
+        "operationId": "sites_portfolio_api_v1_power_sites_portfolio_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "dias",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 365,
+              "minimum": 1,
+              "default": 30,
+              "title": "Dias"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Sites Portfolio Api V1 Power Sites Portfolio Get"
                 }
               }
             }
@@ -974,6 +1805,25 @@
               "default": 0,
               "title": "Offset"
             }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
           }
         ],
         "responses": {
@@ -1009,6 +1859,27 @@
         "security": [
           {
             "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
           }
         ],
         "requestBody": {
@@ -1053,6 +1924,32 @@
         "summary": "Kpis",
         "description": "Cartoes do topo da tela de sessoes.",
         "operationId": "kpis_api_v1_sessions_kpis_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1063,13 +1960,18 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/v1/sessions/{session_id}": {
@@ -1095,6 +1997,25 @@
               "format": "uuid",
               "title": "Session Id"
             }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
           }
         ],
         "responses": {
@@ -1143,6 +2064,25 @@
               "format": "uuid",
               "title": "Session Id"
             }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
           }
         ],
         "requestBody": {
@@ -1202,6 +2142,25 @@
               "format": "uuid",
               "title": "Session Id"
             }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
           }
         ],
         "responses": {
@@ -1275,6 +2234,25 @@
               "default": 600,
               "title": "Max Points"
             }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
           }
         ],
         "responses": {
@@ -1328,6 +2306,25 @@
               "format": "uuid",
               "title": "Session Id"
             }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
           }
         ],
         "responses": {
@@ -1362,27 +2359,58 @@
         ],
         "summary": "List Tariffs",
         "operationId": "list_tariffs_api_v1_tariffs_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/TariffOut"
                   },
-                  "type": "array",
                   "title": "Response List Tariffs Api V1 Tariffs Get"
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ]
+        }
       },
       "post": {
         "tags": [
@@ -1390,15 +2418,41 @@
         ],
         "summary": "Create Tariff",
         "operationId": "create_tariff_api_v1_tariffs_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/TariffCreate"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -1421,12 +2475,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/v1/tariffs/{tariff_id}": {
@@ -1451,6 +2500,25 @@
               "format": "uuid",
               "title": "Tariff Id"
             }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
           }
         ],
         "requestBody": {
@@ -1508,6 +2576,25 @@
               "format": "uuid",
               "title": "Tariff Id"
             }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
           }
         ],
         "responses": {
@@ -1550,6 +2637,25 @@
               "format": "uuid",
               "title": "Tariff Id"
             }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
           }
         ],
         "requestBody": {
@@ -1598,15 +2704,41 @@
         "summary": "Simulate Cost",
         "description": "Simulador de custo da tela de tarifacao.",
         "operationId": "simulate_cost_api_v1_tariffs_simulate_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/SimulationRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -1629,12 +2761,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/v1/payment-methods": {
@@ -1644,27 +2771,58 @@
         ],
         "summary": "List Payment Methods",
         "operationId": "list_payment_methods_api_v1_payment_methods_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/PaymentMethodOut"
                   },
-                  "type": "array",
                   "title": "Response List Payment Methods Api V1 Payment Methods Get"
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ]
+        }
       },
       "put": {
         "tags": [
@@ -1673,15 +2831,41 @@
         "summary": "Upsert Payment Method",
         "description": "Habilita ou atualiza um metodo. Um por tipo por site.",
         "operationId": "upsert_payment_method_api_v1_payment_methods_put",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PaymentMethodIn"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -1704,12 +2888,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/v1/invoices": {
@@ -1763,6 +2942,25 @@
               "default": 0,
               "title": "Offset"
             }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
           }
         ],
         "responses": {
@@ -1944,6 +3142,25 @@
               "default": 30,
               "title": "Days"
             }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
           }
         ],
         "responses": {
@@ -2948,6 +4165,11 @@
           "reason": {
             "type": "string",
             "title": "Reason"
+          },
+          "regra": {
+            "type": "string",
+            "title": "Regra",
+            "default": ""
           }
         },
         "type": "object",
@@ -4030,6 +5252,161 @@
           "allocations"
         ],
         "title": "PowerPlanOut"
+      },
+      "PriorityRuleIn": {
+        "properties": {
+          "nome": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Nome"
+          },
+          "prioridade": {
+            "type": "integer",
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "Prioridade"
+          },
+          "ordem": {
+            "type": "integer",
+            "maximum": 10000.0,
+            "minimum": 0.0,
+            "title": "Ordem",
+            "default": 100
+          },
+          "ativo": {
+            "type": "boolean",
+            "title": "Ativo",
+            "default": true
+          },
+          "criterio_tipo": {
+            "type": "string",
+            "enum": [
+              "sempre",
+              "ponto",
+              "conector"
+            ],
+            "title": "Criterio Tipo",
+            "default": "sempre"
+          },
+          "criterio_valor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 400
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Criterio Valor"
+          },
+          "janela_inicio": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Janela Inicio"
+          },
+          "janela_fim": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Janela Fim"
+          }
+        },
+        "type": "object",
+        "required": [
+          "nome",
+          "prioridade"
+        ],
+        "title": "PriorityRuleIn",
+        "description": "Regra de prioridade nomeada.\n\nA validacao aqui existe porque o banco so consegue barrar o que e' local a\numa linha. Ele garante que a janela tenha os dois lados e que o criterio\ntenha valor; o que ele nao ve e' se o texto do criterio faz sentido."
+      },
+      "PriorityRuleOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "nome": {
+            "type": "string",
+            "title": "Nome"
+          },
+          "prioridade": {
+            "type": "integer",
+            "title": "Prioridade"
+          },
+          "ordem": {
+            "type": "integer",
+            "title": "Ordem"
+          },
+          "ativo": {
+            "type": "boolean",
+            "title": "Ativo"
+          },
+          "criterio_tipo": {
+            "type": "string",
+            "title": "Criterio Tipo"
+          },
+          "criterio_valor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Criterio Valor"
+          },
+          "janela_inicio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Janela Inicio"
+          },
+          "janela_fim": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Janela Fim"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "nome",
+          "prioridade",
+          "ordem",
+          "ativo",
+          "criterio_tipo",
+          "criterio_valor",
+          "janela_inicio",
+          "janela_fim"
+        ],
+        "title": "PriorityRuleOut"
       },
       "RatedLineOut": {
         "properties": {

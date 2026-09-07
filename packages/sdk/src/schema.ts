@@ -363,6 +363,134 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/power/utilization/by-point": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Utilization By Point
+         * @description Ocupacao, receita e ociosidade de cada ponto.
+         *
+         *     Responde onde colocar o proximo ponto e onde tirar um: o ranking e por
+         *     receita por hora DISPONIVEL, entao um ponto que passou a semana em falha
+         *     nao aparece como ocioso - aparece com menos horas no denominador.
+         */
+        get: operations["utilization_by_point_api_v1_power_utilization_by_point_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/power/priority-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Priority Rules */
+        get: operations["list_priority_rules_api_v1_power_priority_rules_get"];
+        put?: never;
+        /** Create Priority Rule */
+        post: operations["create_priority_rule_api_v1_power_priority_rules_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/power/priority-rules/{regra_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update Priority Rule */
+        put: operations["update_priority_rule_api_v1_power_priority_rules__regra_id__put"];
+        post?: never;
+        /** Delete Priority Rule */
+        delete: operations["delete_priority_rule_api_v1_power_priority_rules__regra_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/power/priority-rules/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview Priority Rules
+         * @description Qual regra pegaria cada ponto, no horário informado.
+         *
+         *     Existe porque a regra so' se manifesta quando falta potencia - e ai' ja e'
+         *     tarde para descobrir que a janela da frota noturna estava invertida. Aqui o
+         *     operador testa "as 23h, quem tem prioridade?" antes de precisar.
+         */
+        get: operations["preview_priority_rules_api_v1_power_priority_rules_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/power/sites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Visible Sites
+         * @description Sites que este usuário pode escolher no seletor do painel.
+         *
+         *     Operador recebe só o próprio. A lista também é superfície de informação:
+         *     não adianta o escopo barrar a consulta se o seletor entrega os nomes e as
+         *     cidades da rede inteira.
+         */
+        get: operations["list_visible_sites_api_v1_power_sites_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/power/sites/portfolio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sites Portfolio
+         * @description As praças lado a lado. Só admin — é a visão da rede, não a de um site.
+         */
+        get: operations["sites_portfolio_api_v1_power_sites_portfolio_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions": {
         parameters: {
             query?: never;
@@ -993,6 +1121,11 @@ export interface components {
             suspended: boolean;
             /** Reason */
             reason: string;
+            /**
+             * Regra
+             * @default
+             */
+            regra: string;
         };
         /**
          * AuthMethod
@@ -1400,6 +1533,63 @@ export interface components {
             over_budget: boolean;
             /** Allocations */
             allocations: components["schemas"]["AllocationOut"][];
+        };
+        /**
+         * PriorityRuleIn
+         * @description Regra de prioridade nomeada.
+         *
+         *     A validacao aqui existe porque o banco so consegue barrar o que e' local a
+         *     uma linha. Ele garante que a janela tenha os dois lados e que o criterio
+         *     tenha valor; o que ele nao ve e' se o texto do criterio faz sentido.
+         */
+        PriorityRuleIn: {
+            /** Nome */
+            nome: string;
+            /** Prioridade */
+            prioridade: number;
+            /**
+             * Ordem
+             * @default 100
+             */
+            ordem: number;
+            /**
+             * Ativo
+             * @default true
+             */
+            ativo: boolean;
+            /**
+             * Criterio Tipo
+             * @default sempre
+             * @enum {string}
+             */
+            criterio_tipo: "sempre" | "ponto" | "conector";
+            /** Criterio Valor */
+            criterio_valor?: string | null;
+            /** Janela Inicio */
+            janela_inicio?: string | null;
+            /** Janela Fim */
+            janela_fim?: string | null;
+        };
+        /** PriorityRuleOut */
+        PriorityRuleOut: {
+            /** Id */
+            id: string;
+            /** Nome */
+            nome: string;
+            /** Prioridade */
+            prioridade: number;
+            /** Ordem */
+            ordem: number;
+            /** Ativo */
+            ativo: boolean;
+            /** Criterio Tipo */
+            criterio_tipo: string;
+            /** Criterio Valor */
+            criterio_valor: string | null;
+            /** Janela Inicio */
+            janela_inicio: string | null;
+            /** Janela Fim */
+            janela_fim: string | null;
         };
         /** RatedLineOut */
         RatedLineOut: {
@@ -2343,7 +2533,10 @@ export interface operations {
     };
     overview_api_v1_power_overview_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2359,11 +2552,23 @@ export interface operations {
                     "application/json": components["schemas"]["PowerOverview"];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     get_budget_api_v1_power_budget_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2379,11 +2584,23 @@ export interface operations {
                     "application/json": components["schemas"]["PowerBudgetOut"];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     update_budget_api_v1_power_budget_patch: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2416,7 +2633,10 @@ export interface operations {
     };
     push_meter_reading_api_v1_power_meter_readings_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2449,7 +2669,10 @@ export interface operations {
     };
     preview_plan_api_v1_power_plan_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2465,6 +2688,15 @@ export interface operations {
                     "application/json": components["schemas"]["PowerPlanOut"];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     rebalance_api_v1_power_rebalance_post: {
@@ -2472,6 +2704,8 @@ export interface operations {
             query?: {
                 /** @description calcula e não aplica */
                 dry_run?: boolean;
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
             };
             header?: never;
             path?: never;
@@ -2501,7 +2735,10 @@ export interface operations {
     };
     list_charge_points_api_v1_power_charge_points_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2517,11 +2754,23 @@ export interface operations {
                     "application/json": components["schemas"]["ChargePointOut"][];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     create_charge_point_api_v1_power_charge_points_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2554,7 +2803,10 @@ export interface operations {
     };
     update_charge_point_api_v1_power_charge_points__charge_point_id__patch: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
             header?: never;
             path: {
                 charge_point_id: string;
@@ -2589,7 +2841,10 @@ export interface operations {
     };
     set_limit_api_v1_power_charge_points__charge_point_id__limit_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
             header?: never;
             path: {
                 charge_point_id: string;
@@ -2626,6 +2881,8 @@ export interface operations {
         parameters: {
             query?: {
                 enabled?: boolean;
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
             };
             header?: never;
             path: {
@@ -2660,6 +2917,8 @@ export interface operations {
             query?: {
                 horas?: number;
                 dias_de_historico?: number;
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
             };
             header?: never;
             path?: never;
@@ -2691,6 +2950,8 @@ export interface operations {
         parameters: {
             query?: {
                 dias?: number;
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
             };
             header?: never;
             path?: never;
@@ -2723,6 +2984,8 @@ export interface operations {
             query?: {
                 dias?: number;
                 passo_kw?: number;
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
             };
             header?: never;
             path?: never;
@@ -2751,6 +3014,264 @@ export interface operations {
         };
     };
     maintenance_attention_api_v1_power_maintenance_attention_get: {
+        parameters: {
+            query?: {
+                dias?: number;
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    utilization_by_point_api_v1_power_utilization_by_point_get: {
+        parameters: {
+            query?: {
+                dias?: number;
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_priority_rules_api_v1_power_priority_rules_get: {
+        parameters: {
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriorityRuleOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_priority_rule_api_v1_power_priority_rules_post: {
+        parameters: {
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PriorityRuleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriorityRuleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_priority_rule_api_v1_power_priority_rules__regra_id__put: {
+        parameters: {
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path: {
+                regra_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PriorityRuleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriorityRuleOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_priority_rule_api_v1_power_priority_rules__regra_id__delete: {
+        parameters: {
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path: {
+                regra_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_priority_rules_api_v1_power_priority_rules_preview_get: {
+        parameters: {
+            query?: {
+                /** @description HH:MM local; padrão = agora */
+                hora?: string | null;
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_visible_sites_api_v1_power_sites_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    sites_portfolio_api_v1_power_sites_portfolio_get: {
         parameters: {
             query?: {
                 dias?: number;
@@ -2789,6 +3310,8 @@ export interface operations {
                 since?: string | null;
                 limit?: number;
                 offset?: number;
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
             };
             header?: never;
             path?: never;
@@ -2818,7 +3341,10 @@ export interface operations {
     };
     start_session_api_v1_sessions_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2851,7 +3377,10 @@ export interface operations {
     };
     kpis_api_v1_sessions_kpis_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2867,11 +3396,23 @@ export interface operations {
                     "application/json": components["schemas"]["SessionKpis"];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     get_session_api_v1_sessions__session_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
             header?: never;
             path: {
                 session_id: string;
@@ -2902,7 +3443,10 @@ export interface operations {
     };
     stop_session_api_v1_sessions__session_id__stop_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
             header?: never;
             path: {
                 session_id: string;
@@ -2937,7 +3481,10 @@ export interface operations {
     };
     preview_cost_api_v1_sessions__session_id__preview_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
             header?: never;
             path: {
                 session_id: string;
@@ -2971,6 +3518,8 @@ export interface operations {
             query?: {
                 minutes?: number;
                 max_points?: number;
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
             };
             header?: never;
             path: {
@@ -3002,7 +3551,10 @@ export interface operations {
     };
     bill_api_v1_sessions__session_id__bill_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
             header?: never;
             path: {
                 session_id: string;
@@ -3033,7 +3585,10 @@ export interface operations {
     };
     list_tariffs_api_v1_tariffs_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3049,11 +3604,23 @@ export interface operations {
                     "application/json": components["schemas"]["TariffOut"][];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     create_tariff_api_v1_tariffs_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3086,7 +3653,10 @@ export interface operations {
     };
     delete_tariff_api_v1_tariffs__tariff_id__delete: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
             header?: never;
             path: {
                 tariff_id: string;
@@ -3115,7 +3685,10 @@ export interface operations {
     };
     update_tariff_api_v1_tariffs__tariff_id__patch: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
             header?: never;
             path: {
                 tariff_id: string;
@@ -3150,7 +3723,10 @@ export interface operations {
     };
     replace_windows_api_v1_tariffs__tariff_id__windows_put: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
             header?: never;
             path: {
                 tariff_id: string;
@@ -3185,7 +3761,10 @@ export interface operations {
     };
     simulate_cost_api_v1_tariffs_simulate_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3218,7 +3797,10 @@ export interface operations {
     };
     list_payment_methods_api_v1_payment_methods_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3234,11 +3816,23 @@ export interface operations {
                     "application/json": components["schemas"]["PaymentMethodOut"][];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
     upsert_payment_method_api_v1_payment_methods_put: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -3275,6 +3869,8 @@ export interface operations {
                 status?: components["schemas"]["InvoiceStatus"] | null;
                 limit?: number;
                 offset?: number;
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
             };
             header?: never;
             path?: never;
@@ -3392,6 +3988,8 @@ export interface operations {
         parameters: {
             query?: {
                 days?: number;
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
             };
             header?: never;
             path?: never;
