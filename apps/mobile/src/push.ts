@@ -1,3 +1,4 @@
+import Constants from 'expo-constants'
 import * as Device from 'expo-device'
 import * as Notifications from 'expo-notifications'
 import { Platform } from 'react-native'
@@ -48,6 +49,15 @@ export async function registrar(): Promise<string | null> {
     // Emulador não recebe push. Tentar assim mesmo gera um erro confuso no
     // console toda vez que o app abre em desenvolvimento.
     if (!Device.isDevice) return null
+
+    // Sem google-services.json o Android não sabe a quem pedir o token, e a
+    // chamada falha. O problema não é a falha — é que a permissão teria sido
+    // pedida antes dela, e a recusa do sistema é permanente: gastaríamos a
+    // única chance num build que nunca receberia nada.
+    //
+    // O sinal vem de `extra.pushConfigurado`, posto pelo app.config.js, e não
+    // de tentar e ver no que dá.
+    if (Constants.expoConfig?.extra?.pushConfigurado !== true) return null
 
     if (Platform.OS === 'android') {
       // Sem canal, o Android 8+ descarta a notificação sem avisar ninguém.

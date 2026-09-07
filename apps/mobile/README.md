@@ -417,8 +417,29 @@ Três coisas que atrapalham quem for testar:
 - **sem canal, o Android 8+ descarta a notificação** sem avisar ninguém. O canal `recargas` é
   criado no registro.
 - **o servidor precisa entregar de verdade.** Com `PUSH_PROVIDER=log` (o padrão) ele monta a
-  mensagem e registra — todo o caminho é exercitado até a borda, mas nada sai. Para chegar no
-  aparelho: `PUSH_PROVIDER=expo` na API e credenciais FCM no projeto EAS.
+  mensagem e registra — todo o caminho é exercitado até a borda, mas nada sai.
+
+### Ligar o FCM
+
+Sem isso o Android não sabe a quem pedir o token, e o app **não pede permissão** — a recusa do
+sistema é permanente, e gastar a única chance num build que nunca receberia nada custa caro. O
+sinal é `extra.pushConfigurado`, posto pelo `app.config.js` quando encontra o arquivo.
+
+Quatro passos, três deles no console do Google:
+
+1. **Projeto no Firebase** com um app Android de pacote `br.com.chargegrid.app` — o pacote tem
+   de bater exatamente, ou o token é emitido para outro app.
+2. **Baixe `google-services.json`** e coloque em `apps/mobile/` (o git ignora) para builds
+   locais. Para a nuvem, suba como variável de ambiente do tipo *file*:
+   ```bash
+   npx eas-cli env:create --environment preview --name GOOGLE_SERVICES_JSON      --type file --value ./google-services.json --visibility sensitive
+   ```
+3. **Chave de serviço FCM V1**: no Firebase, *Configurações do projeto → Contas de serviço →
+   Gerar nova chave privada*. Suba em `npx eas-cli credentials -p android` → *Push Notifications:
+   Manage your FCM V1 service account key*. É interativo, e a chave nunca passa pelo repositório.
+4. **Na API**, `PUSH_PROVIDER=expo`. O código não muda: o provedor já é plugável.
+
+Depois disso, **build novo** — `google-services.json` entra no projeto nativo, não por OTA.
 
 ## Recibo em PDF
 

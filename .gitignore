@@ -33,3 +33,9 @@ Thumbs.db
 # sobreviver a proxima mudanca de layout.
 **/mobile/android/
 **/mobile/ios/
+
+# Identificador do app no Firebase. Não é segredo - vai dentro do APK -, mas
+# como a chave do Maps não entra em repositório público: identificador colhido
+# em massa vira cota queimada. Local: no diretório do app. Nuvem: variável de
+# ambiente do tipo `file` no EAS.
+**/google-services.json
