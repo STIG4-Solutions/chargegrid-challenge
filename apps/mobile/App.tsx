@@ -15,6 +15,7 @@ import NewReservationScreen from './src/screens/NewReservationScreen'
 import ScannerScreen from './src/screens/ScannerScreen'
 import HistoryScreen from './src/screens/HistoryScreen'
 import ProfileScreen from './src/screens/ProfileScreen'
+import FleetScreen from './src/screens/FleetScreen'
 import type { Abas, RotasApp } from './src/navigation'
 import { cores } from './src/theme'
 
@@ -39,6 +40,7 @@ const ICONE: Record<keyof Abas, string> = {
   Mapa: '◎',
   Agenda: '▣',
   Historico: '≡',
+  Frota: '⛁',
   Perfil: '◍'
 }
 
@@ -46,10 +48,14 @@ const ROTULO: Record<keyof Abas, string> = {
   Mapa: 'Mapa',
   Agenda: 'Agenda',
   Historico: 'Histórico',
+  Frota: 'Frota',
   Perfil: 'Perfil'
 }
 
 function Abas() {
+  const { user } = useAuth()
+  const gestorDeFrota = user?.fleet_manager === true
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -66,6 +72,9 @@ function Abas() {
       <Tab.Screen name="Mapa" component={MapScreen} />
       <Tab.Screen name="Agenda" component={ReservationsScreen} />
       <Tab.Screen name="Historico" component={HistoryScreen} />
+      {/* So o gestor de frota. Para um motorista comum a API responde 403, e
+          uma aba que so' mostra erro e' pior que aba nenhuma. */}
+      {gestorDeFrota && <Tab.Screen name="Frota" component={FleetScreen} />}
       <Tab.Screen name="Perfil" component={ProfileScreen} />
     </Tab.Navigator>
   )

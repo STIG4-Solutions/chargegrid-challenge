@@ -74,9 +74,25 @@ require_admin = require_roles(UserRole.ADMIN)
 # conta administrativa.
 require_driver = require_roles(UserRole.DRIVER)
 
+async def require_fleet_manager(user: DriverUser) -> User:
+    """Gestor de frota: um recorte de LEITURA sobre o papel de motorista.
+
+    Nao vira `operator` de proposito. Operador administra estabelecimento, e o
+    gestor nao administra nenhum - dar-lhe esse papel abriria o painel de sites
+    onde a frota nem carrega. Ele ve o consolidado da propria frota e mais nada.
+    """
+    if not user.fleet_manager or user.fleet_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="conta sem permissão de gestor de frota",
+        )
+    return user
+
+
 OperatorUser = Annotated[User, Depends(require_operator)]
 AdminUser = Annotated[User, Depends(require_admin)]
 DriverUser = Annotated[User, Depends(require_driver)]
+FleetManager = Annotated[User, Depends(require_fleet_manager)]
 
 
 async def get_scoped_site_id(

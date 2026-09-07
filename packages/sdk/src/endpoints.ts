@@ -145,6 +145,23 @@ export const app = {
     limit_minutes?: number
     limit_amount?: number
   }) => api.post<T.SessaoDetalhada>('/app/sessions', undefined, params),
+  /** Reporta um problema visto no ponto — o motorista ve antes do sensor. */
+  reportProblem: (
+    chargePointId: string,
+    dados: { categoria: string; descricao?: string; session_id?: string }
+  ) => api.post<Record<string, unknown>>(`/app/charge-points/${chargePointId}/reports`, dados),
+  /** Os reportes que ESTE motorista fez neste ponto. */
+  myReports: (chargePointId: string) =>
+    api.get<Record<string, unknown>[]>(`/app/charge-points/${chargePointId}/reports`),
+  /** Relatorio mensal da frota, por centro de custo. So gestor. */
+  fleetReport: (mes: string) =>
+    api.get<Record<string, unknown>>('/app/fleet/report', { mes }),
+  /** Carros da frota e seus centros de custo. */
+  fleetVehicles: () => api.get<Record<string, unknown>[]>('/app/fleet/vehicles'),
+  setCostCenter: (vehicleId: string, centro: string | null) =>
+    api.put<Record<string, unknown>>(`/app/fleet/vehicles/${vehicleId}/cost-center`, {
+      centro_de_custo: centro
+    }),
   /** Registra (ou reaponta) o aparelho que recebe notificacao push. */
   registerPushDevice: (token: string, platform: 'android' | 'ios' = 'android') =>
     api.post<void>('/app/push-devices', { token, platform }),

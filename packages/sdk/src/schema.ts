@@ -1223,6 +1223,104 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/app/charge-points/{charge_point_id}/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Reports For Point
+         * @description Os reportes que ESTE motorista fez neste ponto.
+         *
+         *     Só os próprios: a lista de reclamações de um ponto é informação do
+         *     operador, e devolvê-la ao público entregaria quem reclamou de quê.
+         */
+        get: operations["my_reports_for_point_api_v1_app_charge_points__charge_point_id__reports_get"];
+        put?: never;
+        /**
+         * Report Problem
+         * @description Reportar um problema neste ponto.
+         *
+         *     Fecha o ciclo com a manutenção preditiva do painel. O registrador cobre o
+         *     que o equipamento sabe de si — sobretemperatura, falha de trava, perda de
+         *     comunicação. Não cobre cabo cortado, tela apagada nem vaga tomada por um
+         *     carro a combustão: nesses casos o ponto reporta "disponível" com toda a
+         *     sinceridade, e quem vê é a pessoa que chegou ali. O motorista vê antes do
+         *     sensor, e às vezes é o único que vê.
+         */
+        post: operations["report_problem_api_v1_app_charge_points__charge_point_id__reports_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/fleet/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Fleet Report
+         * @description Relatório mensal da frota, por centro de custo.
+         *
+         *     Fecha pela data de emissão da fatura, não pelo início da recarga: uma
+         *     sessão que começa 31/03 às 23h e termina 01/04 às 2h pertence à fatura de
+         *     abril — e é a fatura que o financeiro concilia.
+         */
+        get: operations["fleet_report_api_v1_app_fleet_report_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/fleet/vehicles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Fleet Vehicles
+         * @description Carros da frota e seus centros de custo.
+         */
+        get: operations["fleet_vehicles_api_v1_app_fleet_vehicles_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/fleet/vehicles/{vehicle_id}/cost-center": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Cost Center
+         * @description Define o centro de custo de um carro da própria frota.
+         */
+        put: operations["set_cost_center_api_v1_app_fleet_vehicles__vehicle_id__cost_center_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1254,6 +1352,14 @@ export interface components {
          * @enum {string}
          */
         AuthMethod: "rfid" | "app" | "plug_and_charge" | "reservation" | "operator";
+        /**
+         * CentroDeCustoIn
+         * @description Vazio ou so' espacos limpa o centro de custo do veiculo.
+         */
+        CentroDeCustoIn: {
+            /** Centro De Custo */
+            centro_de_custo?: string | null;
+        };
         /** ChargePointCreate */
         ChargePointCreate: {
             /** Code */
@@ -1770,6 +1876,26 @@ export interface components {
         RefreshRequest: {
             /** Refresh Token */
             refresh_token: string;
+        };
+        /**
+         * ReporteIn
+         * @description Problema que o motorista viu no ponto.
+         *
+         *     A categoria e' fechada de proposito: campo livre sozinho vira depoimento,
+         *     e depoimento nao agrega - tres pessoas descrevendo o mesmo cabo rompido
+         *     com palavras diferentes viram tres problemas num relatorio que deveria
+         *     mostrar um.
+         */
+        ReporteIn: {
+            /**
+             * Categoria
+             * @enum {string}
+             */
+            categoria: "nao_inicia" | "conector_travado" | "cabo_danificado" | "tela_apagada" | "vaga_ocupada" | "qr_ilegivel" | "outro";
+            /** Descricao */
+            descricao?: string | null;
+            /** Session Id */
+            session_id?: string | null;
         };
         /** ReservationCreate */
         ReservationCreate: {
@@ -2464,6 +2590,13 @@ export interface components {
             site_id: string | null;
             /** Wallet Balance */
             wallet_balance: number;
+            /** Fleet Id */
+            fleet_id?: string | null;
+            /**
+             * Fleet Manager
+             * @default false
+             */
+            fleet_manager: boolean;
             /**
              * Created At
              * Format: date-time
@@ -2514,6 +2647,8 @@ export interface components {
             battery_kwh: number | null;
             /** Max Ac Kw */
             max_ac_kw: number | null;
+            /** Cost Center */
+            cost_center?: string | null;
         };
         /**
          * VehicleUpdate
@@ -4856,6 +4991,159 @@ export interface operations {
                 };
                 content: {
                     "text/html": string;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_reports_for_point_api_v1_app_charge_points__charge_point_id__reports_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                charge_point_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    report_problem_api_v1_app_charge_points__charge_point_id__reports_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                charge_point_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReporteIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fleet_report_api_v1_app_fleet_report_get: {
+        parameters: {
+            query: {
+                /** @description AAAA-MM */
+                mes: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fleet_vehicles_api_v1_app_fleet_vehicles_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+        };
+    };
+    set_cost_center_api_v1_app_fleet_vehicles__vehicle_id__cost_center_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                vehicle_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CentroDeCustoIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Validation Error */

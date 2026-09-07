@@ -30,6 +30,16 @@ class User(UUIDMixin, TimestampMixin, Base):
     )
 
     # Saldo pré-pago da carteira do app (BRL).
+    # ---- conta corporativa ----
+    fleet_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("fleets.id", ondelete="SET NULL"), index=True
+    )
+    # Quem enxerga o relatorio da frota inteira. E' um recorte de leitura sobre
+    # o papel de motorista, nao um papel novo: o gestor tambem carrega o
+    # proprio carro, e transforma-lo em "operator" lhe daria o painel do
+    # estabelecimento - inclusive de sites onde a frota nem carrega.
+    fleet_manager: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
     wallet_balance: Mapped[float] = mapped_column(Numeric(12, 2), default=0, nullable=False)
 
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -77,5 +87,10 @@ class Vehicle(UUIDMixin, TimestampMixin, Base):
     vin: Mapped[str | None] = mapped_column(String(24), index=True, doc="usado no VIN charging")
     battery_kwh: Mapped[float | None] = mapped_column(Numeric(6, 2))
     max_ac_kw: Mapped[float | None] = mapped_column(Numeric(6, 2))
+
+    # Centro de custo do carro, nao do motorista: o veiculo pertence a um
+    # departamento e roda com gente diferente. Amarrar na pessoa erraria toda
+    # vez que alguem pega o carro de outra area.
+    cost_center: Mapped[str | None] = mapped_column(String(60), index=True)
 
     user = relationship("User", back_populates="vehicles")

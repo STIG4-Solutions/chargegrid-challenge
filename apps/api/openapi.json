@@ -4421,6 +4421,260 @@
           }
         }
       }
+    },
+    "/api/v1/app/charge-points/{charge_point_id}/reports": {
+      "post": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "Report Problem",
+        "description": "Reportar um problema neste ponto.\n\nFecha o ciclo com a manutenção preditiva do painel. O registrador cobre o\nque o equipamento sabe de si — sobretemperatura, falha de trava, perda de\ncomunicação. Não cobre cabo cortado, tela apagada nem vaga tomada por um\ncarro a combustão: nesses casos o ponto reporta \"disponível\" com toda a\nsinceridade, e quem vê é a pessoa que chegou ali. O motorista vê antes do\nsensor, e às vezes é o único que vê.",
+        "operationId": "report_problem_api_v1_app_charge_points__charge_point_id__reports_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "charge_point_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Charge Point Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReporteIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Report Problem Api V1 App Charge Points  Charge Point Id  Reports Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "My Reports For Point",
+        "description": "Os reportes que ESTE motorista fez neste ponto.\n\nSó os próprios: a lista de reclamações de um ponto é informação do\noperador, e devolvê-la ao público entregaria quem reclamou de quê.",
+        "operationId": "my_reports_for_point_api_v1_app_charge_points__charge_point_id__reports_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "charge_point_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Charge Point Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  },
+                  "title": "Response My Reports For Point Api V1 App Charge Points  Charge Point Id  Reports Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/app/fleet/report": {
+      "get": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "Fleet Report",
+        "description": "Relatório mensal da frota, por centro de custo.\n\nFecha pela data de emissão da fatura, não pelo início da recarga: uma\nsessão que começa 31/03 às 23h e termina 01/04 às 2h pertence à fatura de\nabril — e é a fatura que o financeiro concilia.",
+        "operationId": "fleet_report_api_v1_app_fleet_report_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "mes",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}$",
+              "description": "AAAA-MM",
+              "title": "Mes"
+            },
+            "description": "AAAA-MM"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Fleet Report Api V1 App Fleet Report Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/app/fleet/vehicles": {
+      "get": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "Fleet Vehicles",
+        "description": "Carros da frota e seus centros de custo.",
+        "operationId": "fleet_vehicles_api_v1_app_fleet_vehicles_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response Fleet Vehicles Api V1 App Fleet Vehicles Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/app/fleet/vehicles/{vehicle_id}/cost-center": {
+      "put": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "Set Cost Center",
+        "description": "Define o centro de custo de um carro da própria frota.",
+        "operationId": "set_cost_center_api_v1_app_fleet_vehicles__vehicle_id__cost_center_put",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "vehicle_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Vehicle Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CentroDeCustoIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Set Cost Center Api V1 App Fleet Vehicles  Vehicle Id  Cost Center Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4483,6 +4737,25 @@
           "operator"
         ],
         "title": "AuthMethod"
+      },
+      "CentroDeCustoIn": {
+        "properties": {
+          "centro_de_custo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 60
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Centro De Custo"
+          }
+        },
+        "type": "object",
+        "title": "CentroDeCustoIn",
+        "description": "Vazio ou so' espacos limpa o centro de custo do veiculo."
       },
       "ChargePointCreate": {
         "properties": {
@@ -5818,6 +6091,53 @@
           "refresh_token"
         ],
         "title": "RefreshRequest"
+      },
+      "ReporteIn": {
+        "properties": {
+          "categoria": {
+            "type": "string",
+            "enum": [
+              "nao_inicia",
+              "conector_travado",
+              "cabo_danificado",
+              "tela_apagada",
+              "vaga_ocupada",
+              "qr_ilegivel",
+              "outro"
+            ],
+            "title": "Categoria"
+          },
+          "descricao": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descricao"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "categoria"
+        ],
+        "title": "ReporteIn",
+        "description": "Problema que o motorista viu no ponto.\n\nA categoria e' fechada de proposito: campo livre sozinho vira depoimento,\ne depoimento nao agrega - tres pessoas descrevendo o mesmo cabo rompido\ncom palavras diferentes viram tres problemas num relatorio que deveria\nmostrar um."
       },
       "ReservationCreate": {
         "properties": {
@@ -7568,6 +7888,23 @@
             "type": "number",
             "title": "Wallet Balance"
           },
+          "fleet_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fleet Id"
+          },
+          "fleet_manager": {
+            "type": "boolean",
+            "title": "Fleet Manager",
+            "default": false
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -7745,6 +8082,17 @@
               }
             ],
             "title": "Max Ac Kw"
+          },
+          "cost_center": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Center"
           }
         },
         "type": "object",

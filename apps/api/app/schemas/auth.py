@@ -49,6 +49,12 @@ class UserOut(ORMModel):
     document: str | None
     site_id: uuid.UUID | None
     wallet_balance: float
+    # Conta corporativa. Sem estes na resposta o app nao tem como decidir se
+    # mostra a aba de frota - e uma aba que so' devolve 403 e' pior que aba
+    # nenhuma. Mesma classe do campo que o FastAPI descartava em silencio no
+    # AllocationOut.
+    fleet_id: uuid.UUID | None = None
+    fleet_manager: bool = False
     created_at: datetime
 
 
@@ -77,6 +83,9 @@ class VehicleOut(ORMModel):
     vin: str | None
     battery_kwh: float | None
     max_ac_kw: float | None
+    # Area responsavel pelo carro. O motorista comum ve (e' o carro dele), mas
+    # so' o gestor altera.
+    cost_center: str | None = None
 
 
 class RfidCardCreate(BaseModel):
@@ -118,3 +127,31 @@ class PushDeviceIn(BaseModel):
 
     token: str = Field(min_length=8, max_length=200)
     platform: Literal["android", "ios"] = "android"
+
+
+class ReporteIn(BaseModel):
+    """Problema que o motorista viu no ponto.
+
+    A categoria e' fechada de proposito: campo livre sozinho vira depoimento,
+    e depoimento nao agrega - tres pessoas descrevendo o mesmo cabo rompido
+    com palavras diferentes viram tres problemas num relatorio que deveria
+    mostrar um.
+    """
+
+    categoria: Literal[
+        "nao_inicia",
+        "conector_travado",
+        "cabo_danificado",
+        "tela_apagada",
+        "vaga_ocupada",
+        "qr_ilegivel",
+        "outro",
+    ]
+    descricao: str | None = Field(default=None, max_length=1000)
+    session_id: uuid.UUID | None = None
+
+
+class CentroDeCustoIn(BaseModel):
+    """Vazio ou so' espacos limpa o centro de custo do veiculo."""
+
+    centro_de_custo: str | None = Field(default=None, max_length=60)

@@ -4,6 +4,7 @@ from app.db.base import Base
 from app.models.audit import AuditLog, CommandLog
 from app.models.billing import Invoice, InvoiceLine, Payment, SitePaymentMethod
 from app.models.charge_point import ChargePoint, ChargePointConnection, ChargePointFault
+from app.models.charge_point_report import ChargePointReport
 from app.models.enums import (
     ACTIVE_SESSION_STATES,
     TERMINAL_SESSION_STATES,
@@ -21,6 +22,7 @@ from app.models.enums import (
     TariffType,
     UserRole,
 )
+from app.models.fleet import Fleet
 from app.models.priority_rule import PriorityRule
 from app.models.push_device import PushDevice
 from app.models.reservation import Reservation
@@ -39,6 +41,7 @@ __all__ = [
     "ChargePoint",
     "ChargePointConnection",
     "ChargePointFault",
+    "ChargePointReport",
     "ChargePointStatus",
     "ChargingSession",
     "CommandLog",
@@ -51,6 +54,7 @@ __all__ = [
     "PaymentStatus",
     "PhaseType",
     "PowerSource",
+    "Fleet",
     "PriorityRule",
     "PushDevice",
     "Reservation",

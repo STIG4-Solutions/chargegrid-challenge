@@ -13,6 +13,7 @@ import { Aviso, Botao, Carregando, Etiqueta , useRecuoInferior } from '../compon
 import { cores, espaco, raio } from '../theme'
 import { LimiteDaRecarga, SEM_LIMITE, comoParametros, validar, type Limite } from '../LimiteDaRecarga'
 import { QuandoComecar } from '../QuandoComecar'
+import { ReportarProblema } from '../ReportarProblema'
 import type { Props } from '../navigation'
 
 /** O ponto lido no QR vai para o topo: o motorista escaneou aquele, nao a lista. */
@@ -114,6 +115,10 @@ export default function StationScreen({ route, navigation }: Props<'Estacao'>) {
                 pending={iniciar.pending}
                 onPress={() => void iniciar.run(item.id)}
               />
+              {/* Quem nao conseguiu carregar tambem precisa reportar: o
+                  ponto indisponivel pode estar assim por algo que o sensor
+                  nao ve. */}
+              <ReportarProblema chargePointId={item.id} codigo={item.code} />
             </View>
           )
         }}

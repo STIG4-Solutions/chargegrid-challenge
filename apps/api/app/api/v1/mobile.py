@@ -16,10 +16,11 @@ from fastapi.responses import HTMLResponse, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
-from app.core.deps import DbSession, DriverUser
+from app.core.deps import DbSession, DriverUser, FleetManager
 from app.db.base import RESERVATION_CODE_SEQ
 from app.models.billing import Invoice
 from app.models.charge_point import ChargePoint
+from app.models.charge_point_report import ChargePointReport
 from app.models.enums import (
     ACTIVE_SESSION_STATES,
     AuthMethod,
@@ -35,7 +36,9 @@ from app.models.site import Site
 from app.models.tariff import Tariff
 from app.models.user import Vehicle
 from app.schemas.auth import (
+    CentroDeCustoIn,
     PushDeviceIn,
+    ReporteIn,
     VehicleCreate,
     VehicleOut,
     VehicleUpdate,
@@ -54,6 +57,7 @@ from app.schemas.ev import (
 )
 from app.services import (
     billing_service,
+    fleet_service,
     payment_service,
     receipt_service,
     session_service,
@@ -732,3 +736,134 @@ async def invoice_receipt_html(
     if recibo is None:
         raise HTTPException(status_code=404, detail="fatura não encontrada")
     return HTMLResponse(receipt_service.como_html(recibo))
+
+
+# --------------------------------------------------- reportar problema no ponto
+
+
+@router.post("/charge-points/{charge_point_id}/reports", status_code=201)
+async def report_problem(
+    charge_point_id: uuid.UUID, payload: ReporteIn, db: DbSession, user: DriverUser
+) -> dict:
+    """Reportar um problema neste ponto.
+
+    Fecha o ciclo com a manutenção preditiva do painel. O registrador cobre o
+    que o equipamento sabe de si — sobretemperatura, falha de trava, perda de
+    comunicação. Não cobre cabo cortado, tela apagada nem vaga tomada por um
+    carro a combustão: nesses casos o ponto reporta "disponível" com toda a
+    sinceridade, e quem vê é a pessoa que chegou ali. O motorista vê antes do
+    sensor, e às vezes é o único que vê.
+    """
+    cp = (
+        await db.execute(select(ChargePoint).where(ChargePoint.id == charge_point_id))
+    ).scalar_one_or_none()
+    if cp is None:
+        raise HTTPException(status_code=404, detail="ponto de recarga não encontrado")
+
+    if payload.session_id is not None:
+        # Amarrar o reporte a uma sessão de outra pessoa daria ao operador uma
+        # pista falsa sobre quando o problema aconteceu.
+        dono = (
+            await db.execute(
+                select(ChargingSession.id).where(
+                    ChargingSession.id == payload.session_id,
+                    ChargingSession.user_id == user.id,
+                )
+            )
+        ).scalar_one_or_none()
+        if dono is None:
+            raise HTTPException(status_code=404, detail="sessão não encontrada")
+
+    reporte = ChargePointReport(
+        id=uuid.uuid4(),
+        charge_point_id=charge_point_id,
+        user_id=user.id,
+        session_id=payload.session_id,
+        categoria=payload.categoria,
+        descricao=(payload.descricao or "").strip() or None,
+    )
+    db.add(reporte)
+    await db.commit()
+    return {
+        "id": str(reporte.id),
+        "categoria": reporte.categoria,
+        "ponto": cp.code,
+        "registrado": True,
+    }
+
+
+@router.get("/charge-points/{charge_point_id}/reports")
+async def my_reports_for_point(
+    charge_point_id: uuid.UUID, db: DbSession, user: DriverUser
+) -> list[dict]:
+    """Os reportes que ESTE motorista fez neste ponto.
+
+    Só os próprios: a lista de reclamações de um ponto é informação do
+    operador, e devolvê-la ao público entregaria quem reclamou de quê.
+    """
+    linhas = (
+        (
+            await db.execute(
+                select(ChargePointReport)
+                .where(
+                    ChargePointReport.charge_point_id == charge_point_id,
+                    ChargePointReport.user_id == user.id,
+                )
+                .order_by(ChargePointReport.created_at.desc())
+                .limit(20)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [
+        {
+            "id": str(r.id),
+            "categoria": r.categoria,
+            "descricao": r.descricao,
+            "criado_em": r.created_at.isoformat(),
+            "resolvido": r.resolved_at is not None,
+            "resolucao": r.resolucao,
+        }
+        for r in linhas
+    ]
+
+
+# ------------------------------------------------------------------- frota
+
+
+@router.get("/fleet/report")
+async def fleet_report(
+    db: DbSession,
+    gestor: FleetManager,
+    mes: str = Query(description="AAAA-MM", pattern=r"^\d{4}-\d{2}$"),
+) -> dict:
+    """Relatório mensal da frota, por centro de custo.
+
+    Fecha pela data de emissão da fatura, não pelo início da recarga: uma
+    sessão que começa 31/03 às 23h e termina 01/04 às 2h pertence à fatura de
+    abril — e é a fatura que o financeiro concilia.
+    """
+    try:
+        return await fleet_service.relatorio_mensal(db, gestor, mes=mes)
+    except ValueError as erro:
+        raise HTTPException(status_code=422, detail=str(erro)) from erro
+
+
+@router.get("/fleet/vehicles")
+async def fleet_vehicles(db: DbSession, gestor: FleetManager) -> list[dict]:
+    """Carros da frota e seus centros de custo."""
+    return await fleet_service.veiculos_da_frota(db, gestor)
+
+
+@router.put("/fleet/vehicles/{vehicle_id}/cost-center")
+async def set_cost_center(
+    vehicle_id: uuid.UUID, payload: CentroDeCustoIn, db: DbSession, gestor: FleetManager
+) -> dict:
+    """Define o centro de custo de um carro da própria frota."""
+    veiculo = await fleet_service.definir_centro_de_custo(
+        db, gestor, vehicle_id, payload.centro_de_custo
+    )
+    if veiculo is None:
+        raise HTTPException(status_code=404, detail="veículo não encontrado")
+    return veiculo
