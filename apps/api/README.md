@@ -216,7 +216,11 @@ O dashboard e o app usam o mesmo emissor. Papéis: `admin` e `operator` acessam 
 
 O escopo do site vem do token: um operador nunca enxerga outro estabelecimento.
 
-## Os três módulos
+## Os módulos
+
+Os três primeiros são a operação: o que acontece agora. Os três últimos são a decisão: o que
+fazer com o que já aconteceu — e é neles que o painel deixa de relatar e passa a recomendar.
+
 
 ### 1. Gerenciamento de Potência
 
@@ -264,6 +268,15 @@ um cliente no meio da recarga.
 | `GET /power/budget` · `PATCH /power/budget` | Lê e ajusta limite de rede, reserva, PV/bateria e SOC mínimo |
 | `GET /power/charge-points` · `POST` · `PATCH /{id}` | Cadastro e configuração dos pontos |
 | `POST /power/meter-readings` | Entrada do smart meter / inversor GoodWe |
+| `GET /power/demand/forecast` | Projeta a demanda das próximas horas contra o contrato |
+| `GET /power/demand/avoided-cost` | Quanto o rateio poupou de ultrapassagem no período |
+| `GET /power/demand/contract-simulator` | Qual demanda contratar, dado o consumo medido |
+| `GET /power/maintenance/attention` | Pontos que vêm falhando com frequência |
+| `GET /power/utilization/by-point` | Ocupação, receita e ociosidade de cada ponto |
+| `GET /power/priority-rules` · `POST` · `PUT /{id}` · `DELETE /{id}` | Regras de prioridade nomeadas |
+| `GET /power/priority-rules/preview` | Qual regra pegaria cada ponto, no horário informado |
+| `GET /power/sites` | Praças que o usuário pode escolher (operador vê só a própria) |
+| `GET /power/sites/portfolio` | As praças lado a lado — só admin |
 
 ### 2. Ciclo da Sessão
 
@@ -332,6 +345,67 @@ de ontem. A taxa do adquirente é separada, então o lojista vê receita bruta e
 
 ---
 
+### 4. Demanda contratada
+
+A tarifa do Grupo A cobra **demanda (kW)** à parte da energia (kWh), pela **maior média de 15
+minutos do mês**. Um pico de quinze minutos, uma vez, define a conta inteira; ultrapassar o
+contratado sai ao dobro, com 5% de tolerância (REN 1.000/2021). Por isso avisar antes vale mais
+que relatar depois.
+
+Três respostas: a **previsão** projeta as próximas horas contra o contrato; o **custo evitado**
+mede quanto o rateio poupou de ultrapassagem no período; e o **simulador** varre as faixas de
+contrato somando, para cada uma, o custo fixo mais a penalidade que aquela faixa teria gerado
+sobre o histórico real medido.
+
+O simulador tem uma guarda que vale mais que a conta: **abaixo de 96 janelas** de 15 minutos —
+um dia cheio — a resposta vem com `confiavel: false` e o painel troca o destaque da economia por
+um aviso. Recomendar demanda menor sem ter medido o suficiente para ter visto o pico do mês
+custa ultrapassagem ao dobro, todo mês. O número continua sendo devolvido; o que a guarda faz é
+não chamá-lo de conselho.
+
+### 5. Ocupação e retorno
+
+Onde colocar o próximo ponto, qual remover, e qual está ocupado sem faturar.
+
+O denominador são horas **disponíveis**, não corridas: as janelas de falha terminal saem da
+conta, com episódios sobrepostos mesclados — duas falhas simultâneas são um período parado, e
+somá-las podia zerar as horas disponíveis de um ponto que funcionou o mês inteiro. Um ponto que
+passou a semana em falha não é um ponto sem procura; é um ponto quebrado, e as duas situações
+pedem ações opostas.
+
+Ocupação alta também não é faturamento. Um carro que termina de carregar e fica plugado deixa o
+ponto 90% ocupado faturando como 40%; `idle_minutes` separa os dois casos, e a tela rotula
+**congestionado** (falta ponto) contra **bloqueado** (falta cobrar ociosidade). Sem a distinção,
+o operador compra hardware para resolver um problema de política de preço.
+
+A janela nunca é maior que a idade do site — a mais antiga entre o cadastro e a primeira sessão,
+porque um site migrado tem histórico anterior à própria linha. Sem esse limite, um site
+instalado há uma semana devolvia todos os pontos como *ociosos*: a conta cobrava deles 23 dias
+em que não existiram.
+
+### 6. Regras de prioridade e multi-site
+
+`charge_points.priority` decide quem fica sem carregar quando falta potência — a decisão mais
+consequente do rateio — e era um inteiro sem explicação. Uma regra dá nome ao número, diz a que
+pontos se aplica (todos, uma lista de códigos, ou um tipo de conector) e permite que a
+prioridade **mude com a hora**: a frota precisa sair carregada às 7h, mas de dia quem paga a
+tarifa cheia é o visitante.
+
+A janela que cruza a meia-noite é o caso comum, não a exceção. Com `inicio <= t <= fim` nenhum
+horário satisfaz ao mesmo tempo ≥22h e ≤6h: a regra mais importante do site ficaria desligada
+sem erro e sem log. A primeira regra na `ordem` vence, com desempate por id — sem ordem
+explícita, duas regras conflitantes davam resultado dependente de como o banco devolveu as
+linhas. Tudo resolvido na **hora local do site**; em UTC, "22h" começaria às 19h locais.
+
+O plano de rateio devolve o nome da regra que definiu cada faixa, que é o que permite responder
+*por que este ponto foi cortado e aquele não*.
+
+**Multi-site** afrouxa deliberadamente o escopo: passa a existir um caminho em que `site_id` da
+query decide qual site responde. A assimetria é o ponto — o **operador** sempre recebe o próprio
+estabelecimento, com o parâmetro *ignorado, não rejeitado* (rejeitar com 403 confirmaria que o
+id existe); o **admin** escolhe, e o id é conferido contra o banco, senão um uuid digitado
+errado devolveria 200 vazio, indistinguível de uma praça sem movimento.
+
 ## App mobile (`/api/v1/app/*`)
 
 Dashboard e app compartilham domínio, serviços e banco — o que muda é o escopo: o motorista
@@ -385,21 +459,28 @@ quem disparou) — perícia de falha em campo depende disso.
 
 ## Modelo de dados
 
-19 tabelas. As de série temporal (`telemetry_samples`, `site_meter_readings`, `command_logs`,
+22 tabelas. As de série temporal (`telemetry_samples`, `site_meter_readings`, `command_logs`,
 `audit_logs`) recebem índice **BRIN** — ordens de grandeza menor que B-tree quando as linhas
 já chegam ordenadas no tempo, que é o caso do poller.
 
 ```
-sites ─┬─ charge_points ─── charge_point_connections
-       │        └── telemetry_samples
+sites ─┬─ charge_points ─┬─ charge_point_connections
+       │                 ├─ telemetry_samples
+       │                 └─ charge_point_faults
        ├─ tariffs ─── tariff_windows
        ├─ site_payment_methods
        ├─ site_meter_readings
+       ├─ priority_rules
        └─ charging_sessions ─┬─ session_events
                              └─ invoices ─┬─ invoice_lines
                                           └─ payments
 users ─┬─ vehicles   ├─ rfid_cards   └─ reservations
 ```
+
+`charge_point_faults` guarda **episódios**, não estado: `charge_points.active_faults` é um
+retrato que o poller sobrescreve a cada ciclo, e manutenção preditiva depende de recorrência.
+Um índice único parcial garante um episódio aberto por ponto e rótulo — sem ele, o poller de 5
+em 5 segundos transformaria um minuto de falha em doze episódios.
 
 Dinheiro é `Numeric`, nunca `float`. Códigos legíveis (`SES-20483`, `INV-1042`, `RES-5007`)
 vêm de sequências do Postgres.
@@ -437,6 +518,11 @@ então dá para conferir tela contra endpoint:
 | "Encerrar sessão" | `POST /api/v1/sessions/{id}/stop` |
 | `TariffPayment.jsx` | `GET /api/v1/tariffs`, `/payment-methods`, `/invoices` |
 | simulador de custo | `POST /api/v1/tariffs/simulate` |
+| `DemandContract.jsx` | `GET /power/demand/forecast`, `/avoided-cost`, `/contract-simulator` |
+| `Utilization.jsx` | `GET /power/utilization/by-point` |
+| `PriorityRules.jsx` | `GET /power/priority-rules` + `/preview`; grava por `POST`/`PUT`/`DELETE` |
+| `Portfolio.jsx` | `GET /power/sites/portfolio` |
+| seletor de praça | `GET /power/sites` — grava `siteId` no SDK, que anexa `site_id` a tudo |
 | atualização ao vivo | `WS /api/v1/ws/site?token=<access_token>` |
 
 Os valores de `status`, `state` e `payment` usam **as mesmas strings** dos componentes atuais

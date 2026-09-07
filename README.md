@@ -14,6 +14,24 @@ e sem OCPP não existe cobrança. A plataforma cobre esses três vazios.
 | App do motorista | `apps/mobile/` | React Native · Expo (iOS + Android) | usuário final |
 | Cliente compartilhado | `packages/sdk/` | TypeScript | os dois clientes |
 
+## O que o painel faz
+
+A seção **Recarga EV** tem sete abas. As três primeiras operam o presente; as quatro últimas
+decidem o futuro — é onde o painel deixa de relatar e passa a recomendar.
+
+| Aba | Pergunta que responde |
+|---|---|
+| Gerenciamento de Potência | quanto cada ponto pode puxar agora, sem estourar o padrão |
+| Ciclo da Sessão | o que está acontecendo em cada recarga, com timeline auditável |
+| Tarifação & Pagamento | quanto custa, por janela horária, e como se cobra |
+| Demanda Contratada | qual demanda contratar — e quanto o rateio já poupou de multa |
+| Ocupação & Retorno | qual ponto se paga, e qual está ocupado sem faturar |
+| Regras de Prioridade | quem carrega quando falta potência, e por quê |
+| Visão de Rede | qual praça segura a operação (aparece com mais de um site) |
+
+O app do motorista cobre o outro lado: encontrar estação, ler o QR do carregador, iniciar e
+acompanhar a recarga, agendar vaga, ver faturas e gerenciar veículos e carteira.
+
 ## Rodar
 
 **Backend** (sobe Postgres, migra, popula e serve):
