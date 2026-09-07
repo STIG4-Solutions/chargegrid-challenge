@@ -25,7 +25,13 @@ from app.schemas.ev import (
     SetLimitRequest,
     SiteSettingsOut,
 )
-from app.services import demand_service, maintenance_service, power_manager, session_service
+from app.services import (
+    demand_service,
+    maintenance_service,
+    power_manager,
+    session_service,
+    utilization_service,
+)
 from app.services.command_service import send_command
 
 router = APIRouter(prefix="/power", tags=["recarga ev · potência"])
@@ -357,3 +363,19 @@ async def maintenance_attention(
     funciona, e nao vai continuar funcionando.
     """
     return await maintenance_service.pontos_em_atencao(db, site_id, dias=dias)
+
+
+@router.get("/utilization/by-point")
+async def utilization_by_point(
+    db: DbSession,
+    site_id: ScopedSiteId,
+    _: OperatorUser,
+    dias: int = Query(default=30, ge=1, le=365),
+) -> dict:
+    """Ocupacao, receita e ociosidade de cada ponto.
+
+    Responde onde colocar o proximo ponto e onde tirar um: o ranking e por
+    receita por hora DISPONIVEL, entao um ponto que passou a semana em falha
+    nao aparece como ocioso - aparece com menos horas no denominador.
+    """
+    return await utilization_service.ocupacao_por_ponto(db, site_id, dias=dias)

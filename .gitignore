@@ -23,3 +23,13 @@ __pycache__/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Projetos nativos gerados por `expo prebuild`, em qualquer caminho.
+#
+# A regra equivalente em apps/mobile/.gitignore so' vale para o diretorio dela.
+# Quando o app mudou de packages/mobile para apps/mobile, a copia antiga deixou
+# de estar coberta e um `git add -A` levou junto 44 arquivos gerados - incluindo
+# um debug.keystore. Ancorar aqui pelo nome do diretorio faz a protecao
+# sobreviver a proxima mudanca de layout.
+**/mobile/android/
+**/mobile/ios/

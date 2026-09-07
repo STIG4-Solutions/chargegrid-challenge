@@ -53,6 +53,9 @@ export const power = {
   /** Pontos que vem falhando com frequencia. */
   maintenanceAttention: (dias = 30) =>
     api.get<Record<string, unknown>>('/power/maintenance/attention', { dias }),
+  /** Ocupacao, receita e ociosidade de cada ponto. */
+  utilizationByPoint: (dias = 30) =>
+    api.get<Record<string, unknown>>('/power/utilization/by-point', { dias }),
   /** Quanto o rateio poupou de ultrapassagem no periodo. */
   avoidedCost: (dias = 30) =>
     api.get<Record<string, unknown>>('/power/demand/avoided-cost', { dias }),

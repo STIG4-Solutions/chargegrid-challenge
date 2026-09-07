@@ -5,7 +5,8 @@ const modules = [
   { to: '/ev/power', label: 'Gerenciamento de Potência' },
   { to: '/ev/sessions', label: 'Ciclo da Sessão' },
   { to: '/ev/tariff', label: 'Tarifação & Pagamento' },
-  { to: '/ev/demand', label: 'Demanda Contratada' }
+  { to: '/ev/demand', label: 'Demanda Contratada' },
+  { to: '/ev/utilization', label: 'Ocupação & Retorno' }
 ]
 
 export default function EvCharging() {
