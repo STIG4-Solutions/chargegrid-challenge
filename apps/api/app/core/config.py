@@ -127,6 +127,13 @@ class Settings(BaseSettings):
     meter_source: Literal["virtual", "push"] = "virtual"
     meter_interval_s: int = 30
 
+    # Notificacao push.
+    #   log  - registra em vez de enviar; exercita todo o caminho ate a borda
+    #   expo - entrega pelo servico da Expo
+    # Um nome fora desta lista estoura, em vez de cair no simulador em silencio.
+    push_provider: Literal["log", "expo"] = "log"
+    push_interval_s: int = 20
+
     # Pagamento
     # O Literal lista o que existe de verdade. "stripe" estava aqui sem
     # implementacao: passava na validacao e caia no simulador, aprovando

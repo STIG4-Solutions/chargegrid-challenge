@@ -3,6 +3,7 @@ import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'rea
 import { app, brl, duration, num, useApi, type Fatura, type Sessao } from '@chargegrid/sdk'
 import { Aviso, Carregando, Etiqueta, Tela } from '../components'
 import { dataCurta, dataHora, statusFatura } from '../format'
+import { BotaoRecibo } from '../BotaoRecibo'
 import { cores, espaco, raio } from '../theme'
 
 const COR = {
@@ -142,6 +143,7 @@ export default function HistoryScreen() {
                     <Text style={s.linhaValor}>{brl(linha.amount)}</Text>
                   </View>
                 ))}
+                <BotaoRecibo invoiceId={item.id} codigo={item.code} />
               </View>
             )
           }}

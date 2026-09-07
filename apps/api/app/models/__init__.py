@@ -22,6 +22,7 @@ from app.models.enums import (
     UserRole,
 )
 from app.models.priority_rule import PriorityRule
+from app.models.push_device import PushDevice
 from app.models.reservation import Reservation
 from app.models.session import ChargingSession, SessionEvent
 from app.models.site import Site, SiteMeterReading
@@ -51,6 +52,7 @@ __all__ = [
     "PhaseType",
     "PowerSource",
     "PriorityRule",
+    "PushDevice",
     "Reservation",
     "ReservationStatus",
     "RfidCard",

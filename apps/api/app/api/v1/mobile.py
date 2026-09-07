@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from math import asin, cos, radians, sin, sqrt
 
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import Response
+from fastapi.responses import HTMLResponse, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
@@ -28,12 +28,19 @@ from app.models.enums import (
     SessionState,
     StopReason,
 )
+from app.models.push_device import PushDevice
 from app.models.reservation import Reservation
 from app.models.session import ChargingSession
 from app.models.site import Site
 from app.models.tariff import Tariff
 from app.models.user import Vehicle
-from app.schemas.auth import VehicleCreate, VehicleOut, VehicleUpdate, WalletTopUpIn
+from app.schemas.auth import (
+    PushDeviceIn,
+    VehicleCreate,
+    VehicleOut,
+    VehicleUpdate,
+    WalletTopUpIn,
+)
 from app.schemas.ev import (
     InvoiceOut,
     RatingOut,
@@ -48,6 +55,7 @@ from app.schemas.ev import (
 from app.services import (
     billing_service,
     payment_service,
+    receipt_service,
     session_service,
     start_advice_service,
 )
@@ -637,3 +645,90 @@ async def when_to_start(
     return await start_advice_service.quando_comecar(
         db, charge_point_id, kwh=kwh, horas=horas
     )
+
+
+# ------------------------------------------------------------------ push
+
+
+@router.post("/push-devices", status_code=204, response_class=Response, response_model=None)
+async def register_push_device(
+    payload: PushDeviceIn, db: DbSession, user: DriverUser
+) -> Response:
+    """Registra (ou reaponta) o aparelho deste motorista.
+
+    O token pertence ao aparelho, não à pessoa. Dois motoristas usando o mesmo
+    celular emprestado: sem o reaponte, o segundo receberia as notificações do
+    primeiro — com o código da recarga e o valor. Por isso o registro sempre
+    sobrescreve o dono em vez de criar uma segunda linha.
+    """
+    existente = (
+        await db.execute(select(PushDevice).where(PushDevice.token == payload.token))
+    ).scalar_one_or_none()
+
+    agora = datetime.now(UTC)
+    if existente is not None:
+        existente.user_id = user.id
+        existente.platform = payload.platform
+        existente.last_seen_at = agora
+    else:
+        db.add(
+            PushDevice(
+                id=uuid.uuid4(),
+                user_id=user.id,
+                token=payload.token,
+                platform=payload.platform,
+                last_seen_at=agora,
+            )
+        )
+    await db.commit()
+    return Response(status_code=204)
+
+
+@router.delete(
+    "/push-devices/{token}", status_code=204, response_class=Response, response_model=None
+)
+async def unregister_push_device(token: str, db: DbSession, user: DriverUser) -> Response:
+    """Remove o aparelho ao sair da conta.
+
+    Filtra pelo dono: sem isso, saber o token de outra pessoa bastaria para
+    silenciar as notificações dela.
+    """
+    aparelho = (
+        await db.execute(
+            select(PushDevice).where(PushDevice.token == token, PushDevice.user_id == user.id)
+        )
+    ).scalar_one_or_none()
+    if aparelho is not None:
+        await db.delete(aparelho)
+        await db.commit()
+    # 204 mesmo quando não existe: sair da conta não pode falhar por causa de
+    # um token que o servidor já não tinha.
+    return Response(status_code=204)
+
+
+# ----------------------------------------------------------------- recibo
+
+
+@router.get("/invoices/{invoice_id}/receipt")
+async def invoice_receipt(invoice_id: uuid.UUID, db: DbSession, user: DriverUser) -> dict:
+    """Dados do recibo, para a tela montar o resumo."""
+    recibo = await receipt_service.montar(db, invoice_id, user)
+    if recibo is None:
+        raise HTTPException(status_code=404, detail="fatura não encontrada")
+    return recibo
+
+
+@router.get("/invoices/{invoice_id}/receipt.html", response_class=HTMLResponse)
+async def invoice_receipt_html(
+    invoice_id: uuid.UUID, db: DbSession, user: DriverUser
+) -> HTMLResponse:
+    """O documento em si, pronto para virar PDF no aparelho.
+
+    Renderizado no servidor de propósito: um recibo montado no cliente teria
+    números dependentes da versão instalada, e dois motoristas com builds
+    diferentes gerariam documentos diferentes para a mesma fatura.
+    """
+    recibo = await receipt_service.montar(db, invoice_id, user)
+    if recibo is None:
+        raise HTTPException(status_code=404, detail="fatura não encontrada")
+    return HTMLResponse(receipt_service.como_html(recibo))

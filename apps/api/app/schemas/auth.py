@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -105,3 +106,15 @@ class WalletTopUpIn(BaseModel):
 
     amount: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
     idempotency_key: str | None = Field(default=None, max_length=80)
+
+
+class PushDeviceIn(BaseModel):
+    """Token do servico de push, entregue pelo aparelho no login.
+
+    O token pertence ao aparelho, nao a pessoa: dois motoristas no mesmo
+    celular emprestado precisam que o registro reaponte o dono, senao o
+    segundo recebe as notificacoes do primeiro.
+    """
+
+    token: str = Field(min_length=8, max_length=200)
+    platform: Literal["android", "ios"] = "android"

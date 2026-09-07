@@ -17,6 +17,15 @@ export interface RequestOptions {
   params?: Record<string, string | number | boolean | undefined | null>
   auth?: boolean
   retry?: boolean
+  /**
+   * Devolve o corpo cru em vez de fazer JSON.parse.
+   *
+   * Existe para o recibo, que a API entrega em HTML. Sem isto a tela teria de
+   * chamar `fetch` direto e montar o cabecalho de autorizacao na mao — e a
+   * regra de que nenhuma tela fala HTTP e' o que mantem renovacao de token e
+   * traducao de erro num lugar so'.
+   */
+  texto?: boolean
 }
 
 // Uma única renovação em voo: várias requisições que tomam 401 ao mesmo tempo
@@ -75,7 +84,7 @@ async function traduzirErro(res: Response): Promise<ApiError> {
 }
 
 export async function request<T>(caminho: string, opcoes: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, params, auth = true, retry = true } = opcoes
+  const { method = 'GET', body, params, auth = true, retry = true, texto: cru = false } = opcoes
 
   if (!tokensHidratados()) await hydrateTokens()
 
@@ -123,6 +132,7 @@ export async function request<T>(caminho: string, opcoes: RequestOptions = {}): 
   if (!res.ok) throw await traduzirErro(res)
   if (res.status === 204) return undefined as T
   const texto = await res.text()
+  if (cru) return texto as T
   return (texto ? JSON.parse(texto) : undefined) as T
 }
 
@@ -132,5 +142,7 @@ export const api = {
     request<T>(p, { method: 'POST', body, params }),
   put: <T>(p: string, body?: unknown) => request<T>(p, { method: 'PUT', body }),
   patch: <T>(p: string, body?: unknown) => request<T>(p, { method: 'PATCH', body }),
-  del: <T>(p: string) => request<T>(p, { method: 'DELETE' })
+  del: <T>(p: string) => request<T>(p, { method: 'DELETE' }),
+  /** GET que devolve o corpo como texto (HTML, CSV) em vez de JSON. */
+  getText: (p: string) => request<string>(p, { texto: true })
 }

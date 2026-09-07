@@ -134,6 +134,15 @@ class SessionEvent(UUIDMixin, Base):
     from_state: Mapped[str | None] = mapped_column(String(24))
     to_state: Mapped[str | None] = mapped_column(String(24))
     message: Mapped[str | None] = mapped_column(Text)
+
+    # Marca de envio da notificacao push. Nulo = ainda nao enviado.
+    #
+    # E' um outbox na propria tabela de eventos, em vez de uma fila separada: o
+    # evento ja e' a fonte da verdade do que aconteceu, e duplicar isso criaria
+    # duas historias que podem divergir. O worker so' olha os notificaveis com
+    # esta coluna nula, entao um envio que falhou volta no ciclo seguinte -
+    # e nenhum evento e' notificado duas vezes.
+    notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     payload: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
 
     session = relationship("ChargingSession", back_populates="events")

@@ -51,7 +51,9 @@
         {
           "cameraPermission": "Usamos a câmera apenas para ler o QR code colado no carregador."
         }
-      ]
+      ],
+      "expo-notifications",
+      "expo-sharing"
     ],
     "icon": "./assets/icon.png",
     "extra": {

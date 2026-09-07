@@ -307,6 +307,30 @@ async def administrador(db: AsyncSession):
 
 
 @pytest.fixture
+async def segundo_motorista(db: AsyncSession):
+    """Outro motorista, para provar que um nao alcanca o dado do outro."""
+    from app.models.enums import UserRole
+    from app.models.user import User
+
+    u = User(
+        id=uuid.uuid4(),
+        email=f"outro-{uuid.uuid4().hex[:8]}@example.com",
+        full_name="Outro Motorista",
+        hashed_password="x",
+        role=UserRole.DRIVER,
+        wallet_balance=100,
+    )
+    db.add(u)
+    await db.flush()
+    return u
+
+
+@pytest.fixture
+def como_segundo_motorista(segundo_motorista):
+    return _cabecalho(segundo_motorista)
+
+
+@pytest.fixture
 def como_motorista(motorista):
     """Cabecalho de autorizacao de um motorista."""
     return _cabecalho(motorista)

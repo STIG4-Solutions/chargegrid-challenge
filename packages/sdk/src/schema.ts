@@ -1131,6 +1131,98 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/app/push-devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register Push Device
+         * @description Registra (ou reaponta) o aparelho deste motorista.
+         *
+         *     O token pertence ao aparelho, não à pessoa. Dois motoristas usando o mesmo
+         *     celular emprestado: sem o reaponte, o segundo receberia as notificações do
+         *     primeiro — com o código da recarga e o valor. Por isso o registro sempre
+         *     sobrescreve o dono em vez de criar uma segunda linha.
+         */
+        post: operations["register_push_device_api_v1_app_push_devices_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/push-devices/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Unregister Push Device
+         * @description Remove o aparelho ao sair da conta.
+         *
+         *     Filtra pelo dono: sem isso, saber o token de outra pessoa bastaria para
+         *     silenciar as notificações dela.
+         */
+        delete: operations["unregister_push_device_api_v1_app_push_devices__token__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/invoices/{invoice_id}/receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Invoice Receipt
+         * @description Dados do recibo, para a tela montar o resumo.
+         */
+        get: operations["invoice_receipt_api_v1_app_invoices__invoice_id__receipt_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/invoices/{invoice_id}/receipt.html": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Invoice Receipt Html
+         * @description O documento em si, pronto para virar PDF no aparelho.
+         *
+         *     Renderizado no servidor de propósito: um recibo montado no cliente teria
+         *     números dependentes da versão instalada, e dois motoristas com builds
+         *     diferentes gerariam documentos diferentes para a mesma fatura.
+         */
+        get: operations["invoice_receipt_html_api_v1_app_invoices__invoice_id__receipt_html_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1620,6 +1712,24 @@ export interface components {
             janela_inicio: string | null;
             /** Janela Fim */
             janela_fim: string | null;
+        };
+        /**
+         * PushDeviceIn
+         * @description Token do servico de push, entregue pelo aparelho no login.
+         *
+         *     O token pertence ao aparelho, nao a pessoa: dois motoristas no mesmo
+         *     celular emprestado precisam que o registro reaponte o dono, senao o
+         *     segundo recebe as notificacoes do primeiro.
+         */
+        PushDeviceIn: {
+            /** Token */
+            token: string;
+            /**
+             * Platform
+             * @default android
+             * @enum {string}
+             */
+            platform: "android" | "ios";
         };
         /** RatedLineOut */
         RatedLineOut: {
@@ -4624,6 +4734,128 @@ export interface operations {
                 };
                 content: {
                     "application/json": Record<string, never>;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    register_push_device_api_v1_app_push_devices_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushDeviceIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unregister_push_device_api_v1_app_push_devices__token__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    invoice_receipt_api_v1_app_invoices__invoice_id__receipt_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    invoice_receipt_html_api_v1_app_invoices__invoice_id__receipt_html_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/html": string;
                 };
             };
             /** @description Validation Error */

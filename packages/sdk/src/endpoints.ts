@@ -145,6 +145,18 @@ export const app = {
     limit_minutes?: number
     limit_amount?: number
   }) => api.post<T.SessaoDetalhada>('/app/sessions', undefined, params),
+  /** Registra (ou reaponta) o aparelho que recebe notificacao push. */
+  registerPushDevice: (token: string, platform: 'android' | 'ios' = 'android') =>
+    api.post<void>('/app/push-devices', { token, platform }),
+  /** Remove o aparelho ao sair da conta. */
+  unregisterPushDevice: (token: string) =>
+    api.del<void>(`/app/push-devices/${encodeURIComponent(token)}`),
+  /** Dados do recibo de uma fatura do proprio motorista. */
+  receipt: (invoiceId: string) =>
+    api.get<Record<string, unknown>>(`/app/invoices/${invoiceId}/receipt`),
+  /** O documento em HTML, pronto para virar PDF no aparelho. */
+  receiptHtml: (invoiceId: string) =>
+    api.getText(`/app/invoices/${invoiceId}/receipt.html`),
   /** Quando compensa comecar: compara agora com o melhor horario a frente. */
   whenToStart: (chargePointId: string, kwh = 30, horas = 12) =>
     api.get<Record<string, unknown>>(

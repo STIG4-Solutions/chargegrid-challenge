@@ -131,6 +131,14 @@ async def rebalance_once() -> dict:
     return {"applied": applied}
 
 
+async def _enviar_push() -> dict:
+    """Drena a fila de notificacoes pendentes."""
+    from app.services import notification_service
+
+    async with SessionLocal() as db:
+        return await notification_service.enviar_pendentes(db)
+
+
 async def _loop(name: str, coro, interval: int) -> None:
     log.info("worker.started", worker=name, interval_s=interval)
     while True:
@@ -154,6 +162,12 @@ def start_workers() -> list[asyncio.Task]:
             _loop("rebalancer", rebalance_once, settings.power_rebalance_interval_s)
         ),
     ]
+    # A fila de push e' drenada por worker, e nao no momento em que o evento e'
+    # gravado: um servico externo lento ou fora do ar travaria a transicao de
+    # estado da sessao - o carro deixaria de ser liberado porque a Expo caiu.
+    tarefas.append(
+        asyncio.create_task(_loop("push", _enviar_push, settings.push_interval_s))
+    )
     # Sem medidor fisico, um worker sintetiza a curva do dia na mesma tabela.
     # Com METER_SOURCE=push, so' entram leituras enviadas por POST.
     if virtual_meter.habilitado():

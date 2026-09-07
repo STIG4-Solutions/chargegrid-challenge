@@ -4241,6 +4241,186 @@
           }
         }
       }
+    },
+    "/api/v1/app/push-devices": {
+      "post": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "Register Push Device",
+        "description": "Registra (ou reaponta) o aparelho deste motorista.\n\nO token pertence ao aparelho, não à pessoa. Dois motoristas usando o mesmo\ncelular emprestado: sem o reaponte, o segundo receberia as notificações do\nprimeiro — com o código da recarga e o valor. Por isso o registro sempre\nsobrescreve o dono em vez de criar uma segunda linha.",
+        "operationId": "register_push_device_api_v1_app_push_devices_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushDeviceIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/app/push-devices/{token}": {
+      "delete": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "Unregister Push Device",
+        "description": "Remove o aparelho ao sair da conta.\n\nFiltra pelo dono: sem isso, saber o token de outra pessoa bastaria para\nsilenciar as notificações dela.",
+        "operationId": "unregister_push_device_api_v1_app_push_devices__token__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/app/invoices/{invoice_id}/receipt": {
+      "get": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "Invoice Receipt",
+        "description": "Dados do recibo, para a tela montar o resumo.",
+        "operationId": "invoice_receipt_api_v1_app_invoices__invoice_id__receipt_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "invoice_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Invoice Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Invoice Receipt Api V1 App Invoices  Invoice Id  Receipt Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/app/invoices/{invoice_id}/receipt.html": {
+      "get": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "Invoice Receipt Html",
+        "description": "O documento em si, pronto para virar PDF no aparelho.\n\nRenderizado no servidor de propósito: um recibo montado no cliente teria\nnúmeros dependentes da versão instalada, e dois motoristas com builds\ndiferentes gerariam documentos diferentes para a mesma fatura.",
+        "operationId": "invoice_receipt_html_api_v1_app_invoices__invoice_id__receipt_html_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "invoice_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Invoice Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -5516,6 +5696,31 @@
           "janela_fim"
         ],
         "title": "PriorityRuleOut"
+      },
+      "PushDeviceIn": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 8,
+            "title": "Token"
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "android",
+              "ios"
+            ],
+            "title": "Platform",
+            "default": "android"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "PushDeviceIn",
+        "description": "Token do servico de push, entregue pelo aparelho no login.\n\nO token pertence ao aparelho, nao a pessoa: dois motoristas no mesmo\ncelular emprestado precisam que o registro reaponte o dono, senao o\nsegundo recebe as notificacoes do primeiro."
       },
       "RatedLineOut": {
         "properties": {

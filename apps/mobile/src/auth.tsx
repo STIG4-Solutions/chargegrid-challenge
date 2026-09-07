@@ -20,6 +20,7 @@ import {
   type Usuario
 } from '@chargegrid/sdk'
 import { iniciarSdk } from './api'
+import * as push from './push'
 
 type Estado = 'checking' | 'anonymous' | 'authenticated'
 
@@ -95,6 +96,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setUser(eu)
     setStatus('authenticated')
+    // Depois do login, nao na abertura: pedir permissao de notificacao para
+    // quem ainda nao entrou e' pedir antes de haver o que notificar, e a
+    // recusa e' permanente - o sistema nao pergunta de novo. Nao aguardamos:
+    // registro de push nao pode atrasar a entrada na conta.
+    void push.registrar()
   }, [])
 
   const recarregarPerfil = useCallback(async () => {
@@ -106,6 +112,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const logout = useCallback(async () => {
+    // Antes de descartar o token: a chamada precisa do cabecalho de
+    // autorizacao. Depois de saveTokens(null) ela sairia sem credencial e o
+    // aparelho continuaria recebendo as notificacoes de quem saiu.
+    await push.remover()
     await saveTokens(null)
     setUser(null)
     setStatus('anonymous')
