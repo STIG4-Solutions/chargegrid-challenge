@@ -17,6 +17,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,6 +28,9 @@ from app.models.charge_point import ChargePoint
 from app.models.enums import ChargePointStatus, ReservationStatus
 from app.models.reservation import Reservation
 from app.models.site import Site, SiteMeterReading
+
+if TYPE_CHECKING:
+    from app.services.priority_service import PrioridadeResolvida, SiteMeterReading
 
 log = get_logger(__name__)
 
@@ -107,6 +111,10 @@ class Allocation:
     granted_kw: float
     suspended: bool = False
     reason: str = ""
+    # Nome da regra de prioridade que definiu a faixa. Vazio = nenhuma regra
+    # casou e valeu o inteiro do proprio ponto. E' o que permite ao painel
+    # responder "por que este ponto foi cortado e aquele nao".
+    regra: str = ""
 
 
 @dataclass(slots=True)
@@ -130,6 +138,7 @@ class AllocationPlan:
                     "granted_kw": round(a.granted_kw, 2),
                     "suspended": a.suspended,
                     "reason": a.reason,
+                    "regra": a.regra,
                 }
                 for a in self.allocations
             ],
@@ -193,6 +202,7 @@ def build_plan(
     charge_points: list[ChargePoint],
     *,
     starting_ids: set[str] | None = None,
+    prioridades: dict[str, PrioridadeResolvida] | None = None,
 ) -> AllocationPlan:
     """Water-filling por faixa de prioridade. Funcao pura - testavel sem banco.
 
@@ -204,6 +214,16 @@ def build_plan(
     """
     plan = AllocationPlan(budget=budget)
     starting = starting_ids or set()
+    resolvidas = prioridades or {}
+
+    def faixa(cp: ChargePoint) -> int:
+        """Prioridade efetiva: a da regra nomeada, ou o inteiro do proprio ponto."""
+        r = resolvidas.get(str(cp.id))
+        return r.prioridade if r is not None else int(cp.priority)
+
+    def regra_de(cp: ChargePoint) -> str:
+        r = resolvidas.get(str(cp.id))
+        return (r.regra or "") if r is not None else ""
     # `starting` entra por fora do is_dispatchable porque o ponto ainda esta
     # AVAILABLE - mas nao por fora do corte manual: admitir um ponto cortado
     # dava potencia a quem o operador mandou parar, e como is_dispatchable
@@ -222,7 +242,8 @@ def build_plan(
                 Allocation(
                     charge_point_id=str(cp.id),
                     code=cp.code,
-                    priority=cp.priority,
+                    priority=faixa(cp),
+                    regra=regra_de(cp),
                     requested_kw=0.0,
                     granted_kw=0.0,
                     suspended=cp.status in {ChargePointStatus.FAULTED, ChargePointStatus.OFFLINE},
@@ -236,10 +257,10 @@ def build_plan(
 
     remaining = budget.available_kw
     # Prioridade decrescente: quem tem numero maior e servido primeiro.
-    tiers = sorted({cp.priority for cp in candidates}, reverse=True)
+    tiers = sorted({faixa(cp) for cp in candidates}, reverse=True)
 
     for priority in tiers:
-        tier = [cp for cp in candidates if cp.priority == priority]
+        tier = [cp for cp in candidates if faixa(cp) == priority]
         granted = _water_fill(tier, remaining, starting)
         for cp in tier:
             kw = granted[str(cp.id)]
@@ -248,7 +269,8 @@ def build_plan(
                 Allocation(
                     charge_point_id=str(cp.id),
                     code=cp.code,
-                    priority=cp.priority,
+                    priority=faixa(cp),
+                    regra=regra_de(cp),
                     requested_kw=cp.effective_max_kw,
                     granted_kw=kw,
                     suspended=suspended,
@@ -338,9 +360,12 @@ async def plan_for_site(
     db: AsyncSession, site_id, *, starting_ids: set[str] | None = None
 ) -> AllocationPlan:
     """Calcula o plano sem tocar no hardware - usado pelo preview do dashboard."""
+    from app.services import priority_service
+
     site, points = await get_site_with_points(db, site_id)
     budget = await load_budget(db, site)
-    return build_plan(budget, points, starting_ids=starting_ids)
+    prioridades = await priority_service.resolver_para_site(db, site, points)
+    return build_plan(budget, points, starting_ids=starting_ids, prioridades=prioridades)
 
 
 async def apply_plan(
@@ -438,7 +463,10 @@ async def rebalance_site(
     db: AsyncSession, site_id, *, triggered_by: str = "system", dry_run: bool = False
 ) -> dict:
     """Ciclo completo: le o orcamento, planeja e aplica. Chamado pelo worker."""
+    from app.services import priority_service
+
     site, points = await get_site_with_points(db, site_id)
     budget = await load_budget(db, site)
-    plan = build_plan(budget, points)
+    prioridades = await priority_service.resolver_para_site(db, site, points)
+    plan = build_plan(budget, points, prioridades=prioridades)
     return await apply_plan(db, plan, points, triggered_by=triggered_by, dry_run=dry_run)

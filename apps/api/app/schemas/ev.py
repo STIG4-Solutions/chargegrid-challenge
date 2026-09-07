@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime, time
+from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.models.enums import (
     AuthMethod,
@@ -112,6 +113,9 @@ class AllocationOut(BaseModel):
     granted_kw: float
     suspended: bool
     reason: str
+    # Nome da regra de prioridade que definiu a faixa; vazio quando nenhuma
+    # casou e valeu o inteiro do proprio ponto.
+    regra: str = ""
 
 
 class PowerPlanOut(BaseModel):
@@ -462,3 +466,48 @@ class StationOut(BaseModel):
     max_kw: float
     connectors: list[str]
     price_per_kwh: float | None
+
+
+class PriorityRuleIn(BaseModel):
+    """Regra de prioridade nomeada.
+
+    A validacao aqui existe porque o banco so consegue barrar o que e' local a
+    uma linha. Ele garante que a janela tenha os dois lados e que o criterio
+    tenha valor; o que ele nao ve e' se o texto do criterio faz sentido.
+    """
+
+    nome: str = Field(min_length=1, max_length=80)
+    prioridade: int = Field(ge=0, le=1000)
+    ordem: int = Field(default=100, ge=0, le=10000)
+    ativo: bool = True
+    criterio_tipo: Literal["sempre", "ponto", "conector"] = "sempre"
+    criterio_valor: str | None = Field(default=None, max_length=400)
+    janela_inicio: time | None = None
+    janela_fim: time | None = None
+
+    @model_validator(mode="after")
+    def _coerente(self):
+        if (self.janela_inicio is None) != (self.janela_fim is None):
+            # Com um so lado nao da para saber se o outro extremo e' o inicio ou
+            # o fim do dia, e a regra passaria a valer em horarios que ninguem
+            # pediu - justamente numa regra que decide quem fica sem carregar.
+            raise ValueError("janela precisa de inicio e fim, ou de nenhum dos dois")
+        if self.criterio_tipo != "sempre" and not (self.criterio_valor or "").strip():
+            raise ValueError(f"criterio '{self.criterio_tipo}' exige criterio_valor")
+        if self.janela_inicio is not None and self.janela_inicio == self.janela_fim:
+            # Nao e' "o dia inteiro" nem "instante nenhum": e' ambiguo. Recusar e'
+            # melhor que escolher por conta - a escolha errada some no silencio.
+            raise ValueError("janela de duracao zero: use nenhuma janela para valer o dia todo")
+        return self
+
+
+class PriorityRuleOut(BaseModel):
+    id: str
+    nome: str
+    prioridade: int
+    ordem: int
+    ativo: bool
+    criterio_tipo: str
+    criterio_valor: str | None
+    janela_inicio: str | None
+    janela_fim: str | None

@@ -5,13 +5,14 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Response
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.deps import DbSession, OperatorUser, ScopedSiteId
 from app.models.charge_point import ChargePoint, ChargePointConnection
 from app.models.enums import ChargePointStatus, SessionState
+from app.models.priority_rule import PriorityRule
 from app.models.site import Site, SiteMeterReading
 from app.schemas.ev import (
     ChargePointCreate,
@@ -22,6 +23,8 @@ from app.schemas.ev import (
     PowerBudgetUpdate,
     PowerOverview,
     PowerPlanOut,
+    PriorityRuleIn,
+    PriorityRuleOut,
     SetLimitRequest,
     SiteSettingsOut,
 )
@@ -29,6 +32,7 @@ from app.services import (
     demand_service,
     maintenance_service,
     power_manager,
+    priority_service,
     session_service,
     utilization_service,
 )
@@ -379,3 +383,133 @@ async def utilization_by_point(
     nao aparece como ocioso - aparece com menos horas no denominador.
     """
     return await utilization_service.ocupacao_por_ponto(db, site_id, dias=dias)
+
+
+# --------------------------------------------------------- regras de prioridade
+#
+# A prioridade decide quem fica sem carregar quando falta potencia. Ate aqui era
+# um inteiro sem nome em charge_points.priority: o operador via "100" e nao tinha
+# como saber o que significava, nem por que aquele ponto ficou com esse valor.
+
+
+@router.get("/priority-rules", response_model=list[PriorityRuleOut])
+async def list_priority_rules(db: DbSession, site_id: ScopedSiteId, _: OperatorUser) -> list[dict]:
+    return [priority_service.como_dict(r) for r in await priority_service.listar(db, site_id)]
+
+
+@router.post("/priority-rules", response_model=PriorityRuleOut, status_code=201)
+async def create_priority_rule(
+    db: DbSession, site_id: ScopedSiteId, _: OperatorUser, payload: PriorityRuleIn
+) -> dict:
+    regra = PriorityRule(id=uuid.uuid4(), site_id=site_id, **payload.model_dump())
+    db.add(regra)
+    await db.commit()
+    await db.refresh(regra)
+    return priority_service.como_dict(regra)
+
+
+async def _regra_do_site(db: DbSession, regra_id: uuid.UUID, site_id: uuid.UUID) -> PriorityRule:
+    """Carrega a regra checando o site no mesmo SELECT.
+
+    404 e nao 403 quando pertence a outro site: responder 403 confirmaria que o
+    id existe, e um operador nao precisa saber quais regras o vizinho tem.
+    """
+    regra = (
+        await db.execute(
+            select(PriorityRule).where(
+                PriorityRule.id == regra_id, PriorityRule.site_id == site_id
+            )
+        )
+    ).scalar_one_or_none()
+    if regra is None:
+        raise HTTPException(status_code=404, detail="regra não encontrada")
+    return regra
+
+
+@router.put("/priority-rules/{regra_id}", response_model=PriorityRuleOut)
+async def update_priority_rule(
+    db: DbSession,
+    site_id: ScopedSiteId,
+    _: OperatorUser,
+    regra_id: uuid.UUID,
+    payload: PriorityRuleIn,
+) -> dict:
+    regra = await _regra_do_site(db, regra_id, site_id)
+    for campo, valor in payload.model_dump().items():
+        setattr(regra, campo, valor)
+    await db.commit()
+    await db.refresh(regra)
+    return priority_service.como_dict(regra)
+
+
+@router.delete(
+    "/priority-rules/{regra_id}", status_code=204, response_class=Response, response_model=None
+)
+async def delete_priority_rule(
+    db: DbSession, site_id: ScopedSiteId, _: OperatorUser, regra_id: uuid.UUID
+) -> Response:
+    regra = await _regra_do_site(db, regra_id, site_id)
+    await db.delete(regra)
+    await db.commit()
+    return Response(status_code=204)
+
+
+@router.get("/priority-rules/preview")
+async def preview_priority_rules(
+    db: DbSession,
+    site_id: ScopedSiteId,
+    _: OperatorUser,
+    hora: str | None = Query(default=None, description="HH:MM local; padrão = agora"),
+) -> dict:
+    """Qual regra pegaria cada ponto, no horário informado.
+
+    Existe porque a regra so' se manifesta quando falta potencia - e ai' ja e'
+    tarde para descobrir que a janela da frota noturna estava invertida. Aqui o
+    operador testa "as 23h, quem tem prioridade?" antes de precisar.
+    """
+    from datetime import time as _time
+
+    momento: _time | None = None
+    if hora:
+        try:
+            h, m = hora.split(":")
+            momento = _time(hour=int(h), minute=int(m))
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=422, detail="hora deve estar em HH:MM") from None
+
+    site = (await db.execute(select(Site).where(Site.id == site_id))).scalar_one()
+    pontos = list(
+        (
+            await db.execute(
+                select(ChargePoint)
+                .where(ChargePoint.site_id == site_id)
+                .order_by(ChargePoint.code)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    regras = await priority_service.listar(db, site_id)
+
+    if momento is None:
+        resolvidas = await priority_service.resolver_para_site(db, site, pontos)
+        rotulo = "agora"
+    else:
+        resolvidas = priority_service.resolver(regras, pontos, agora_local=momento)
+        rotulo = hora
+
+    return {
+        "hora": rotulo,
+        "timezone": site.timezone,
+        "regras_ativas": sum(1 for r in regras if r.ativo),
+        "pontos": [
+            {
+                "code": p.code,
+                "name": p.name,
+                "prioridade_base": int(p.priority),
+                "prioridade_efetiva": resolvidas[str(p.id)].prioridade,
+                "regra": resolvidas[str(p.id)].regra,
+            }
+            for p in pontos
+        ],
+    }

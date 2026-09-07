@@ -3,7 +3,7 @@
 from app.db.base import Base
 from app.models.audit import AuditLog, CommandLog
 from app.models.billing import Invoice, InvoiceLine, Payment, SitePaymentMethod
-from app.models.charge_point import ChargePoint, ChargePointConnection
+from app.models.charge_point import ChargePoint, ChargePointConnection, ChargePointFault
 from app.models.enums import (
     ACTIVE_SESSION_STATES,
     TERMINAL_SESSION_STATES,
@@ -21,6 +21,7 @@ from app.models.enums import (
     TariffType,
     UserRole,
 )
+from app.models.priority_rule import PriorityRule
 from app.models.reservation import Reservation
 from app.models.session import ChargingSession, SessionEvent
 from app.models.site import Site, SiteMeterReading
@@ -36,6 +37,7 @@ __all__ = [
     "Base",
     "ChargePoint",
     "ChargePointConnection",
+    "ChargePointFault",
     "ChargePointStatus",
     "ChargingSession",
     "CommandLog",
@@ -48,6 +50,7 @@ __all__ = [
     "PaymentStatus",
     "PhaseType",
     "PowerSource",
+    "PriorityRule",
     "Reservation",
     "ReservationStatus",
     "RfidCard",

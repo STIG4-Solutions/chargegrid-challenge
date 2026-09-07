@@ -6,7 +6,8 @@ const modules = [
   { to: '/ev/sessions', label: 'Ciclo da Sessão' },
   { to: '/ev/tariff', label: 'Tarifação & Pagamento' },
   { to: '/ev/demand', label: 'Demanda Contratada' },
-  { to: '/ev/utilization', label: 'Ocupação & Retorno' }
+  { to: '/ev/utilization', label: 'Ocupação & Retorno' },
+  { to: '/ev/priority', label: 'Regras de Prioridade' }
 ]
 
 export default function EvCharging() {

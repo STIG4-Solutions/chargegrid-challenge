@@ -53,6 +53,16 @@ export const power = {
   /** Pontos que vem falhando com frequencia. */
   maintenanceAttention: (dias = 30) =>
     api.get<Record<string, unknown>>('/power/maintenance/attention', { dias }),
+  /** Regras de prioridade nomeadas do site. */
+  priorityRules: () => api.get<Record<string, unknown>[]>('/power/priority-rules'),
+  createPriorityRule: (dados: Record<string, unknown>) =>
+    api.post<Record<string, unknown>>('/power/priority-rules', dados),
+  updatePriorityRule: (id: string, dados: Record<string, unknown>) =>
+    api.put<Record<string, unknown>>(`/power/priority-rules/${id}`, dados),
+  deletePriorityRule: (id: string) => api.del<void>(`/power/priority-rules/${id}`),
+  /** Qual regra pegaria cada ponto, no horario informado (HH:MM local). */
+  priorityPreview: (hora?: string) =>
+    api.get<Record<string, unknown>>('/power/priority-rules/preview', hora ? { hora } : {}),
   /** Ocupacao, receita e ociosidade de cada ponto. */
   utilizationByPoint: (dias = 30) =>
     api.get<Record<string, unknown>>('/power/utilization/by-point', { dias }),

@@ -18,6 +18,7 @@ import SessionCycle from './views/ev/SessionCycle.jsx'
 import TariffPayment from './views/ev/TariffPayment.jsx'
 import DemandContract from './views/ev/DemandContract.jsx'
 import Utilization from './views/ev/Utilization.jsx'
+import PriorityRules from './views/ev/PriorityRules.jsx'
 
 export default function App() {
   const { status } = useAuth()
@@ -56,6 +57,7 @@ export default function App() {
               <Route path="tariff" element={<TariffPayment />} />
               <Route path="demand" element={<DemandContract />} />
               <Route path="utilization" element={<Utilization />} />
+              <Route path="priority" element={<PriorityRules />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/station_monitor" replace />} />
