@@ -3406,7 +3406,7 @@
           "app mobile"
         ],
         "summary": "Start From App",
-        "description": "Iniciar recarga pelo app.\n\nA pre-autorizacao existe para o estabelecimento nao ficar com energia\nentregue e sem lastro de pagamento: a sessao para sozinha ao atingir o valor.",
+        "description": "Iniciar recarga pelo app, opcionalmente com um teto.\n\nA pre-autorizacao existe para o estabelecimento nao ficar com energia\nentregue e sem lastro de pagamento: a sessao para sozinha ao atingir o valor.\n\nOs tres limites sao tetos que o motorista escolhe - \"carregue ate 30 kWh\",\n\"ate 40 minutos\", \"ate R$ 50\". Quem os aplica e a ingestao de telemetria,\nque encerra a sessao no primeiro que for atingido; a rota so' os registra.",
         "operationId": "start_from_app_api_v1_app_sessions_post",
         "security": [
           {
@@ -3467,6 +3467,41 @@
                 }
               ],
               "title": "Limit Kwh"
+            }
+          },
+          {
+            "name": "limit_minutes",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 1440,
+                  "exclusiveMinimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Limit Minutes"
+            }
+          },
+          {
+            "name": "limit_amount",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "exclusiveMinimum": 0.0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Limit Amount"
             }
           }
         ],
@@ -4131,6 +4166,80 @@
             "OAuth2PasswordBearer": []
           }
         ]
+      }
+    },
+    "/api/v1/app/charge-points/{charge_point_id}/when-to-start": {
+      "get": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "When To Start",
+        "description": "Quando compensa começar a recarga neste ponto.\n\nO motorista vê o preço de agora; o que ele não vê é que daqui a duas horas\no mesmo kWh custa 30% menos. A conta usa o mesmo motor de tarifação que vai\nfaturar depois, caminhando a sessão pelas janelas — uma recarga longa\natravessa a virada no meio, e o preço médio que ela paga não é o de\nnenhuma das duas pontas.",
+        "operationId": "when_to_start_api_v1_app_charge_points__charge_point_id__when_to_start_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "charge_point_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Charge Point Id"
+            }
+          },
+          {
+            "name": "kwh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 200.0,
+              "exclusiveMinimum": 0.0,
+              "default": 30.0,
+              "title": "Kwh"
+            }
+          },
+          {
+            "name": "horas",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 24,
+              "minimum": 1,
+              "default": 12,
+              "title": "Horas"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response When To Start Api V1 App Charge Points  Charge Point Id  When To Start Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -5917,6 +6026,44 @@
             ],
             "title": "Error Message"
           },
+          "limit_kwh": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit Kwh"
+          },
+          "limit_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit Minutes"
+          },
+          "limit_amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit Amount"
+          },
+          "preauth_amount": {
+            "type": "number",
+            "title": "Preauth Amount",
+            "default": 0.0
+          },
           "events": {
             "items": {
               "$ref": "#/components/schemas/SessionEventOut"
@@ -6201,6 +6348,44 @@
               }
             ],
             "title": "Error Message"
+          },
+          "limit_kwh": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit Kwh"
+          },
+          "limit_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit Minutes"
+          },
+          "limit_amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit Amount"
+          },
+          "preauth_amount": {
+            "type": "number",
+            "title": "Preauth Amount",
+            "default": 0.0
           }
         },
         "type": "object",

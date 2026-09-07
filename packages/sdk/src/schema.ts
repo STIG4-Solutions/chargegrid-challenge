@@ -909,10 +909,14 @@ export interface paths {
         put?: never;
         /**
          * Start From App
-         * @description Iniciar recarga pelo app.
+         * @description Iniciar recarga pelo app, opcionalmente com um teto.
          *
          *     A pre-autorizacao existe para o estabelecimento nao ficar com energia
          *     entregue e sem lastro de pagamento: a sessao para sozinha ao atingir o valor.
+         *
+         *     Os tres limites sao tetos que o motorista escolhe - "carregue ate 30 kWh",
+         *     "ate 40 minutos", "ate R$ 50". Quem os aplica e a ingestao de telemetria,
+         *     que encerra a sessao no primeiro que for atingido; a rota so' os registra.
          */
         post: operations["start_from_app_api_v1_app_sessions_post"];
         delete?: never;
@@ -1095,6 +1099,32 @@ export interface paths {
          *     ela, dois toques no botao viram dois creditos.
          */
         post: operations["topup_api_v1_app_wallet_topup_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/charge-points/{charge_point_id}/when-to-start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * When To Start
+         * @description Quando compensa começar a recarga neste ponto.
+         *
+         *     O motorista vê o preço de agora; o que ele não vê é que daqui a duas horas
+         *     o mesmo kWh custa 30% menos. A conta usa o mesmo motor de tarifação que vai
+         *     faturar depois, caminhando a sessão pelas janelas — uma recarga longa
+         *     atravessa a virada no meio, e o preço médio que ela paga não é o de
+         *     nenhuma das duas pontas.
+         */
+        get: operations["when_to_start_api_v1_app_charge_points__charge_point_id__when_to_start_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1796,6 +1826,17 @@ export interface components {
             estimated_cost: number;
             /** Error Message */
             error_message: string | null;
+            /** Limit Kwh */
+            limit_kwh?: number | null;
+            /** Limit Minutes */
+            limit_minutes?: number | null;
+            /** Limit Amount */
+            limit_amount?: number | null;
+            /**
+             * Preauth Amount
+             * @default 0
+             */
+            preauth_amount: number;
             /**
              * Events
              * @default []
@@ -1882,6 +1923,17 @@ export interface components {
             estimated_cost: number;
             /** Error Message */
             error_message: string | null;
+            /** Limit Kwh */
+            limit_kwh?: number | null;
+            /** Limit Minutes */
+            limit_minutes?: number | null;
+            /** Limit Amount */
+            limit_amount?: number | null;
+            /**
+             * Preauth Amount
+             * @default 0
+             */
+            preauth_amount: number;
         };
         /** SessionStartRequest */
         SessionStartRequest: {
@@ -4152,6 +4204,8 @@ export interface operations {
                 vehicle_id?: string | null;
                 preauth_amount?: number;
                 limit_kwh?: number | null;
+                limit_minutes?: number | null;
+                limit_amount?: number | null;
             };
             header?: never;
             path?: never;
@@ -4528,6 +4582,40 @@ export interface operations {
                 "application/json": components["schemas"]["WalletTopUpIn"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    when_to_start_api_v1_app_charge_points__charge_point_id__when_to_start_get: {
+        parameters: {
+            query?: {
+                kwh?: number;
+                horas?: number;
+            };
+            header?: never;
+            path: {
+                charge_point_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

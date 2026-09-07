@@ -1,4 +1,4 @@
-import { useLayoutEffect } from 'react'
+import { useLayoutEffect, useState } from 'react'
 import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native'
 import {
   app,
@@ -11,6 +11,8 @@ import {
 } from '@chargegrid/sdk'
 import { Aviso, Botao, Carregando, Etiqueta , useRecuoInferior } from '../components'
 import { cores, espaco, raio } from '../theme'
+import { LimiteDaRecarga, SEM_LIMITE, comoParametros, validar, type Limite } from '../LimiteDaRecarga'
+import { QuandoComecar } from '../QuandoComecar'
 import type { Props } from '../navigation'
 
 /** O ponto lido no QR vai para o topo: o motorista escaneou aquele, nao a lista. */
@@ -36,11 +38,17 @@ export default function StationScreen({ route, navigation }: Props<'Estacao'>) {
   )
   const ativa = useApi<SessaoDetalhada | null>(() => app.activeSession(), [])
 
+  // O limite vale para a proxima recarga, seja qual ponto o motorista escolher:
+  // ele decide "quero gastar ate R$ 50" antes de decidir em qual vaga plugar.
+  const [limite, setLimite] = useState<Limite>(SEM_LIMITE)
+  const erroDoLimite = validar(limite)
+
   // Iniciar leva direto ao acompanhamento: a partir daqui quem manda e o
   // servidor — se nao houver potencia livre, a sessao entra na fila e a tela
   // de sessao mostra isso.
   const iniciar = useAction(
-    (chargePointId: string) => app.startSession({ charge_point_id: chargePointId }),
+    (chargePointId: string) =>
+      app.startSession({ charge_point_id: chargePointId, ...comoParametros(limite) }),
     { onSuccess: () => navigation.navigate('Sessao') }
   )
 
@@ -71,6 +79,11 @@ export default function StationScreen({ route, navigation }: Props<'Estacao'>) {
                 mensagem="Voce ja tem uma recarga em andamento. Encerre antes de iniciar outra."
               />
             )}
+            {!jaTemSessao && (
+              <View style={s.limite}>
+                <LimiteDaRecarga limite={limite} onChange={setLimite} />
+              </View>
+            )}
           </View>
         }
         ListEmptyComponent={
@@ -93,10 +106,11 @@ export default function StationScreen({ route, navigation }: Props<'Estacao'>) {
                 </View>
                 <Etiqueta texto={rotulo.label} cor={corDoStatus(item.status)} />
               </View>
+              {item.available && <QuandoComecar chargePointId={item.id} />}
               <Botao
                 titulo={item.available ? 'Iniciar recarga' : 'Indisponivel'}
                 variante={item.available ? 'primario' : 'secundario'}
-                disabled={!item.available || jaTemSessao}
+                disabled={!item.available || jaTemSessao || erroDoLimite != null}
                 pending={iniciar.pending}
                 onPress={() => void iniciar.run(item.id)}
               />
@@ -119,6 +133,13 @@ const s = StyleSheet.create({
   tela: { flex: 1, backgroundColor: cores.fundo },
   conteudo: { padding: espaco.md, gap: espaco.sm, paddingBottom: espaco.xl },
   topo: { gap: espaco.sm, marginBottom: espaco.sm },
+  limite: {
+    backgroundColor: cores.superficie,
+    borderColor: cores.borda,
+    borderWidth: 1,
+    borderRadius: raio.md,
+    padding: espaco.md
+  },
   cardLido: { borderColor: cores.acento },
   marcaLido: {
     color: cores.acento,

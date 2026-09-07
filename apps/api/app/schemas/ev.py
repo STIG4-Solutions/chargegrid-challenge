@@ -184,6 +184,15 @@ class SessionOut(ORMModel):
     estimated_cost: float
     error_message: str | None
 
+    # Tetos pedidos pelo motorista. Sem eles na resposta a tela nao tem como
+    # mostrar "carregando ate 30 kWh" nem o quanto falta - e um limite que o
+    # motorista nao ve em nenhum lugar depois de definir e' um limite em que
+    # ele nao confia.
+    limit_kwh: float | None = None
+    limit_minutes: int | None = None
+    limit_amount: float | None = None
+    preauth_amount: float = 0.0
+
 
 class SessionDetail(SessionOut):
     events: list[SessionEventOut] = []

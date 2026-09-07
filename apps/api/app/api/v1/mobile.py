@@ -45,7 +45,12 @@ from app.schemas.ev import (
     StationOut,
     StationPointOut,
 )
-from app.services import billing_service, payment_service, session_service
+from app.services import (
+    billing_service,
+    payment_service,
+    session_service,
+    start_advice_service,
+)
 
 # Teto de agendamentos simultaneos por motorista. Nao e' regra de negocio
 # fechada - e' um limite de sanidade para uma conta nao drenar o orcamento do
@@ -217,11 +222,17 @@ async def start_from_app(
     vehicle_id: uuid.UUID | None = None,
     preauth_amount: float = Query(default=50.0, ge=0),
     limit_kwh: float | None = Query(default=None, gt=0),
+    limit_minutes: int | None = Query(default=None, gt=0, le=24 * 60),
+    limit_amount: float | None = Query(default=None, gt=0),
 ) -> SessionDetail:
-    """Iniciar recarga pelo app.
+    """Iniciar recarga pelo app, opcionalmente com um teto.
 
     A pre-autorizacao existe para o estabelecimento nao ficar com energia
     entregue e sem lastro de pagamento: a sessao para sozinha ao atingir o valor.
+
+    Os tres limites sao tetos que o motorista escolhe - "carregue ate 30 kWh",
+    "ate 40 minutos", "ate R$ 50". Quem os aplica e a ingestao de telemetria,
+    que encerra a sessao no primeiro que for atingido; a rota so' os registra.
     """
     cp = (
         await db.execute(
@@ -233,6 +244,14 @@ async def start_from_app(
     if cp is None:
         raise HTTPException(status_code=404, detail="ponto de recarga não encontrado")
 
+    # A pre-autorizacao TAMBEM encerra a sessao ao ser atingida. Sem esta
+    # reconciliacao, um teto de R$ 80 sobre a pre-autorizacao padrao de R$ 50
+    # nunca seria alcancado: a recarga pararia nos 50 e o motorista veria o
+    # proprio limite ignorado, sem erro nenhum. Nao da' para gastar mais do que
+    # se autorizou, entao autorizar ao menos o que se pretende gastar.
+    if limit_amount is not None and limit_amount > preauth_amount:
+        preauth_amount = limit_amount
+
     session = await session_service.authorize(
         db,
         cp,
@@ -241,6 +260,8 @@ async def start_from_app(
         auth_method=AuthMethod.APP,
         preauth_amount=preauth_amount,
         limit_kwh=limit_kwh,
+        limit_minutes=limit_minutes,
+        limit_amount=limit_amount,
     )
     session = await session_service.start(db, session, cp, triggered_by=f"driver:{user.email}")
     # Esta e' a chamada em que o motorista PODE cair na fila: se ela devolver
@@ -595,3 +616,24 @@ async def topup(payload: WalletTopUpIn, db: DbSession, user: DriverUser) -> dict
         db, user, payload.amount, idempotency_key=payload.idempotency_key
     )
     return {"wallet_balance": float(updated.wallet_balance)}
+
+
+@router.get("/charge-points/{charge_point_id}/when-to-start")
+async def when_to_start(
+    charge_point_id: uuid.UUID,
+    db: DbSession,
+    _: DriverUser,
+    kwh: float = Query(default=30.0, gt=0, le=200),
+    horas: int = Query(default=12, ge=1, le=24),
+) -> dict:
+    """Quando compensa começar a recarga neste ponto.
+
+    O motorista vê o preço de agora; o que ele não vê é que daqui a duas horas
+    o mesmo kWh custa 30% menos. A conta usa o mesmo motor de tarifação que vai
+    faturar depois, caminhando a sessão pelas janelas — uma recarga longa
+    atravessa a virada no meio, e o preço médio que ela paga não é o de
+    nenhuma das duas pontas.
+    """
+    return await start_advice_service.quando_comecar(
+        db, charge_point_id, kwh=kwh, horas=horas
+    )

@@ -83,6 +83,9 @@ export default function SessionScreen({ navigation }: Props<'Sessao'>) {
         <Campo rotulo="Duracao" valor={duration(ses.duration_s)} />
         <Campo rotulo="Energia solar" valor={`${num(ses.green_energy_kwh, 2)} kWh`} />
         <Campo rotulo="Ociosidade" valor={`${ses.idle_minutes} min`} />
+        {tetoDaSessao(ses) && (
+          <Campo rotulo="Para automaticamente em" valor={tetoDaSessao(ses)!} />
+        )}
       </View>
 
       <View style={s.bloco}>
@@ -119,6 +122,20 @@ export default function SessionScreen({ navigation }: Props<'Sessao'>) {
       />
     </ScrollView>
   )
+}
+
+/**
+ * O teto que o motorista pediu ao iniciar, em texto.
+ *
+ * Um limite que ele define e depois nao ve em lugar nenhum e um limite em que
+ * ele nao confia — e a duvida leva a ficar olhando o app em vez de ir embora,
+ * que era exatamente o que o teto existia para evitar.
+ */
+function tetoDaSessao(ses: SessaoDetalhada): string | null {
+  if (ses.limit_kwh) return `${num(ses.limit_kwh, 1)} kWh`
+  if (ses.limit_minutes) return duration(ses.limit_minutes * 60)
+  if (ses.limit_amount) return brl(ses.limit_amount)
+  return null
 }
 
 const s = StyleSheet.create({

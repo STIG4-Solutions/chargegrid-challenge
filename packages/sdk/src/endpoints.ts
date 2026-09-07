@@ -133,8 +133,24 @@ export const app = {
   /** Resolve o ponto pelo codigo lido no QR colado no carregador. */
   chargePointByCode: (codigo: string) =>
     api.get<T.PontoLido>(`/app/charge-points/by-code/${encodeURIComponent(codigo)}`),
-  startSession: (params: { charge_point_id: string; preauth_amount?: number }) =>
-    api.post<T.SessaoDetalhada>('/app/sessions', undefined, params),
+  /**
+   * Inicia a recarga. Os tres limites sao tetos opcionais que o servidor
+   * aplica sozinho: a ingestao de telemetria encerra a sessao no primeiro
+   * que for atingido.
+   */
+  startSession: (params: {
+    charge_point_id: string
+    preauth_amount?: number
+    limit_kwh?: number
+    limit_minutes?: number
+    limit_amount?: number
+  }) => api.post<T.SessaoDetalhada>('/app/sessions', undefined, params),
+  /** Quando compensa comecar: compara agora com o melhor horario a frente. */
+  whenToStart: (chargePointId: string, kwh = 30, horas = 12) =>
+    api.get<Record<string, unknown>>(
+      `/app/charge-points/${chargePointId}/when-to-start`,
+      { kwh, horas }
+    ),
   mySessions: (limit = 20) => api.get<T.Sessao[]>('/app/sessions', { limit }),
   activeSession: () => api.get<T.SessaoDetalhada | null>('/app/sessions/active'),
   sessionPreview: (id: string) => api.get<T.Precificacao>(`/app/sessions/${id}/preview`),
