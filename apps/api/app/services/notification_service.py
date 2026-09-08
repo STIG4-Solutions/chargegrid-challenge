@@ -66,9 +66,18 @@ def _mensagem(evento: SessionEvent, sessao: ChargingSession) -> tuple[str, str] 
         return ("Recarga interrompida", f"A recarga {codigo} parou: {evento.message or 'falha'}")
 
     if evento.event_type == "state_change":
-        # So' o fim interessa. As transicoes do meio acontecem com o motorista
-        # olhando o app, e notificar cada uma treina a ignorar todas.
-        if evento.to_state not in {str(SessionState.FINISHED), str(SessionState.BILLED)}:
+        # So' FINISHED. Duas razoes, e a segunda foi encontrada no aparelho:
+        #
+        # As transicoes do meio acontecem com o motorista olhando o app, e
+        # notificar cada uma treina a ignorar todas.
+        #
+        # E BILLED nunca pode ser o PRIMEIRO estado terminal: a maquina de
+        # estados so' permite `finished -> billed`, entao toda sessao faturada
+        # ja passou por FINISHED e ja recebeu o aviso. Aceitar os dois mandava
+        # duas notificacoes com texto identico - energia e custo ja estao
+        # fechados nas duas -, o que e' pior que nao avisar: o motorista
+        # aprende que o app repete.
+        if evento.to_state != str(SessionState.FINISHED):
             return None
         if sessao.stop_reason == StopReason.FAULT:
             return (

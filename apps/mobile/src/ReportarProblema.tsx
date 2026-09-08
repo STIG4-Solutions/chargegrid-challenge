@@ -1,5 +1,16 @@
 import { useState } from 'react'
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
+} from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { app } from '@chargegrid/sdk'
 import { Aviso, Botao } from './components'
 import { cores, espaco, raio } from './theme'
@@ -37,6 +48,15 @@ export function ReportarProblema({
   codigo: string
   sessionId?: string
 }) {
+  // A folha encosta na base da tela, que no Android e' onde ficam os botoes de
+  // navegacao. Sem o recuo, "Cancelar" nasce debaixo deles: visivel, mas o
+  // toque vai para o sistema.
+  //
+  // O `Modal` do RN monta fora da hierarquia do app, entao o inset pode vir
+  // zerado dependendo da versao — o piso de 16 garante respiro mesmo assim.
+  const bordas = useSafeAreaInsets()
+  const recuo = Math.max(bordas.bottom, 16)
+
   const [aberto, setAberto] = useState(false)
   const [categoria, setCategoria] = useState<string | null>(null)
   const [descricao, setDescricao] = useState('')
@@ -90,9 +110,25 @@ export function ReportarProblema({
         onPress={() => setAberto(true)}
       />
 
-      <Modal visible={aberto} animationType="slide" transparent onRequestClose={fechar}>
-        <View style={s.fundo}>
-          <View style={s.folha}>
+      <Modal
+        visible={aberto}
+        animationType="slide"
+        transparent
+        onRequestClose={fechar}
+        // No Android a folha desenha por baixo da barra de navegação; sem isto
+        // o inset de baixo volta zero e o recuo não teria de onde sair.
+        statusBarTranslucent
+        navigationBarTranslucent
+      >
+        <KeyboardAvoidingView
+          style={s.fundo}
+          // O campo de detalhes fica no fim da folha. Sem isto o teclado o
+          // cobre justamente quando o motorista vai escrever o que viu.
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          {/* Tocar fora fecha, como toda folha inferior. */}
+          <Pressable style={s.saida} onPress={fechar} accessibilityLabel="Fechar" />
+          <View style={[s.folha, { paddingBottom: recuo }]}>
             <Text style={s.titulo}>O que houve no {codigo}?</Text>
             <Text style={s.subtitulo}>
               O carregador só reporta o que tem sensor. O resto depende de quem esteve aqui.
@@ -139,7 +175,7 @@ export function ReportarProblema({
               <Botao titulo="Cancelar" variante="secundario" onPress={fechar} />
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   )
@@ -147,17 +183,24 @@ export function ReportarProblema({
 
 const s = StyleSheet.create({
   fundo: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  // Área acima da folha: fecha ao toque e garante que ela nunca ocupe a tela
+  // inteira, mesmo com muitas categorias.
+  saida: { flex: 1, minHeight: 64 },
   folha: {
     backgroundColor: cores.fundo,
     borderTopLeftRadius: raio.md,
     borderTopRightRadius: raio.md,
-    padding: espaco.md,
-    gap: espaco.sm,
-    maxHeight: '85%'
+    paddingHorizontal: espaco.md,
+    paddingTop: espaco.md,
+    gap: espaco.sm
+    // Sem `maxHeight`: quem limita agora é o `flex: 1` da área de saída acima,
+    // que sempre reserva espaço. Com a porcentagem, numa tela baixa a folha
+    // ficava com 85% e as ações saíam por baixo — o mesmo efeito que o recuo
+    // ausente causava, por outro caminho.
   },
   titulo: { color: cores.texto, fontSize: 18, fontWeight: '700' },
   subtitulo: { color: cores.textoFraco, fontSize: 13, lineHeight: 18 },
-  lista: { marginVertical: espaco.xs },
+  lista: { flexShrink: 1, marginVertical: espaco.xs },
   opcao: {
     borderWidth: 1,
     borderColor: cores.borda,

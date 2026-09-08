@@ -213,6 +213,30 @@ async def test_evento_velho_nao_vira_notificacao(db, sessao, aparelho, sender):
     assert velho.notified_at is not None, "evento velho tem de sair da fila"
 
 
+async def test_encerramento_notifica_uma_vez_so(db, sessao, aparelho, sender):
+    """A sequencia real de um encerramento, vista no aparelho.
+
+    `finishing -> finished -> billed` gera tres eventos, e dois deles eram
+    aceitos como notificaveis. O motorista recebia DUAS mensagens com texto
+    identico - energia e custo ja estao fechados nas duas -, o que e pior que
+    nao avisar: ele aprende que o app repete e para de ler.
+
+    BILLED nunca pode ser o primeiro estado terminal: a maquina so permite
+    `finished -> billed`, entao quem chega la ja foi avisado.
+    """
+    db.add_all([
+        _evento(sessao, "state_change", to_state=str(SessionState.FINISHING)),
+        _evento(sessao, "state_change", to_state=str(SessionState.FINISHED)),
+        _evento(sessao, "state_change", to_state=str(SessionState.BILLED)),
+    ])
+    await db.flush()
+
+    r = await ns.enviar_pendentes(db)
+    assert r["eventos"] == 3, "os tres eventos saem da fila"
+    assert r["mensagens"] == 1, "mas so' um vira notificacao"
+    assert sender.enviadas[0].titulo == "Recarga concluída"
+
+
 # ------------------------------------------------------------ push por HTTP
 
 
