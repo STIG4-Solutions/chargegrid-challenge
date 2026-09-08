@@ -218,6 +218,7 @@ npm ls react           # tem que aparecer uma única
 
 ```bash
 npm run verify:api                         # 17 cenários do SDK com fetch simulado
+npm run verify:dashboard                   # 11 cenários da lógica do painel, sem navegador
 npm run typecheck                          # tipos do SDK e do app contra o contrato
 npm run build                              # dashboard
 cd apps/api && python -m pytest -q          # 400 testes (precisa do Postgres)
@@ -228,6 +229,12 @@ cd apps/mobile && npx expo export --platform android --output-dir .expo-bundle
 
 O `verify:api` roda contra um armazenamento **assíncrono de propósito** — o do React Native.
 Se passa nele, passa no `localStorage` síncrono da web.
+
+O `verify:dashboard` segue o mesmo formato — Node puro mais esbuild, sem runner de teste no
+projeto — e cobre a lógica que decide **o que vai para o servidor**: o diff do editor de
+orçamento, que é o que impede um operador de reverter em silêncio a alteração de outro.
+Renderização (chave de lista, foco, remoção de linha) fica de fora: exigiria DOM e as
+dependências que vêm com ele. É limite conhecido, não esquecimento.
 
 ## Estrutura
 

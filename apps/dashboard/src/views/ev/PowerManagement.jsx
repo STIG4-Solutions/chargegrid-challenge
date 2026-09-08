@@ -11,6 +11,7 @@ import {
   useSiteStream
 } from '@chargegrid/sdk'
 import { Async, ErrorState, Spinner } from '../../components/Async.jsx'
+import { alteracoesDoOrcamento, mudouPorBaixo } from './orcamento.js'
 
 // Espelha ACTIVE_SESSION_STATES do backend: são os estados que ocupam o ponto.
 // Sem 'queued' aqui, um ponto com alguém na fila mostrava "Iniciar" e o clique
@@ -471,7 +472,7 @@ function MeterFreshness({ budget }) {
 // de servidor. Só `main_breaker_current_a` aceita nulo de verdade.
 // Espelha ChargePoint.is_dispatchable do backend. Se um dos lados mudar, o
 // cartão de potência alocada passa a discordar da tabela logo abaixo dele.
-function podeReceberPotencia(cp) {
+export function podeReceberPotencia(cp) {
   if (cp.operator_throttled) return false
   return cp.enabled && (cp.status === 'charging' || cp.status === 'suspended')
 }
@@ -518,30 +519,10 @@ function BudgetEditor({ settings, onSaved }) {
     }
   }, [settings, aberto])
 
-  // Só o que este operador mexeu vai no PATCH.
-  //
-  // Enviar o rascunho inteiro revertia, em silêncio, o que outra pessoa tivesse
-  // mudado enquanto o painel estava aberto: o rascunho congela no momento da
-  // abertura, então um campo que eu nem toquei viajava com o valor velho por
-  // cima do novo. Com `reserved_kw` isso derruba a proteção das cargas do
-  // prédio — o site passa a distribuir potência que não tem.
-  const alteracoes = Object.fromEntries(
-    CHAVES_ORCAMENTO.filter((campo) => {
-      const meu = rascunho[campo]
-      const base = baseRef.current[campo]
-      return typeof meu === 'boolean' ? meu !== base : Number(meu ?? 0) !== Number(base ?? 0)
-    }).map((campo) => [campo, rascunho[campo]])
-  )
-
-  // Campos que mudaram no servidor desde a abertura e que EU não toquei.
-  // Vão ser preservados pelo diff, mas o operador precisa saber que a tela
-  // mostrava outro número quando ele começou.
-  const mudouAtras = CHAVES_ORCAMENTO.filter((campo) => {
-    if (campo in alteracoes) return false
-    const base = baseRef.current[campo]
-    const agora = settings[campo]
-    return typeof agora === 'boolean' ? agora !== base : Number(agora ?? 0) !== Number(base ?? 0)
-  })
+  // Só o que este operador mexeu vai no PATCH. As regras vivem em
+  // `orcamento.js` porque são a parte testável — ver o arquivo para o porquê.
+  const alteracoes = alteracoesDoOrcamento(rascunho, baseRef.current, CHAVES_ORCAMENTO)
+  const mudouAtras = mudouPorBaixo(settings, baseRef.current, CHAVES_ORCAMENTO, alteracoes)
 
   const salvar = useAction(
     (payload) => power.updateBudget(payload),

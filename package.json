@@ -22,6 +22,7 @@
     "mobile:ios": "npm run ios -w @chargegrid/mobile",
     "typecheck": "npm run typecheck -w @chargegrid/sdk && npm run typecheck -w @chargegrid/mobile",
     "verify:api": "npm run verify -w @chargegrid/sdk",
+    "verify:dashboard": "npm run verify -w @chargegrid/dashboard",
     "gen:types": "npm run gen:types -w @chargegrid/sdk",
     "infra:up": "docker compose --env-file apps/api/.env up --build -d",
     "infra:down": "docker compose --env-file apps/api/.env down",
