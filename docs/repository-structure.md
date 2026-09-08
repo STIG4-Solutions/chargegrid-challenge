@@ -7,7 +7,7 @@ O ChargeGrid usa um monorepo com aplicacoes independentes e um SDK compartilhado
 | Caminho | Responsabilidade |
 | --- | --- |
 | `apps/api` | API FastAPI, migrations, testes, scripts Python e Dockerfile |
-| `apps/dashboard` | Dashboard comercial e operacional React + Vite |
+| `apps/dashboard` | Dashboard comercial e operacional React + Vite; `scripts/` traz a verificacao da logica pura |
 | `apps/mobile` | Aplicativo do motorista React Native + Expo |
 | `packages/sdk` | Cliente da API, autenticacao e utilitarios compartilhados pelos clientes |
 | `config/domains.json` | Enderecos publicos usados como padrao pelas aplicacoes |

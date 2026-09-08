@@ -32,6 +32,9 @@ Os nomes de diretorios e pacotes seguem a convencao em ingles. A documentacao e 
 - O SDK permanece em `packages/sdk` e e consumido como codigo-fonte TypeScript.
 - Ao alterar o contrato, atualize `apps/api/openapi.json`, execute `npm run gen:types` e valide os consumidores. Nao edite `packages/sdk/src/schema.ts` manualmente.
 - Migrations, testes e configuracoes especificas permanecem na aplicacao responsavel.
+- Coluna nova num modelo exige decisao: exponha no schema de resposta ou declare em
+  `OMISSOES`, em `tests/test_cobertura_de_schema.py`, com o motivo. O Pydantic descarta em
+  silencio o que o schema nao lista, e esse defeito ja apareceu quatro vezes.
 
 ## Configuracao e dados locais
 

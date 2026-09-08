@@ -62,6 +62,7 @@ O Compose le `apps/api/.env` tanto para a interpolacao das variaveis quanto para
 
 ```bash
 npm run verify:api
+npm run verify:dashboard
 npm run typecheck
 npm run build:dashboard
 npm run bundle -w @chargegrid/mobile

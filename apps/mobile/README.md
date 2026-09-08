@@ -416,12 +416,20 @@ Três coisas que atrapalham quem for testar:
   enche de erro toda vez que o app abre em desenvolvimento.
 - **sem canal, o Android 8+ descarta a notificação** sem avisar ninguém. O canal `recargas` é
   criado no registro.
-- **o servidor precisa entregar de verdade.** Com `PUSH_PROVIDER=log` (o padrão) ele monta a
-  mensagem e registra — todo o caminho é exercitado até a borda, mas nada sai.
+- **o servidor precisa entregar de verdade.** Com `PUSH_PROVIDER=log` ele monta a mensagem e
+  registra — todo o caminho é exercitado até a borda, mas nada sai. O ambiente de
+  desenvolvimento deste repositório já está com `expo`.
+- **`finished` notifica; `billed` não.** A máquina de estados só permite `finished → billed`,
+  então toda sessão faturada já foi avisada. Aceitar os dois mandava duas mensagens com texto
+  idêntico — e duas notificações iguais são piores que uma: o motorista aprende que o app repete
+  e para de ler.
 
-### Ligar o FCM
+### FCM
 
-Sem isso o Android não sabe a quem pedir o token, e o app **não pede permissão** — a recusa do
+**Já está configurado** neste projeto: `challenge-chargegrid` no Firebase, chave FCM V1 no EAS e
+`PUSH_PROVIDER=expo` na API. O que segue é o procedimento, para refazer noutro ambiente.
+
+Sem ele o Android não sabe a quem pedir o token, e o app **não pede permissão** — a recusa do
 sistema é permanente, e gastar a única chance num build que nunca receberia nada custa caro. O
 sinal é `extra.pushConfigurado`, posto pelo `app.config.js` quando encontra o arquivo.
 
@@ -435,11 +443,34 @@ Quatro passos, três deles no console do Google:
    npx eas-cli env:create --environment preview --name GOOGLE_SERVICES_JSON      --type file --value ./google-services.json --visibility sensitive
    ```
 3. **Chave de serviço FCM V1**: no Firebase, *Configurações do projeto → Contas de serviço →
-   Gerar nova chave privada*. Suba em `npx eas-cli credentials -p android` → *Push Notifications:
-   Manage your FCM V1 service account key*. É interativo, e a chave nunca passa pelo repositório.
+   Gerar nova chave privada*. Suba em `npx eas-cli credentials -p android`, escolhendo o perfil
+   **preview** e então *Google Service Account → Manage your Google Service Account Key for Push
+   Notifications (FCM V1) → Set up a new key*. É interativo, e a chave nunca passa pelo
+   repositório — aponte o caminho de onde ela foi baixada, sem copiá-la para o projeto.
+
+   Dois tropeços comuns: esse JSON **não** é o `google-services.json` do passo 2, e a opção
+   *Push Notifications (Legacy)* do menu é a API antiga do FCM, desligada pelo Google em 2024.
 4. **Na API**, `PUSH_PROVIDER=expo`. O código não muda: o provedor já é plugável.
 
 Depois disso, **build novo** — `google-services.json` entra no projeto nativo, não por OTA.
+
+## A folha de reporte não é uma tela como as outras
+
+`ReportarProblema` é o único `Modal` do app, e por isso foi o único lugar onde o recuo de área
+segura ficou de fora — todas as telas o aplicam via `Tela` ou `useRecuoInferior`. O sintoma
+apareceu só no aparelho: "Cancelar" nascia debaixo dos botões de navegação do Android. Visível,
+mas o toque ia para o sistema.
+
+Três coisas que uma folha inferior precisa e uma tela normal não:
+
+- **`statusBarTranslucent` e `navigationBarTranslucent`.** O `Modal` monta fora da hierarquia do
+  app, então o inset pode vir zerado. Essas duas fazem a folha desenhar sob as barras, que é de
+  onde o inset sai. Um piso de 16 cobre o caso de vir zero mesmo assim.
+- **Altura por espaço reservado, não por porcentagem.** `maxHeight: '85%'` deixava as ações fora
+  da tela em aparelho baixo — o mesmo sintoma do recuo ausente, por outro caminho. Quem limita
+  agora é uma área com `flex: 1` acima da folha, que também fecha ao toque.
+- **`KeyboardAvoidingView`.** O campo de detalhes fica no fim; sem ele o teclado cobre justamente
+  o que o motorista ia escrever.
 
 ## Recibo em PDF
 

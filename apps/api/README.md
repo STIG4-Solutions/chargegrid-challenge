@@ -472,6 +472,12 @@ Notificáveis: recarga concluída, promovido na fila, encerrada por falha. A lis
 propósito — notificar cada transição treina o motorista a ignorar, e aí a que importa também
 passa despercebida.
 
+**Só `finished`, nunca `billed`.** A máquina de estados permite apenas `finished → billed`,
+então toda sessão faturada já passou por `finished` e já foi avisada. Aceitar os dois mandava
+duas notificações com texto idêntico — energia e custo já estão fechados nas duas. Isso apareceu
+no aparelho, não em teste: os testes usavam só `to_state=FINISHED` e nenhum reproduzia a
+sequência inteira.
+
 Três decisões que só aparecem quando algo dá errado:
 
 - **falha no envio não marca nada.** Marcar transformaria "não entreguei" em "entreguei" e a
@@ -485,6 +491,10 @@ O envio roda em worker (`PUSH_INTERVAL_S`, padrão 20 s), não no momento da gra
 de push lento travaria a transição de estado da sessão — o carro deixaria de ser liberado
 porque a Expo caiu. Provedor plugável como o de pagamento; nome desconhecido estoura em vez de
 cair no simulador.
+
+`PUSH_PROVIDER` decide quem entrega: `log` registra sem enviar — exercita todo o caminho até a
+borda e é o padrão para desenvolvimento — e `expo` entrega de verdade, exigindo FCM configurado
+no projeto EAS. O procedimento está no [README do app](../mobile/README.md#fcm).
 
 ### Recibo da recarga
 
@@ -552,6 +562,24 @@ e política do operador ficam de fora. Ele escolhe uma vaga, não opera o site.
 
 Todas as rotas têm schema de resposta declarado: é o OpenAPI que gera os tipos do SDK, então
 uma rota sem contrato deixaria o cliente sem tipo.
+
+### Coluna nova exige uma decisão
+
+`tests/test_cobertura_de_schema.py` não deixa uma coluna de modelo ficar de fora da resposta em
+silêncio. Ou o schema a expõe, ou ela está declarada em `OMISSOES` com o motivo.
+
+A regra existe porque o mesmo defeito apareceu **três vezes**: `AllocationOut` sem `regra`,
+`SessionOut` sem os limites, `UserOut` sem `fleet_manager`. Nos três o modelo tinha o campo, o
+serviço preenchia, e o Pydantic o descartava na serialização — sem erro, sem log, sem aviso.
+Todos foram achados porque um teste de camada HTTP falhou por outro motivo.
+
+Não é "expor tudo": várias omissões são deliberadas (`site_id` sai porque o escopo vem do token)
+e algumas são obrigatórias (`hashed_password`, `provider_config`, `raw_response`). É que o
+silêncio deixa de ser opção. Escrever a tabela já achou o quarto caso — `InvoiceOut` trazia
+`subtotal` e `total` mas não `discount`, e numa tela que mostra os dois os números não fechavam.
+
+Há guardas nos dois sentidos: justificativa órfã (coluna que sumiu ou passou a ser exposta) e
+nome sensível aparecendo numa resposta.
 
 ---
 

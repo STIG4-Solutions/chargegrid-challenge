@@ -153,6 +153,7 @@ na inicialização até receber essa configuração.
 | `METER_SOURCE` | `virtual` | Valor literal |
 | `ENABLE_WORKERS` | `false` inicialmente | Valor literal |
 | `PAYMENT_PROVIDER` | `mock` | Valor literal |
+| `PUSH_PROVIDER` | `log` sem FCM; `expo` para entregar de verdade | Valor literal |
 | `SEED_ADMIN_PASSWORD` | Senha escolhida para a conta de demonstração | Secret `seed-admin-password` |
 | `SEED_OPERATOR_PASSWORD` | Outra senha | Secret `seed-operator-password` |
 | `SEED_DRIVER_PASSWORD` | Outra senha | Secret `seed-driver-password` |
