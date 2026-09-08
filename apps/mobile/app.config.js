@@ -50,6 +50,9 @@ module.exports = () => {
     ...base.expo,
     android: {
       ...base.expo.android,
+      // Ausente, a chave nem aparece: declarar o caminho de um arquivo que nao
+      // existe faz o prebuild falhar, e o app funciona sem push.
+      ...(googleServices ? { googleServicesFile: googleServices } : {}),
       config: {
         ...base.expo.android.config,
         googleMaps: { apiKey: chaveDoMapa }
