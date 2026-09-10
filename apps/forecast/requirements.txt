@@ -1,0 +1,21 @@
+# Nucleo do pipeline de previsao.
+pandas>=2.0
+numpy>=1.24
+lightgbm>=4.0
+# Exigido por `lightgbm.sklearn` em tempo de execucao. Nao estava no
+# requirements do repositorio de modelagem - devia vir de outro pacote no
+# ambiente de quem o escreveu, e sem ele o treino quebra no backtest.
+scikit-learn>=1.3
+joblib>=1.3
+
+# Leitura do banco do ChargeGrid. Driver SINCRONO de proposito: o pipeline e'
+# pandas, e pandas nao fala asyncpg - que e' o driver da API.
+SQLAlchemy>=2.0
+psycopg[binary]>=3.1
+
+# NAO estao aqui, e o motivo importa:
+#   pymodbus   - a camada Modbus do pipeline original tem enderecos de
+#                registrador inventados; os dados vem do banco, nao do medidor.
+#   pyarrow    - so' seria preciso para ler/gravar parquet, e o painel vem do
+#                Postgres direto.
+#   matplotlib - graficos opcionais do backtest.

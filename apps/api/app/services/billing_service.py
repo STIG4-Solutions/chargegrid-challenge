@@ -110,6 +110,10 @@ async def bill_session(db: AsyncSession, session: ChargingSession) -> Invoice:
         await db.commit()
         return invoice
 
+    # Import tardio: os servicos de beneficio leem o motor de tarifacao, e
+    # importar os dois no topo fecharia o ciclo.
+    from app.services import benefit_service, campaign_service
+
     rating = rate_session(
         session,
         tariff,
@@ -117,10 +121,19 @@ async def bill_session(db: AsyncSession, session: ChargingSession) -> Invoice:
         timezone=site.timezone,
         idle_grace_minutes=settings.idle_grace_minutes,
         now=now,
+        # Assinatura E campanha podem valer ao mesmo tempo. `benefit_service`
+        # decide o encontro: o melhor de cada componente, nunca a soma - somar
+        # produziria desconto sem teto que ninguem orcou.
+        beneficio=await benefit_service.resolver(db, session, now),
     )
 
     invoice.currency = tariff.currency
     invoice.subtotal = rating.subtotal
+    # A coluna existe desde a 0001 e nunca teve produtor: `total` recebia
+    # `rating.total` direto e a conta so' fechava porque o desconto era sempre
+    # zero. Agora `subtotal - discount == total` vale por construcao, que e' o
+    # que `InvoiceOut` documenta e o que a tela e o recibo somam.
+    invoice.discount = rating.desconto
     invoice.total = rating.total
     invoice.net_amount = rating.total
     invoice.tariff_snapshot = rating.tariff_snapshot
@@ -144,6 +157,16 @@ async def bill_session(db: AsyncSession, session: ChargingSession) -> Invoice:
         session_service.transition(
             db, session, SessionState.BILLED, message=f"Fatura {invoice.code} emitida"
         )
+
+    # Progresso das missoes no MESMO commit. E' agregacao deterministica da
+    # sessao que acabou de encerrar, sem I/O externo: ou os dois existem ou
+    # nenhum, e nunca ha sessao faturada com progresso perdido. O que fica de
+    # fora deste commit e' a concessao da recompensa - essa mexe em saldo e em
+    # push, e uma falha la' nao pode desfazer a fatura.
+    #
+    # `session.state` ja e' BILLED aqui, que e' o que a agregacao conta.
+    await campaign_service.atualizar_progresso(db, session, now)
+
     await db.commit()
     # Recarrega pelo mesmo caminho que a fatura ja existente usa la em cima.
     # O db.refresh() sozinho expira a colecao `lines` que acabou de ser montada,

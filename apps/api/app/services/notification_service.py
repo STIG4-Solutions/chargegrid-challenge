@@ -205,3 +205,82 @@ async def enviar_pendentes(db: AsyncSession, limite: int = LOTE) -> dict:
 
     log.info("push.enviado", eventos=len(marcados), mensagens=enviadas)
     return {"eventos": len(marcados), "mensagens": enviadas}
+
+
+def _mensagem_recompensa(recompensa) -> tuple[str, str]:
+    """Titulo e corpo do aviso de recompensa. Aqui sempre ha o que dizer."""
+    valor = f"R$ {float(recompensa.valor_brl):.2f}".replace(".", ",")
+    nome = recompensa.campaign.nome if recompensa.campaign else "Campanha"
+    return ("Recompensa liberada", f"{valor} na sua carteira — {nome}")
+
+
+async def enviar_recompensas_pendentes(db: AsyncSession, limite: int = LOTE) -> dict:
+    """Drena o segundo outbox: recompensas creditadas e ainda nao avisadas.
+
+    Outbox proprio, e nao `session_events`. Afrouxar `session_events.session_id`
+    para nulavel seria o caminho curto e destruiria uma guarda: `enviar_pendentes`
+    trata `session is None` como evento ORFAO a descartar, e transformar isso num
+    caso normal faria um defeito hoje detectado virar rotina. Aqui a propria
+    existencia da linha ja e' o fato a notificar - nao ha duas versoes da verdade,
+    que era a justificativa original para o outbox morar em `session_events`.
+
+    IDADE_MAXIMA_MIN NAO SE APLICA AQUI, e precisa continuar assim. Aquela
+    constante existe porque "venha buscar o carro" perde valor depois de 30
+    minutos: o motorista ja foi embora e a mensagem so' confunde. "Voce ganhou
+    R$ 12" nao perde valor nunca. Quem aplicar a mesma constante por simetria faz
+    o motorista deixar de ser avisado do proprio dinheiro, e o silencio vai
+    parecer intencional.
+    """
+    from app.models.campaign import Reward
+
+    consulta = (
+        select(Reward)
+        .where(Reward.notified_at.is_(None), Reward.estado == "creditada")
+        .order_by(Reward.created_at)
+        .limit(limite)
+    )
+    recompensas = list((await db.execute(consulta)).scalars().all())
+    if not recompensas:
+        return {"recompensas": 0, "mensagens": 0}
+
+    donos = {r.user_id for r in recompensas}
+    por_usuario: dict[str, list[PushDevice]] = {}
+    for aparelho in (
+        (await db.execute(select(PushDevice).where(PushDevice.user_id.in_(donos))))
+        .scalars()
+        .all()
+    ):
+        por_usuario.setdefault(str(aparelho.user_id), []).append(aparelho)
+
+    mensagens: list[Mensagem] = []
+    for recompensa in recompensas:
+        titulo, corpo = _mensagem_recompensa(recompensa)
+        for aparelho in por_usuario.get(str(recompensa.user_id), []):
+            mensagens.append(
+                Mensagem(
+                    token=aparelho.token,
+                    titulo=titulo,
+                    corpo=corpo,
+                    dados={"reward_id": str(recompensa.id), "tipo": "recompensa"},
+                )
+            )
+
+    enviadas = 0
+    if mensagens:
+        try:
+            enviadas = get_sender().send(mensagens)
+        except PushError as erro:
+            # Mesmo tratamento do outro dreno: nada marcado, tudo volta no
+            # proximo ciclo.
+            log.warning("push.recompensa_falhou", erro=str(erro), mensagens=len(mensagens))
+            return {"recompensas": 0, "mensagens": 0, "erro": str(erro)}
+
+    agora = datetime.now(UTC)
+    for recompensa in recompensas:
+        # Marca inclusive quem nao tem aparelho: a conta nunca abriu o app, e
+        # guardar a linha pendente para sempre so' faria a fila crescer.
+        recompensa.notified_at = agora
+    await db.commit()
+
+    log.info("push.recompensa_enviada", recompensas=len(recompensas), mensagens=enviadas)
+    return {"recompensas": len(recompensas), "mensagens": enviadas}

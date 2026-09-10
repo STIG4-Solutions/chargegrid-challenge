@@ -132,11 +132,37 @@ async def rebalance_once() -> dict:
 
 
 async def _enviar_push() -> dict:
-    """Drena a fila de notificacoes pendentes."""
-    from app.services import notification_service
+    """Concede recompensas pendentes e drena as duas filas de notificacao.
+
+    Sao dois outbox porque sao duas tabelas: `session_events.notified_at` para o
+    que acontece na sessao, e `rewards.notified_at` para recompensa concedida. O
+    segundo nao cabia no primeiro - `session_events.session_id` e' obrigatorio, e
+    missao do tipo "cadastre dois veiculos" nao nasce de sessao nenhuma.
+
+    Um `_loop` so' para os tres: e' a mesma operacao externa (falar com a Expo) no
+    mesmo intervalo, e conceder antes de notificar faz a recompensa criada agora
+    sair avisada neste ciclo em vez de esperar o proximo.
+    """
+    from app.services import (
+        campaign_service,
+        notification_service,
+        platform_service,
+        subscription_service,
+    )
 
     async with SessionLocal() as db:
-        return await notification_service.enviar_pendentes(db)
+        # Mensalidade vencida entra no mesmo ciclo: sao poucas por dia, e um
+        # laco proprio para elas seria um worker que dorme 99% do tempo.
+        await subscription_service.cobrar_mensalidades(db)
+        # Contrato do estabelecimento: avanca o ciclo e emite a cobranca do
+        # mes. Ambos idempotentes - `renova_em` so' avanca uma vez, e a
+        # UNIQUE (contrato, competencia) barra a segunda emissao.
+        await platform_service.renovar_vencidos(db)
+        await platform_service.emitir_competencia(db)
+        concedidas = await campaign_service.conceder_pendentes(db)
+        sessoes = await notification_service.enviar_pendentes(db)
+        recompensas = await notification_service.enviar_recompensas_pendentes(db)
+        return {"concedidas": concedidas, **sessoes, **recompensas}
 
 
 async def _loop(name: str, coro, interval: int) -> None:

@@ -42,9 +42,33 @@ class RatedLine:
 
 
 @dataclass(slots=True)
+class Beneficio:
+    """Vantagem que o pagador leva para esta sessao, ja resolvida.
+
+    O motor NAO descobre quem tem direito a que: isso depende de assinatura
+    ativa e de campanha vigente, e as duas moram no banco. `rate_session` e' uma
+    funcao pura sobre (sessao, tarifa, amostras), e e' essa pureza que torna
+    `test_tariff_engine.py` possivel sem subir Postgres. Quem consulta o banco e
+    monta este objeto e' o `billing_service`, que ja tem a sessao aberta.
+
+    `rotulo` vai para a descricao da linha na fatura e no recibo: "Plano Mensal"
+    diz ao motorista de onde veio o abatimento; "Desconto" sozinho nao diz.
+    """
+
+    rotulo: str
+    desconto_pct: Decimal = Decimal("0")
+    kwh_inclusos: Decimal = Decimal("0")
+    isenta_session_fee: bool = False
+
+
+@dataclass(slots=True)
 class RatingResult:
     lines: list[RatedLine] = field(default_factory=list)
     subtotal: Decimal = Decimal("0.00")
+    # Soma dos abatimentos, em modulo. A fatura documenta `total = subtotal -
+    # discount` desde a primeira migration, e ate agora nada preenchia o campo:
+    # a conta fechava porque o desconto era sempre zero.
+    desconto: Decimal = Decimal("0.00")
     total: Decimal = Decimal("0.00")
     energy_kwh: Decimal = Decimal("0")
     billable_minutes: int = 0
@@ -54,6 +78,7 @@ class RatingResult:
     def as_dict(self) -> dict:
         return {
             "subtotal": float(self.subtotal),
+            "desconto": float(self.desconto),
             "total": float(self.total),
             "energy_kwh": float(self.energy_kwh),
             "billable_minutes": self.billable_minutes,
@@ -155,8 +180,15 @@ def rate_session(
     timezone: str = "America/Sao_Paulo",
     idle_grace_minutes: int = 10,
     now: datetime | None = None,
+    beneficio: Beneficio | None = None,
 ) -> RatingResult:
-    """Calcula o valor de uma sessao. Serve tanto para previa quanto para faturar."""
+    """Calcula o valor de uma sessao. Serve tanto para previa quanto para faturar.
+
+    `beneficio` e' opcional e, quando ausente, o resultado e' o de sempre: nao ha
+    linha negativa, `desconto` fica zero e `total` sai identico ao que saia antes
+    de este parametro existir. E' o contrato que permite mexer no caminho do
+    dinheiro tendo os testes existentes como rede.
+    """
     tz = ZoneInfo(timezone)
     now = now or datetime.now(UTC)
     result = RatingResult()
@@ -240,7 +272,11 @@ def rate_session(
 
     # ------------------------------------------------------- taxas e minimos
     session_fee = Decimal(str(tariff.session_fee or 0))
-    if session_fee > 0:
+    # A isencao SUPRIME a linha, em vez de descontar o mesmo valor depois. A
+    # diferenca aparece quando ha valor minimo: descontada no fim, a taxa voltaria
+    # embutida no complemento ate o minimo, e o assinante pagaria de novo por uma
+    # isencao que o app ja lhe prometeu.
+    if session_fee > 0 and not (beneficio and beneficio.isenta_session_fee):
         result.lines.append(
             RatedLine(
                 kind="session_fee",
@@ -252,7 +288,47 @@ def rate_session(
             )
         )
 
-    result.subtotal = money(sum((line.amount for line in result.lines), Decimal("0")))
+    # ------------------------------------------------------- kWh do plano
+    # Abate da janela MAIS CARA primeiro. Comecar pela mais barata entregaria ao
+    # assinante o pior uso possivel da franquia dele - e ele nao escolhe a ordem.
+    #
+    # Vira linha propria negativa em vez de reduzir a quantidade da linha de
+    # energia: o recibo precisa continuar dizendo quanta energia foi entregue.
+    # Um recibo que mostra 8 kWh numa recarga de 30 kWh nao serve para prestacao
+    # de contas, e e' o documento que a empresa do motorista recebe.
+    if beneficio and beneficio.kwh_inclusos > 0 and energy_buckets:
+        restante = beneficio.kwh_inclusos
+        abatido = Decimal("0")
+        valor_abatido = Decimal("0")
+        for _label, (kwh, price) in sorted(
+            energy_buckets.items(), key=lambda item: item[1][1], reverse=True
+        ):
+            if restante <= 0:
+                break
+            if kwh <= 0 or price <= 0:
+                continue
+            usado = min(kwh, restante)
+            restante -= usado
+            abatido += usado
+            valor_abatido += usado * price
+        if valor_abatido > 0:
+            result.lines.append(
+                RatedLine(
+                    kind="plano",
+                    description=f"{beneficio.rotulo} — {qty(abatido)} kWh inclusos",
+                    quantity=qty(abatido),
+                    unit="kWh",
+                    unit_price=qty(valor_abatido / abatido),
+                    amount=-money(valor_abatido),
+                )
+            )
+
+    # O subtotal soma apenas o que se cobra; os abatimentos sao contados a parte,
+    # em `desconto`. E' o que faz `total = subtotal - desconto` valer sempre, que
+    # e' o que a fatura documenta desde a primeira migration.
+    result.subtotal = money(
+        sum((line.amount for line in result.lines if line.amount > 0), Decimal("0"))
+    )
 
     # Precificacao dinamica: o multiplicador vem do modulo de IA (previsao de pico).
     multiplier = Decimal(str(tariff.dynamic_multiplier or 1))
@@ -269,12 +345,18 @@ def rate_session(
                     amount=adjustment,
                 )
             )
-            result.subtotal = money(result.subtotal + adjustment)
+            # Multiplicador abaixo de 1 e' reducao de preco, e entra em
+            # `desconto` como qualquer outro abatimento - o subtotal segue sendo
+            # o que se cobra antes de reduzir.
+            if adjustment > 0:
+                result.subtotal = money(result.subtotal + adjustment)
 
+    # O minimo e' comparado ao BRUTO, antes dos abatimentos. Ele existe para que
+    # uma sessao de dois minutos nao saia de graca - nao para retomar do
+    # assinante a franquia que o plano dele acabou de conceder.
     min_charge = Decimal(str(tariff.min_charge or 0))
-    total = result.subtotal
-    if min_charge > 0 and total < min_charge and result.energy_kwh > 0:
-        complement = money(min_charge - total)
+    if min_charge > 0 and result.subtotal < min_charge and result.energy_kwh > 0:
+        complement = money(min_charge - result.subtotal)
         result.lines.append(
             RatedLine(
                 kind="min_charge",
@@ -285,7 +367,33 @@ def rate_session(
                 amount=complement,
             )
         )
-        total = min_charge
+        result.subtotal = money(min_charge)
+
+    # O percentual vem por ultimo, sobre o subtotal ja ajustado. Aplicado antes
+    # do ajuste dinamico, o assinante pagaria MAIS caro pelo mesmo desconto em
+    # horario de pico - o inverso do que o plano anuncia.
+    if beneficio and beneficio.desconto_pct > 0:
+        valor = money(result.subtotal * beneficio.desconto_pct / Decimal("100"))
+        if valor > 0:
+            result.lines.append(
+                RatedLine(
+                    kind="desconto",
+                    description=f"{beneficio.rotulo} — {qty(beneficio.desconto_pct)}%",
+                    quantity=Decimal("1"),
+                    unit="un",
+                    unit_price=-valor,
+                    amount=-valor,
+                )
+            )
+
+    result.desconto = money(
+        sum((-line.amount for line in result.lines if line.amount < 0), Decimal("0"))
+    )
+    # O desconto PODE deixar o total abaixo do minimo, e isso e' deliberado. Se o
+    # complemento fosse recalculado aqui no fim, um assinante com 20% numa sessao
+    # pequena pagaria exatamente o mesmo que quem nao assina nada - depois de a
+    # tela do app ja ter anunciado o desconto a ele.
+    total = result.subtotal - result.desconto
 
     result.total = money(total)
     result.tariff_snapshot = {

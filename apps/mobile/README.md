@@ -261,9 +261,13 @@ mas por dois caracteres de margem.
 
 ## Telas
 
-Quatro abas — **Mapa**, **Agenda**, **Histórico** e **Perfil** — com telas empilhadas sobre
-elas. Uma quinta, **Frota**, aparece só para quem é gestor: a API responde 403 para os
-demais, e uma aba que só mostra erro é pior que aba nenhuma.
+Cinco abas — **Mapa**, **Agenda**, **Histórico**, **Missões** e **Perfil** — com telas
+empilhadas sobre elas. Uma sexta, **Frota**, aparece só para quem é gestor: a API responde 403
+para os demais, e uma aba que só mostra erro é pior que aba nenhuma.
+
+**Missões não é condicional**, e a diferença importa: todo motorista pode ter missão, e a tela
+já diz o que fazer quando não há campanha vigente. Vazio explicado não é erro — é a distinção
+entre "nada agora" e "o app quebrou".
 
 | Tela | Arquivo | Endpoints (via SDK) |
 |---|---|---|
@@ -274,7 +278,8 @@ demais, e uma aba que só mostra erro é pior que aba nenhuma.
 | Agenda | `src/screens/ReservationsScreen.tsx` | `app.myReservations`, `app.cancelReservation` |
 | Agendar recarga | `src/screens/NewReservationScreen.tsx` | `app.stations`, `app.stationChargePoints`, `app.myVehicles`, `app.createReservation` |
 | Histórico (recargas e faturas) | `src/screens/HistoryScreen.tsx` | `app.mySessions`, `app.myInvoices` |
-| Perfil (carteira e veículos) | `src/screens/ProfileScreen.tsx` | `app.myVehicles`, `app.addVehicle`, `app.topUpWallet` |
+| Missões | `src/screens/MissionsScreen.tsx` | `app.missions`, `app.rewards` |
+| Perfil (carteira, veículos e plano) | `src/screens/ProfileScreen.tsx` | `app.myVehicles`, `app.addVehicle`, `app.topUpWallet`, `app.plans`, `app.subscription`, `app.subscribe`, `app.unsubscribe` |
 | Ler QR do carregador | `src/screens/ScannerScreen.tsx` | `app.chargePointByCode` |
 | Frota (só gestor) | `src/screens/FleetScreen.tsx` | `app.fleetReport` |
 
@@ -296,6 +301,15 @@ rateio do servidor liberar. O app só reflete a decisão do servidor.
 
 O custo exibido vem de `app.sessionPreview`, que roda **o mesmo motor de
 tarifação que emite a fatura** — não é uma estimativa paralela.
+
+A aba de missões traduz cada métrica para a unidade certa: "3 de 5 recargas", "11,8 de 50 kWh
+solares". Sem isso a tela diria "3 de 5 energia_verde_kwh", que é o nome da coluna e não o nome
+da coisa. Missões que o motorista ainda não começou aparecem com barra zerada — quem acabou de
+instalar o app é justamente quem mais precisa ver o que há para ganhar.
+
+O bloco de plano no Perfil distingue **"assina"** de **"renova"**. Cancelada dentro do mês pago
+continua dando desconto até o fim do período, e dizer só "cancelada" faria o motorista achar
+que perdeu o que pagou.
 
 ## Metro em workspace
 

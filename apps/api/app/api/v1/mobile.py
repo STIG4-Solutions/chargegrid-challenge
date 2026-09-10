@@ -17,6 +17,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from app.core.deps import DbSession, DriverUser, FleetManager
+from app.core.errors import PaymentError
 from app.db.base import RESERVATION_CODE_SEQ
 from app.models.billing import Invoice
 from app.models.charge_point import ChargePoint
@@ -44,6 +45,7 @@ from app.schemas.auth import (
     VehicleUpdate,
     WalletTopUpIn,
 )
+from app.schemas.campanha import MissaoDoMotoristaOut, RecompensaOut
 from app.schemas.ev import (
     InvoiceOut,
     RatingOut,
@@ -57,11 +59,13 @@ from app.schemas.ev import (
 )
 from app.services import (
     billing_service,
+    campaign_service,
     fleet_service,
     payment_service,
     receipt_service,
     session_service,
     start_advice_service,
+    subscription_service,
 )
 
 # Teto de agendamentos simultaneos por motorista. Nao e' regra de negocio
@@ -867,3 +871,72 @@ async def set_cost_center(
     if veiculo is None:
         raise HTTPException(status_code=404, detail="veículo não encontrado")
     return veiculo
+
+
+# --------------------------------------------------------------------- missoes
+
+
+@router.get("/missions", response_model=list[MissaoDoMotoristaOut])
+async def minhas_missoes(db: DbSession, user: DriverUser) -> list[dict]:
+    """Missoes vigentes com o progresso DESTE motorista.
+
+    Seguranca: o progresso e' filtrado por `user.id` do token, nunca por
+    parametro - senao qualquer um leria o desempenho de qualquer outro.
+    """
+    return await campaign_service.missoes_do_motorista(db, user)
+
+
+@router.get("/rewards", response_model=list[RecompensaOut])
+async def minhas_recompensas(db: DbSession, user: DriverUser) -> list[dict]:
+    """Historico de recompensas, so' as de quem esta pedindo."""
+    return await campaign_service.recompensas_do_motorista(db, user)
+
+
+# ----------------------------------------------------------------- assinatura
+
+
+@router.get("/plans")
+async def planos_de_recarga(db: DbSession, _: DriverUser) -> list[dict]:
+    """Catalogo de planos. Escopo de rede: nao pertencem a praca nenhuma."""
+    return [
+        {
+            "codigo": p.codigo,
+            "nome": p.nome,
+            "descricao": p.descricao,
+            "preco_mensal_brl": float(p.preco_mensal_brl),
+            "desconto_pct": float(p.desconto_pct),
+            "kwh_inclusos": float(p.kwh_inclusos),
+            "isenta_taxa_de_conexao": p.isenta_taxa_de_conexao,
+        }
+        for p in await subscription_service.planos_ativos(db)
+    ]
+
+
+@router.get("/subscription")
+async def minha_assinatura(db: DbSession, user: DriverUser) -> dict:
+    """Plano, franquia restante e proxima cobranca - so' de quem esta pedindo."""
+    return await subscription_service.minha_assinatura(db, user)
+
+
+@router.post("/subscription", status_code=201)
+async def assinar(payload: dict, db: DbSession, user: DriverUser) -> dict:
+    """Assina e cobra a primeira mensalidade da carteira.
+
+    Saldo insuficiente vira 402, e nao 500: e' uma condicao esperada, e o app
+    precisa distinguir "recarregue a carteira" de "algo quebrou".
+    """
+    codigo = (payload or {}).get("codigo")
+    if not codigo:
+        raise HTTPException(status_code=422, detail="informe o código do plano")
+    try:
+        await subscription_service.assinar(db, user, str(codigo))
+    except PaymentError as erro:
+        raise HTTPException(status_code=402, detail=str(erro)) from erro
+    return await subscription_service.minha_assinatura(db, user)
+
+
+@router.delete("/subscription", response_model=None, response_class=Response, status_code=204)
+async def cancelar_assinatura(db: DbSession, user: DriverUser):
+    """Cancela a renovacao. O mes ja pago continua valendo ate o fim."""
+    await subscription_service.cancelar(db, user)
+    return Response(status_code=204)

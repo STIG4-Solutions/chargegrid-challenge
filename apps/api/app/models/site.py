@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Numeric, String, Text
+from sqlalchemy import DateTime, ForeignKey, Index, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -12,8 +12,18 @@ from app.db.base import Base, TimestampMixin, UUIDMixin
 
 class Site(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "sites"
+    # O indice fica declarado aqui, e nao so' na migration: o que existe apenas
+    # na migration some de um banco criado por `create_all`, e `alembic check`
+    # nao percebe - ele compara modelos com migrations, e nao haveria o que
+    # comparar. O nome e' escrito a mao para casar com o da 0014; deixar a
+    # convencao nomear produziria `ix_sites_slug`, e seriam dois indices.
+    __table_args__ = (Index("uq_sites_slug", "slug", unique=True),)
 
     name: Mapped[str] = mapped_column(String(160), nullable=False)
+    # Identificador estavel entre reconstrucoes do banco. O `id` e' sorteado a
+    # cada reseed; o modelo de previsao guarda dentro do artefato a lista de
+    # locais que conhece, e cai em fallback silencioso quando ela nao bate.
+    slug: Mapped[str] = mapped_column(String(40), nullable=False)
     address: Mapped[str | None] = mapped_column(Text)
     city: Mapped[str | None] = mapped_column(String(80))
     state: Mapped[str | None] = mapped_column(String(2))

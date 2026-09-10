@@ -35,6 +35,23 @@ Os nomes de diretorios e pacotes seguem a convencao em ingles. A documentacao e 
 - Coluna nova num modelo exige decisao: exponha no schema de resposta ou declare em
   `OMISSOES`, em `tests/test_cobertura_de_schema.py`, com o motivo. O Pydantic descarta em
   silencio o que o schema nao lista, e esse defeito ja apareceu quatro vezes.
+- Schema novo que le de ORM herda de `ORMModel` e o modulo dele entra na varredura do mesmo
+  teste. Um schema fora dela passa por baixo da guarda — foi assim que `app/schemas/campanha.py`
+  nasceu invisivel a ela.
+
+## Migrations
+
+- Indice ou constraint declarado apenas na migration **some** de um banco criado por
+  `create_all`, e `alembic check` nao acusa: ele compara modelos com migrations. Declare nos
+  dois lugares.
+- Nomes de constraint vao **sem** o prefixo `ck_<tabela>_`: a `NAMING_CONVENTION` o acrescenta.
+  Escrever o nome completo o duplica, e passando de 63 caracteres o Postgres trunca com hash —
+  o nome no banco deixa de bater com o do metadata. Ver a migration `0018`.
+- Nao edite migration ja aplicada. O schema passa a depender de *quando* cada banco rodou, e
+  quem clonou antes fica com colunas a menos. Corrija numa migration nova, com
+  `ADD COLUMN IF NOT EXISTS` quando houver bancos dos dois lados.
+- Toda guarda nova merece um teste de mutacao: reverta a condicao e confirme que algo quebra.
+  Guarda que ninguem consegue quebrar e' decorativa.
 
 ## Configuracao e dados locais
 

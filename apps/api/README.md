@@ -119,13 +119,21 @@ uvicorn app.main:app --reload
 ## Testes
 
 ```bash
-pytest -q          # 400 testes
+pytest -q          # 518 testes
 ruff check app     # lint
 ```
 
 | Arquivo | O que protege |
 |---|---|
 | `test_power_allocation.py` | rateio por prioridade — nunca estourar o orçamento do site |
+| `test_beneficio_na_tarifa.py` | a ordem em que desconto, franquia e mínimo entram na conta |
+| `test_campanhas.py` | elegibilidade e contagem: quem paga, por quanto tempo, sobre quais sessões |
+| `test_recompensas.py` | que ninguém seja pago duas vezes, com teste de corrida no banco |
+| `test_assinatura_motorista.py` | o encontro de plano e campanha: o melhor de cada, nunca a soma |
+| `test_assinatura_plataforma.py` | multa, prazo mínimo e a cobrança que não sai duas vezes |
+| `test_previsao.py` | que nenhum número de previsão saia sem a sua incerteza |
+| `test_seed_historico.py` | que o histórico gerado seja fisicamente possível |
+| `test_rotulos_do_recibo.py` | que o recibo não imprima nomes de coluna |
 | `test_session_lifecycle.py` | máquina de estados: fila, telemetria, ociosidade, encerramento |
 | `test_billing.py` | idempotência da fatura, linhas, mínimo, taxa do adquirente |
 | `test_payments.py` | carteira, idempotência da cobrança, liquidação por meio |
@@ -410,6 +418,76 @@ estabelecimento, com o parâmetro *ignorado, não rejeitado* (rejeitar com 403 c
 id existe); o **admin** escolhe, e o id é conferido contra o banco, senão um uuid digitado
 errado devolveria 200 vazio, indistinguível de uma praça sem movimento.
 
+### 7. Campanhas e recompensas
+
+Duas tabelas para duas perguntas diferentes: `campaigns` diz **quem paga**, `missions` diz **o
+que precisa acontecer**.
+
+Uma campanha declara **um único** `beneficio_tipo`, garantido por check constraint. Nunca "20%
+de desconto E 5% de cashback" — é o caminho para ninguém conseguir dizer quanto a campanha
+custou. E o bolso segue o mecanismo: **desconto** na fatura sai do estabelecimento, porque é a
+margem dele naquela sessão; **cashback** na carteira sai da rede, porque crédito de carteira é
+resgatável em qualquer site e um estabelecimento que o bancasse estaria financiando uma recarga
+do concorrente ao lado. Inverter qualquer um dos dois produz um modelo invendável. `mission_progress` é **materializado**, e não derivado por consulta —
+não porque derivar seria caro, mas porque um valor derivado não tem *instante*: a recompensa
+precisa de um "quando isto foi concluído" para ser paga uma única vez, e sem linha não há onde
+pendurar o índice único que impede o crédito duplo. Também porque a regra pode mudar depois que
+alguém cumpriu: derivado, subir o alvo de 5 para 6 retiraria uma conclusão que o app já
+comemorou.
+
+**Agregação síncrona, pagamento assíncrono.** O progresso é recalculado dentro do mesmo commit
+que fecha a fatura — é agregação determinística da sessão que acabou de encerrar, sem I/O
+externo, então ou os dois existem ou nenhum. A concessão da recompensa não: mexe em saldo e em
+push, e uma falha lá não pode desfazer a fatura.
+
+O valor gravado é **absoluto**, recalculado por consulta. Sai mais caro e paga por si em duas
+coisas: `dias_distintos` não é somável, e reprocessar uma sessão não dobra a contagem.
+
+O push da recompensa usa **outbox próprio** (`rewards.notified_at`), e não `session_events`.
+Afrouxar `session_events.session_id` para nulável seria o caminho curto e destruiria uma
+guarda: `enviar_pendentes` trata `session is None` como evento órfão a descartar. E
+`IDADE_MAXIMA_MIN` **não se aplica** aqui — "venha buscar o carro" perde valor em 30 minutos,
+"você ganhou R$ 12" não perde nunca.
+
+### 8. Assinatura do motorista
+
+O plano entrega desconto percentual, kWh inclusos e isenção da taxa de conexão, tudo pelo mesmo
+`Beneficio` que as campanhas usam: `rate_session` continua puro e não sabe que assinatura
+existe. **Não há isenção de ociosidade**, e a ausência é deliberada — essa taxa não é receita, é
+o mecanismo que libera a vaga, e isentar o assinante transformaria o melhor cliente naquele que
+mais trava o conector.
+
+Cancelar interrompe a renovação, não o mês já pago: há `ativa_de` para "pode assinar de novo?"
+e `vigente_de` para "esta recarga tem desconto?". Usar uma no lugar da outra produz cobrança
+dupla ou benefício retirado de quem pagou.
+
+A mensalidade vira uma `Invoice` sem `site_id` — é da rede, e atribuí-la a uma praça inflaria o
+faturamento de um estabelecimento com dinheiro que ele não recebeu.
+
+### 9. Assinatura da plataforma
+
+Dinheiro na direção **oposta**: aqui o estabelecimento paga a GoodWe. Por isso
+`platform_invoices` é tabela separada, e não mais um `kind` em `invoices` — os relatórios somam
+`invoices` por site, e a mensalidade entraria como receita de recarga do próprio lojista que a
+pagou.
+
+`minimo_ate` **não avança na renovação automática**. A rescisão antecipada gera multa
+proporcional às mensalidades que faltavam; passado o prazo, sair é livre.
+
+**Escopo honesto:** o serviço emite cobranças, não as liquida. Não há integração bancária nem
+relógio de competência, e a baixa é manual — de admin, porque deixar o próprio devedor declarar
+que pagou não seria baixa manual.
+
+### 10. Previsão de demanda
+
+A API apenas **lê** `site_forecasts`. Quem escreve é `apps/forecast`, fora deste processo: um
+`import lightgbm` que falhe não pode derrubar o rebalanceamento de potência junto.
+
+Três avisos acompanham o número, e cada um responde a uma pergunta diferente: histórico
+insuficiente (o valor é média móvel, não previsão); faixa mais estreita do que anuncia; e
+**modelo que não supera a régua**. Nenhum é escondido — mesma tradição de `confiavel` em
+`demand_service` e `so_humano` em `maintenance_service`.
+
 ## App mobile (`/api/v1/app/*`)
 
 Dashboard e app compartilham domínio, serviços e banco — o que muda é o escopo: o motorista
@@ -534,6 +612,22 @@ problemas num relatório que deveria mostrar um.
 
 A lista de reportes de um ponto é informação do operador — o motorista só recupera os próprios.
 
+### Missões e recompensas
+
+`GET /app/missions` devolve as missões vigentes com o progresso **deste** motorista, filtrado
+pelo `user.id` do token. A resposta não traz orçamento de campanha: expor isso vazaria a
+estratégia comercial do estabelecimento para quem carrega nele.
+
+Missões que ele ainda não começou aparecem com progresso zero — uma tela que só mostrasse
+missão iniciada estaria vazia para quem acabou de instalar o app, que é exatamente quem mais
+precisa ver o que há para ganhar.
+
+### Plano de recarga
+
+`GET /app/plans`, `POST /app/subscription` e `DELETE /app/subscription`. Saldo insuficiente
+devolve **402**, e não 500: é condição esperada, e o app precisa distinguir "recarregue a
+carteira" de "algo quebrou".
+
 ### Modo frota
 
 | Endpoint | Uso |
@@ -614,7 +708,7 @@ quem disparou) — perícia de falha em campo depende disso.
 
 ## Modelo de dados
 
-25 tabelas. As de série temporal (`telemetry_samples`, `site_meter_readings`, `command_logs`,
+35 tabelas. As de série temporal (`telemetry_samples`, `site_meter_readings`, `command_logs`,
 `audit_logs`) recebem índice **BRIN** — ordens de grandeza menor que B-tree quando as linhas
 já chegam ordenadas no tempo, que é o caso do poller.
 
@@ -627,14 +721,31 @@ sites ─┬─ charge_points ─┬─ charge_point_connections
        ├─ site_payment_methods
        ├─ site_meter_readings
        ├─ priority_rules
+       ├─ site_forecasts              (a API só lê; quem escreve é apps/forecast)
+       ├─ site_subscriptions ── platform_invoices   (o site paga a GoodWe)
        └─ charging_sessions ─┬─ session_events
                              └─ invoices ─┬─ invoice_lines
                                           └─ payments
 fleets ── users ─┬─ vehicles      (o centro de custo mora aqui)
                  ├─ rfid_cards
                  ├─ reservations
-                 └─ push_devices
+                 ├─ push_devices
+                 ├─ wallet_topups            (crédito, com a origem declarada)
+                 ├─ driver_subscriptions ── driver_plans
+                 └─ mission_progress ── missions ── campaigns
+                          └─ rewards          (o "eu te devo", separado do progresso)
+platform_plans ── site_subscriptions
 ```
+
+O dinheiro anda nas **duas direções**, e as tabelas refletem isso. Em `invoices` o motorista
+paga o estabelecimento; em `platform_invoices` o estabelecimento paga a rede. Juntá-las seria
+tentador e envenenaria todo relatório: `utilization_service` e `portfolio_service` somam
+`invoices` por `site_id`, e a mensalidade da plataforma entraria como receita de recarga do
+próprio lojista que a pagou.
+
+`rewards` usa `RESTRICT` na campanha enquanto as demais usam `CASCADE`, e a divergência é
+deliberada: recompensa é dinheiro concedido, e apagar a campanha não pode apagar o rastro de
+quem já ganhou.
 
 As duas fontes de defeito ficam **separadas de propósito**. `charge_point_faults` tem bit e
 contagem de ciclos; `charge_point_reports` tem categoria e texto de gente. Forçar um formato no
@@ -660,9 +771,17 @@ O backend já produz o dado estruturado que os modelos precisam e expõe os pont
 | Precificação dinâmica | Histórico de sessões, ocupação, janelas | `Tariff.dynamic_multiplier` |
 | Alocação inteligente | Curva real de cada ponto e sessão | `ChargePoint.priority` (o alocador respeita) |
 | Detecção de anomalia | `command_logs` + falhas decodificadas | `ChargePointStatus.MAINTENANCE` |
+| Previsão de energia | `charging_sessions` agregadas por dia e local | `site_forecasts` (leitura da API) |
 
 O multiplicador dinâmico é aplicado pelo motor de tarifação e registrado no snapshot da fatura —
 o preço cobrado continua explicável, que é o requisito para cobrança dinâmica em varejo.
+
+A previsão de energia é o único pilar com **modelo treinado de verdade** hoje, e o resultado
+honesto é que ele **não supera a régua**: 9,05% de erro contra 7,61% de uma média móvel de 28
+dias, com a faixa p10–p90 cobrindo 62,3% onde promete 80%. Os dois números vão para o banco e a
+tela avisa o operador. As causas prováveis são estruturais — três estações treinadas onde o
+pipeline foi desenhado para oito — e perseguir acurácia contra dado gerado por seed não
+significaria nada. `apps/forecast/README.md` detalha o caminho de retreino.
 
 ---
 
@@ -681,7 +800,12 @@ então dá para conferir tela contra endpoint:
 | "Encerrar sessão" | `POST /api/v1/sessions/{id}/stop` |
 | `TariffPayment.jsx` | `GET /api/v1/tariffs`, `/payment-methods`, `/invoices` |
 | simulador de custo | `POST /api/v1/tariffs/simulate` |
-| `DemandContract.jsx` | `GET /power/demand/forecast`, `/avoided-cost`, `/contract-simulator` |
+| `DemandContract.jsx` | `GET /power/demand/forecast`, `/avoided-cost`, `/contract-simulator`, `/energy-forecast` |
+| `Campaigns.jsx` | `GET /campaigns`, `POST /campaigns`, `GET /campaigns/{id}/desempenho` |
+| encerrar campanha | `DELETE /campaigns/{id}` (desativa; não apaga o progresso de ninguém) |
+| `Contract.jsx` | `GET /platform/contract`, `/platform/plans` |
+| rescindir | `POST /platform/contract/terminate` (devolve a multa antes de confirmar) |
+| dar baixa | `POST /platform/invoices/{id}/settle` — **só admin** |
 | `Utilization.jsx` | `GET /power/utilization/by-point` |
 | `PriorityRules.jsx` | `GET /power/priority-rules` + `/preview`; grava por `POST`/`PUT`/`DELETE` |
 | `Portfolio.jsx` | `GET /power/sites/portfolio` |

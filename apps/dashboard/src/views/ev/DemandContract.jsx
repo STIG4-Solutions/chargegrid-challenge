@@ -1,5 +1,6 @@
 import { brl, num, power, useApi } from '@chargegrid/sdk'
 import { Async } from '../../components/Async.jsx'
+import { bandaConfiavel, escalaDaBanda, superaARegua, temBanda } from './previsao.js'
 
 /**
  * Demanda contratada: previsão de estouro e custo evitado.
@@ -14,6 +15,9 @@ export default function DemandContract() {
   const previsao = useApi(() => power.demandForecast(8), [], { pollMs: 60000 })
   const evitado = useApi(() => power.avoidedCost(30), [], { pollMs: 300000 })
   const contrato = useApi(() => power.contractSimulator(30), [], { pollMs: 600000 })
+  // Recalculada uma vez por mes, por um job fora da API: nao ha o que
+  // buscar de minuto em minuto.
+  const energia = useApi(() => power.energyForecast(), [], { pollMs: 3600000 })
 
   return (
     <div>
@@ -42,6 +46,20 @@ export default function DemandContract() {
         onRetry={contrato.refetch}
       >
         {contrato.data && <Simulador d={contrato.data} />}
+      </Async>
+
+      {/* Quarto bloco, e nao aba propria. A tela ja responde "quanto vou
+          puxar" (kW, contrato); isto responde "quanto vou vender" (kWh,
+          faturamento). As duas alimentam a MESMA decisao - quanta demanda
+          contratar -, e separa-las obrigaria a ler duas telas para decidir uma
+          coisa so'. */}
+      <Async
+        loading={energia.loading}
+        error={energia.error}
+        data={energia.data}
+        onRetry={energia.refetch}
+      >
+        {energia.data && <PrevisaoDeEnergia d={energia.data} />}
       </Async>
     </div>
   )
@@ -336,6 +354,145 @@ function Simulador({ d }) {
         A ultrapassagem é calculada sobre o maior excedente do período, não sobre cada janela:
         uma vez que se estoura, o dano do mês está feito.
       </p>
+    </div>
+  )
+}
+
+
+const TOM_DO_AVISO = {
+  alto: { borda: 'var(--sems-red)', fundo: 'rgba(255, 50, 58, 0.10)' },
+  medio: { borda: 'var(--sems-yellow)', fundo: 'rgba(255, 204, 0, 0.10)' }
+}
+
+/**
+ * Quanto o site deve VENDER no próximo mês.
+ *
+ * O número vem de um modelo, e a tela mostra a incerteza dele junto — não em
+ * nota de rodapé. Um valor previsto desenhado igual a um valor medido diz ao
+ * operador que os dois valem o mesmo, e ele contrata demanda por isso.
+ */
+function PrevisaoDeEnergia({ d }) {
+  if (!d.disponivel) {
+    return (
+      <div className="panel">
+        <div className="card-title">Previsão de energia</div>
+        <div className="card-sub">{d.motivo}</div>
+      </div>
+    )
+  }
+
+  const banda = temBanda(d)
+  const escala = escalaDaBanda(d)
+  const confiavel = bandaConfiavel(d.cobertura_medida_pct, d.cobertura_declarada_pct)
+  const ganhaDaRegua = superaARegua(d.wape_modelo_pct, d.wape_baseline_pct)
+  const mes = new Date(`${d.competencia}T12:00:00`).toLocaleDateString('pt-BR', {
+    month: 'long',
+    year: 'numeric'
+  })
+
+  return (
+    <div className="panel">
+      <div className="card-title">Previsão de energia — {mes}</div>
+      <div className="card-sub">
+        Quanto este ponto deve vender no próximo mês. A aba responde quanto você vai{' '}
+        <em>puxar</em>; isto responde quanto vai <em>vender</em>, e as duas decidem a mesma
+        coisa: quanta demanda contratar.
+      </div>
+
+      {d.avisos.map((aviso) => {
+        const tom = TOM_DO_AVISO[aviso.nivel] ?? TOM_DO_AVISO.medio
+        return (
+          <div
+            key={aviso.texto}
+            style={{
+              marginTop: 12,
+              padding: '10px 12px',
+              borderRadius: 8,
+              border: `1px solid ${tom.borda}`,
+              background: tom.fundo,
+              fontSize: 13
+            }}
+          >
+            {aviso.texto}
+          </div>
+        )
+      })}
+
+      <div className="grid grid-3" style={{ marginTop: 16 }}>
+        <div className="stat">
+          <div className="label">
+            {d.modelo_aplicavel ? 'Energia prevista' : 'Média dos últimos 28 dias'}
+          </div>
+          <div className="value">
+            {num(d.kwh_previsto, 0)} <small>kWh</small>
+          </div>
+          {banda && (
+            <div className="trend muted">
+              faixa {num(d.kwh_p10, 0)} – {num(d.kwh_p90, 0)} kWh
+            </div>
+          )}
+        </div>
+        <div className="stat">
+          <div className="label">Faturamento previsto</div>
+          <div className="value">{brl(d.faturamento_previsto_brl ?? 0)}</div>
+          {banda && d.fat_p10_brl != null && (
+            <div className="trend muted">
+              {brl(d.fat_p10_brl)} – {brl(d.fat_p90_brl)}
+            </div>
+          )}
+        </div>
+        <div className="stat">
+          <div className="label">Base de cálculo</div>
+          <div className="value">
+            {num(d.dias_de_historico ?? 0, 0)} <small>dias</small>
+          </div>
+          <div className="trend muted">
+            {d.modelo_aplicavel ? `modelo ${d.modelo_versao ?? '—'}` : 'sem modelo aplicável'}
+          </div>
+        </div>
+      </div>
+
+      {/* A barra só existe quando há banda de verdade. Desenhá-la em volta de
+          uma média móvel daria ares de previsão a uma conta de padaria. */}
+      {escala && (
+        <div style={{ marginTop: 16 }}>
+          <div
+            style={{
+              position: 'relative',
+              height: 10,
+              borderRadius: 999,
+              background: 'var(--sems-card-2)'
+            }}
+          >
+            <div
+              style={{
+                position: 'absolute',
+                left: `${escala.inicio}%`,
+                width: `${escala.fim - escala.inicio}%`,
+                top: 0,
+                bottom: 0,
+                borderRadius: 999,
+                background: confiavel ? 'rgba(52, 199, 89, 0.35)' : 'rgba(255, 204, 0, 0.30)'
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                left: `${escala.previsto}%`,
+                top: -3,
+                width: 2,
+                height: 16,
+                background: 'var(--sems-text)'
+              }}
+            />
+          </div>
+          <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+            faixa p10–p90 · cobertura medida {num(d.cobertura_medida_pct ?? 0, 0)}% (esperada{' '}
+            {num(d.cobertura_declarada_pct ?? 0, 0)}%)
+            {ganhaDaRegua === false && ' · erro acima da média móvel de 28 dias'}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

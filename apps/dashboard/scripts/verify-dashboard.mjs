@@ -19,18 +19,38 @@ const workspace = fileURLToPath(new URL('../../..', import.meta.url))
 const cache = join(workspace, 'node_modules/.cache/chargegrid')
 mkdirSync(cache, { recursive: true })
 const saida = join(cache, 'painel.mjs')
+const saidaCampanha = join(cache, 'campanha.mjs')
+const saidaPrevisao = join(cache, 'previsao.mjs')
+const saidaContrato = join(cache, 'contrato.mjs')
 
 // Só os módulos puros entram. Importar um `.jsx` puxaria React e o SDK inteiro
 // para dentro do Node — e o que se quer verificar não depende de nenhum deles.
-await build({
-  entryPoints: [join(raiz, 'src/views/ev/orcamento.js')],
-  outfile: saida,
-  bundle: true,
-  format: 'esm',
-  platform: 'neutral'
-})
+//
+// Uma chamada por módulo, e não `entryPoints` com os dois: com mais de uma
+// entrada o esbuild exige `outdir` e passa a decidir os nomes dos arquivos, e o
+// import logo abaixo deixaria de saber o que procurar.
+for (const [entrada, destino] of [
+  ['src/views/ev/orcamento.js', saida],
+  ['src/views/ev/campanha.js', saidaCampanha],
+  ['src/views/ev/previsao.js', saidaPrevisao],
+  ['src/views/ev/contrato.js', saidaContrato]
+]) {
+  await build({
+    entryPoints: [join(raiz, entrada)],
+    outfile: destino,
+    bundle: true,
+    format: 'esm',
+    platform: 'neutral'
+  })
+}
 
 const { alteracoesDoOrcamento, mudouPorBaixo } = await import(pathToFileURL(saida).href)
+const { problemasDaCampanha, consumoDoOrcamento, situacaoDaCampanha, alteracoesDaCampanha } =
+  await import(pathToFileURL(saidaCampanha).href)
+const { bandaConfiavel, superaARegua, temBanda, escalaDaBanda } =
+  await import(pathToFileURL(saidaPrevisao).href)
+const { mesesRestantes, multaPorRescisao, pontosExcedentes, proximaCobranca } =
+  await import(pathToFileURL(saidaContrato).href)
 
 let falhas = 0
 const check = (nome, cond, extra = '') => {
@@ -148,6 +168,267 @@ check(
   mesmo(mudouPorBaixo(base, base, CHAVES, meu), [])
 )
 
+// ---- formulário de campanha ----
+//
+// O que estas regras protegem é o dinheiro do estabelecimento: uma campanha mal
+// formada ou é recusada com uma mensagem que ninguém entende, ou é aceita e
+// passa a gastar orçamento de um jeito que quem a criou não previu.
+
+const AMANHA = new Date(Date.now() + 86400000).toISOString()
+const DEPOIS = new Date(Date.now() + 30 * 86400000).toISOString()
+
+const cashbackValida = {
+  nome: 'Setembro Verde',
+  starts_at: AMANHA,
+  ends_at: DEPOIS,
+  beneficio_tipo: 'cashback_fixo',
+  beneficio_valor: 5,
+  orcamento_brl: 1000,
+  missoes: [{ codigo: 'tres', alvo: 3 }]
+}
+
+// 10. O caminho feliz precisa passar, senão os testes abaixo não provam nada:
+//     uma função que reprova tudo satisfaria todos os cenários negativos.
+check(
+  'campanha bem formada nao acusa problema',
+  problemasDaCampanha(cashbackValida).length === 0,
+  JSON.stringify(problemasDaCampanha(cashbackValida))
+)
+
+// 11. Cashback sem missão não premia ninguém: não há o que cumprir.
+check(
+  'cashback sem missao e recusado',
+  problemasDaCampanha({ ...cashbackValida, missoes: [] }).some((e) => e.includes('missão'))
+)
+
+// 12. Desconto age na fatura, na hora. Missão ali nunca premiaria nada.
+check(
+  'desconto com missao e recusado',
+  problemasDaCampanha({
+    ...cashbackValida,
+    beneficio_tipo: 'desconto_pct',
+    beneficio_valor: 10
+  }).some((e) => e.includes('missões'))
+)
+
+// 13. Período invertido.
+check(
+  'termino antes do inicio e recusado',
+  problemasDaCampanha({ ...cashbackValida, starts_at: DEPOIS, ends_at: AMANHA }).some((e) =>
+    e.includes('depois do início')
+  )
+)
+
+// 14. Teto acima do orçamento: a primeira recompensa estouraria a campanha.
+check(
+  'teto maior que o orcamento e recusado',
+  problemasDaCampanha({ ...cashbackValida, orcamento_brl: 100, teto_por_recompensa: 500 }).some(
+    (e) => e.includes('teto')
+  )
+)
+
+// 15. Percentual acima de 100 devolveria mais do que o motorista pagou.
+check(
+  'percentual acima de 100 e recusado',
+  problemasDaCampanha({
+    ...cashbackValida,
+    beneficio_tipo: 'cashback_pct',
+    beneficio_valor: 150
+  }).some((e) => e.includes('100%'))
+)
+
+// 16. Códigos repetidos: o banco tem UNIQUE (campaign_id, codigo) e devolveria
+//     um erro de constraint que ninguém sabe ler.
+check(
+  'missoes com codigo repetido sao recusadas',
+  problemasDaCampanha({
+    ...cashbackValida,
+    missoes: [
+      { codigo: 'tres', alvo: 3 },
+      { codigo: 'tres', alvo: 5 }
+    ]
+  }).some((e) => e.includes('mesmo código'))
+)
+
+// 17. Campanha SEM orçamento definido não é campanha esgotada.
+//
+// Pintar a barra cheia diria exatamente o oposto do que é: sem teto, e não sem
+// saldo. O operador desligaria uma campanha que ainda está funcionando.
+check('sem orcamento a barra fica vazia, nao cheia', consumoDoOrcamento({ orcamento_brl: 0, consumido_brl: 0 }) === 0)
+check('consumo e proporcional', consumoDoOrcamento({ orcamento_brl: 200, consumido_brl: 50 }) === 25)
+check(
+  'consumo nao passa de 100 mesmo estourado',
+  consumoDoOrcamento({ orcamento_brl: 100, consumido_brl: 250 }) === 100
+)
+
+// 18. `ativa` é intenção; o período é fato.
+//
+// Uma campanha marcada ativa cujo prazo passou não age sobre nenhuma recarga.
+// Mostrá-la como "vigente" faria o operador esperar um efeito que não vem.
+const ONTEM = new Date(Date.now() - 86400000).toISOString()
+const ANTEONTEM = new Date(Date.now() - 2 * 86400000).toISOString()
+check(
+  'campanha ativa com prazo vencido aparece como expirada',
+  situacaoDaCampanha({ ativa: true, starts_at: ANTEONTEM, ends_at: ONTEM }) === 'expirada'
+)
+check(
+  'campanha ativa que ainda nao comecou aparece como agendada',
+  situacaoDaCampanha({ ativa: true, starts_at: AMANHA, ends_at: DEPOIS }) === 'agendada'
+)
+check(
+  'campanha ativa dentro do prazo aparece como vigente',
+  situacaoDaCampanha({ ativa: true, starts_at: ONTEM, ends_at: DEPOIS }) === 'vigente'
+)
+check(
+  'campanha desativada aparece como encerrada',
+  situacaoDaCampanha({ ativa: false, starts_at: ONTEM, ends_at: DEPOIS }) === 'encerrada'
+)
+
+// 19. Mesmo contrato do orçamento: só o que foi tocado viaja.
+//
+// Aqui isso vale dinheiro — o orçamento é editável, e enviar o rascunho inteiro
+// reverteria em silêncio o valor que outra pessoa acabou de ajustar.
+const baseCampanha = { nome: 'Setembro', orcamento_brl: 1000, ativa: true }
+const CHAVES_CAMPANHA = ['nome', 'orcamento_brl', 'ativa']
+check(
+  'campanha intacta nao gera PATCH',
+  mesmo(alteracoesDaCampanha({ ...baseCampanha }, baseCampanha, CHAVES_CAMPANHA), {})
+)
+check(
+  'orcamento alheio nao viaja no PATCH',
+  !('orcamento_brl' in alteracoesDaCampanha({ ...baseCampanha, nome: 'Outubro' }, baseCampanha, CHAVES_CAMPANHA))
+)
+check(
+  'string do input numerico nao vira alteracao fantasma',
+  mesmo(alteracoesDaCampanha({ ...baseCampanha, orcamento_brl: '1000' }, baseCampanha, CHAVES_CAMPANHA), {})
+)
+check(
+  'desativar a campanha e detectado',
+  mesmo(alteracoesDaCampanha({ ...baseCampanha, ativa: false }, baseCampanha, CHAVES_CAMPANHA), {
+    ativa: false
+  })
+)
+// Texto diferente com o mesmo valor numérico não pode ser confundido: 'Setembro'
+// e 'Outubro' viram NaN os dois, e comparar como número diria que são iguais.
+check(
+  'nome trocado e detectado mesmo nao sendo numero',
+  mesmo(alteracoesDaCampanha({ ...baseCampanha, nome: 'Outubro' }, baseCampanha, CHAVES_CAMPANHA), {
+    nome: 'Outubro'
+  })
+)
+
+// ---- previsão de demanda ----
+//
+// Estas regras decidem quanta CONFIANÇA a tela transmite. Um número previsto
+// desenhado igual a um número medido diz ao operador que os dois valem o mesmo,
+// e ele contrata demanda por isso.
+
+// 20. O caso real medido no retreino: a faixa cobriu 56% do que promete 80%.
+//     O "pior caso" desenhado na tela é otimista, e quem dimensiona contrato
+//     pelo extremo inferior erra mais do que espera.
+check('faixa que cobre 56 quando promete 80 nao e confiavel', bandaConfiavel(56.5, 80) === false)
+check('faixa que cobre o prometido e confiavel', bandaConfiavel(80, 80) === true)
+
+// 21. Backtest de três meses tem ruído; acusar por um ponto só geraria alarme.
+check('diferenca dentro da tolerancia nao acusa', bandaConfiavel(77, 80) === true)
+check('sem medicao nao ha o que acusar', bandaConfiavel(null, 80) === true)
+
+// 22. A régua é uma média móvel de 28 dias — três linhas de código.
+//
+// O primeiro retreino deu 12,36% contra 9,45% dela. Um modelo que perde não é
+// inútil, mas não pode ser apresentado como base de decisão.
+check('modelo que erra mais que a regua nao a supera', superaARegua(12.36, 9.45) === false)
+check('modelo que erra menos supera', superaARegua(7.78, 10.4) === true)
+// Empate conta como derrota: mesmo resultado, e a régua é preferível por ser
+// explicável.
+check('empate conta como derrota', superaARegua(10, 10) === false)
+check('sem metrica a comparacao nao existe', superaARegua(null, 10) === null)
+
+// 23. Banda em volta de uma média móvel daria ares de previsão a uma conta de
+//     padaria — e meia banda mente sobre a incerteza declarada.
+check(
+  'fallback nao desenha banda',
+  temBanda({ modelo_aplicavel: false, kwh_p10: 10, kwh_p90: 20 }) === false
+)
+check(
+  'banda pela metade nao e desenhada',
+  temBanda({ modelo_aplicavel: true, kwh_p10: 10, kwh_p90: null }) === false
+)
+check(
+  'modelo aplicavel com os dois extremos desenha',
+  temBanda({ modelo_aplicavel: true, kwh_p10: 10, kwh_p90: 20 }) === true
+)
+
+// 24. A escala da barra.
+const comBanda = { modelo_aplicavel: true, kwh_p10: 5215, kwh_p90: 10005, kwh_previsto: 8283 }
+const escala = escalaDaBanda(comBanda)
+check('previsto cai dentro da banda desenhada', escala.previsto > escala.inicio && escala.previsto < escala.fim)
+check('a banda sobra dos dois lados', escala.inicio > 0 && escala.fim < 100)
+check('sem banda nao ha escala', escalaDaBanda({ modelo_aplicavel: false }) === null)
+// p10 == p90 seria divisão por zero e a barra sairia com NaN de largura.
+check(
+  'banda degenerada nao produz escala',
+  escalaDaBanda({ modelo_aplicavel: true, kwh_p10: 100, kwh_p90: 100, kwh_previsto: 100 }) === null
+)
+
+// ---- contrato com a plataforma ----
+//
+// A tela precisa dizer quanto custa rescindir ANTES de o operador confirmar.
+// Descobrir depois é a diferença entre uma decisão e uma surpresa — e aqui a
+// surpresa tem valor em reais.
+
+const HOJE = new Date('2026-09-10T12:00:00Z')
+
+// 25. Prazo já vencido não pode gerar meses negativos.
+//
+// Sem o piso em zero a multa vira CRÉDITO: a tela ofereceria dinheiro a quem
+// está saindo, que é o oposto do que um prazo mínimo existe para fazer.
+check('prazo vencido nao deixa meses negativos', mesesRestantes(HOJE, '2025-01-01') === 0)
+check('doze meses inteiros a frente contam doze', mesesRestantes(HOJE, '2027-09-10') === 12)
+
+// 26. O dia importa: dia 20 até dia 10 do mês seguinte não é um mês cheio.
+check('mes incompleto nao conta', mesesRestantes(new Date('2026-09-20T12:00:00Z'), '2026-10-10') === 0)
+check('mes completo conta', mesesRestantes(HOJE, '2026-10-10') === 1)
+
+// 27. A multa é proporcional ao que faltava.
+check('multa de 6 meses a 30% sobre R$100', multaPorRescisao(100, 6, 30) === 180)
+check('sem meses restantes nao ha multa', multaPorRescisao(100, 0, 30) === 0)
+// Percentual zero é escolha comercial legítima, não bug.
+check('percentual zero nao cobra nada', multaPorRescisao(100, 6, 0) === 0)
+// Contrato já vencido combinado com a função acima: a cadeia inteira dá zero.
+check(
+  'prazo vencido nao produz multa pela cadeia inteira',
+  multaPorRescisao(100, mesesRestantes(HOJE, '2025-01-01'), 30) === 0
+)
+
+// 28. Franquia de pontos: passar dela não é erro, é o gatilho de cobrança.
+check('dentro da franquia nao ha excedente', pontosExcedentes(2, 4) === 0)
+check('acima da franquia conta a diferenca', pontosExcedentes(6, 4) === 2)
+check('franquia ausente trata tudo como excedente', pontosExcedentes(3, undefined) === 3)
+
+// 29. As três parcelas separadas.
+//
+// Somadas num número só, "R$ 480" não permite conferência — e o lojista vai
+// conferir de qualquer jeito, com ou sem a tela ajudando.
+const plano = {
+  preco_mensal_brl: 149,
+  preco_por_ponto_brl: 35,
+  pontos_inclusos: 2,
+  fee_percent_transacao: 3.5
+}
+const conta = proximaCobranca(plano, 4, 10000)
+check('assinatura entra pelo valor do plano', conta.assinatura === 149)
+check('dois pontos excedentes a R$35', conta.pontos === 70)
+check('taxa de 3,5% sobre R$10.000', conta.transacao === 350)
+check('o total e a soma das tres parcelas', conta.total === 569)
+// Site sem faturamento no mês paga só a parte fixa.
+const semMovimento = proximaCobranca(plano, 2, 0)
+check('sem faturamento a taxa e zero', semMovimento.transacao === 0)
+check('sem faturamento resta a mensalidade', semMovimento.total === 149)
+
 rmSync(saida, { force: true })
+rmSync(saidaCampanha, { force: true })
+rmSync(saidaPrevisao, { force: true })
+rmSync(saidaContrato, { force: true })
 console.log(falhas === 0 ? '\nTodos os cenarios passaram.' : `\n${falhas} falha(s).`)
 process.exit(falhas === 0 ? 0 : 1)

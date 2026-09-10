@@ -10,7 +10,9 @@ const modules = [
   { to: '/ev/tariff', label: 'Tarifação & Pagamento' },
   { to: '/ev/demand', label: 'Demanda Contratada' },
   { to: '/ev/utilization', label: 'Ocupação & Retorno' },
-  { to: '/ev/priority', label: 'Regras de Prioridade' }
+  { to: '/ev/priority', label: 'Regras de Prioridade' },
+  { to: '/ev/campaigns', label: 'Campanhas' },
+  { to: '/ev/contract', label: 'Plano & Contrato' }
 ]
 
 export default function EvCharging() {

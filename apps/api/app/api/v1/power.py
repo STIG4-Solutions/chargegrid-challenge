@@ -538,3 +538,23 @@ async def sites_portfolio(
 ) -> dict:
     """As praças lado a lado. Só admin — é a visão da rede, não a de um site."""
     return await portfolio_service.visao_da_rede(db, dias=dias)
+
+
+@router.get("/demand/energy-forecast")
+async def demand_energy_forecast(db: DbSession, site_id: ScopedSiteId, _: OperatorUser) -> dict:
+    """Quanto este site deve VENDER no proximo mes, em kWh e em reais.
+
+    A aba ja responde "quanto vou puxar" - kW, contrato, custo evitado. Isto
+    responde "quanto vou vender", e as duas alimentam a MESMA decisao: quanta
+    demanda contratar. Por isso mora aqui e nao numa aba propria.
+
+    A API so' LE: quem escreve e' o job de `apps/forecast`, que roda fora do
+    processo da API. Sem linha para a competencia, a resposta e' `disponivel:
+    false` - e a tela diz que nao ha previsao, em vez de inventar um numero.
+
+    Seguranca: filtra por `site_id` do escopo, que para operador comum e' sempre
+    o site dele, independentemente do que a query pedir.
+    """
+    from app.services import forecast_service
+
+    return await forecast_service.previsao_do_site(db, site_id)

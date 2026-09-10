@@ -51,6 +51,13 @@ export type PontoLido = S['ScannedChargePointOut']
 export type Agendamento = S['ReservationOut']
 export type StatusAgendamento = S['ReservationStatus']
 export type Veiculo = S['VehicleOut']
+export type Missao = S['MissaoDoMotoristaOut']
+export type Recompensa = S['RecompensaOut']
+
+// Campanhas (painel do operador)
+export type Campanha = S['CampanhaOut']
+export type CampanhaNova = S['CampanhaIn']
+export type DesempenhoDaCampanha = S['DesempenhoOut']
 
 /** Página genérica devolvida pelas listagens. */
 export interface Pagina<T> {

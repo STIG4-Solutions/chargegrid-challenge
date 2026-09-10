@@ -59,6 +59,13 @@ export const power = {
   portfolio: (dias = 30) =>
     api.get<Record<string, unknown>>('/power/sites/portfolio', { dias }),
   /** Regras de prioridade nomeadas do site. */
+  /**
+   * Quanto o site deve VENDER no proximo mes, em kWh e em reais.
+   *
+   * Calculada fora da API, por um job que roda uma vez por mes. Sem previsao a
+   * resposta vem com `disponivel: false` e um motivo - nao e' erro.
+   */
+  energyForecast: () => api.get<Record<string, unknown>>('/power/demand/energy-forecast'),
   priorityRules: () => api.get<Record<string, unknown>[]>('/power/priority-rules'),
   createPriorityRule: (dados: Record<string, unknown>) =>
     api.post<Record<string, unknown>>('/power/priority-rules', dados),
@@ -125,7 +132,61 @@ export const payments = {
 }
 
 // ---- app do motorista -------------------------------------------------------
+// --------------------------------------------------------------- campanhas
+//
+// Gestao pelo operador. O `site_id` NAO viaja no corpo: o servidor o tira do
+// escopo do token, e mandar um daqui so' criaria a impressao de que a tela
+// escolhe quem paga.
+export const campaigns = {
+  /** Campanhas desta praca, mais as de rede que agem sobre ela. */
+  list: () => api.get<T.Campanha[]>('/campaigns'),
+  /** Cria a campanha junto com as missoes, numa transacao so'. */
+  create: (corpo: T.CampanhaNova) => api.post<T.Campanha>('/campaigns', corpo),
+  /** Edicao parcial: so' os campos tocados viajam. */
+  update: (id: string, mudancas: Partial<T.CampanhaNova>) =>
+    api.patch<T.Campanha>(`/campaigns/${id}`, mudancas),
+  /** Se o dinheiro comprou comportamento ou so' saiu do caixa. */
+  performance: (id: string) => api.get<T.DesempenhoDaCampanha>(`/campaigns/${id}/desempenho`),
+  /** Encerra. Nao apaga: o progresso de quem estava no meio dela sobrevive. */
+  close: (id: string) => api.del<void>(`/campaigns/${id}`)
+}
+
+// ------------------------------------------------- contrato da plataforma
+//
+// Dinheiro na direcao oposta ao resto do sistema: aqui o estabelecimento paga a
+// rede, e nao o motorista paga o estabelecimento.
+export const platform = {
+  /** O que a GoodWe vende ao estabelecimento. */
+  plans: () => api.get<Record<string, unknown>[]>('/platform/plans'),
+  /** Contrato desta praca, com as ultimas cobrancas. */
+  contract: () => api.get<Record<string, unknown>>('/platform/contract'),
+  /** Contrata. O site vem do escopo do token, nunca do corpo. */
+  subscribe: (codigo: string, multaPercentual?: number) =>
+    api.post<Record<string, unknown>>('/platform/contract', {
+      codigo,
+      multa_percentual: multaPercentual
+    }),
+  /** Pede a rescisao. Dentro do prazo minimo, emite a multa junto. */
+  terminate: () => api.post<Record<string, unknown>>('/platform/contract/terminate', {}),
+  /** Baixa MANUAL da cobranca. So' admin: nao ha liquidacao automatica. */
+  settle: (cobrancaId: string) =>
+    api.post<Record<string, unknown>>(`/platform/invoices/${cobrancaId}/settle`, {})
+}
+
 export const app = {
+  /** Catalogo de planos de recarga. Escopo de rede, nao de praca. */
+  plans: () => api.get<Record<string, unknown>[]>('/app/plans'),
+  /** Plano do proprio motorista, com franquia restante e proxima cobranca. */
+  subscription: () => api.get<Record<string, unknown>>('/app/subscription'),
+  /** Assina e cobra a primeira mensalidade da carteira. 402 = sem saldo. */
+  subscribe: (codigo: string) =>
+    api.post<Record<string, unknown>>('/app/subscription', { codigo }),
+  /** Cancela a renovacao. O mes ja pago continua valendo ate o fim. */
+  unsubscribe: () => api.del<void>('/app/subscription'),
+  /** Missoes vigentes com o progresso de quem esta pedindo. */
+  missions: () => api.get<T.Missao[]>('/app/missions'),
+  /** Historico de recompensas do proprio motorista. */
+  rewards: () => api.get<T.Recompensa[]>('/app/rewards'),
   stations: (params?: { latitude?: number; longitude?: number; radius_km?: number }) =>
     api.get<T.Estacao[]>('/app/stations', params),
   stationChargePoints: (siteId: string) =>

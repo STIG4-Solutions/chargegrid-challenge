@@ -16,6 +16,7 @@ import ScannerScreen from './src/screens/ScannerScreen'
 import HistoryScreen from './src/screens/HistoryScreen'
 import ProfileScreen from './src/screens/ProfileScreen'
 import FleetScreen from './src/screens/FleetScreen'
+import MissionsScreen from './src/screens/MissionsScreen'
 import type { Abas, RotasApp } from './src/navigation'
 import { cores } from './src/theme'
 
@@ -40,6 +41,7 @@ const ICONE: Record<keyof Abas, string> = {
   Mapa: '◎',
   Agenda: '▣',
   Historico: '≡',
+  Missoes: '◆',
   Frota: '⛁',
   Perfil: '◍'
 }
@@ -48,6 +50,7 @@ const ROTULO: Record<keyof Abas, string> = {
   Mapa: 'Mapa',
   Agenda: 'Agenda',
   Historico: 'Histórico',
+  Missoes: 'Missões',
   Frota: 'Frota',
   Perfil: 'Perfil'
 }
@@ -72,6 +75,10 @@ function Abas() {
       <Tab.Screen name="Mapa" component={MapScreen} />
       <Tab.Screen name="Agenda" component={ReservationsScreen} />
       <Tab.Screen name="Historico" component={HistoryScreen} />
+      {/* Sem condicao: todo motorista pode ter missao, e a tela ja diz o
+          que fazer quando nao ha campanha vigente. Vazio explicado nao e'
+          erro - e a diferenca entre "nada agora" e "o app quebrou". */}
+      <Tab.Screen name="Missoes" component={MissionsScreen} />
       {/* So o gestor de frota. Para um motorista comum a API responde 403, e
           uma aba que so' mostra erro e' pior que aba nenhuma. */}
       {gestorDeFrota && <Tab.Screen name="Frota" component={FleetScreen} />}

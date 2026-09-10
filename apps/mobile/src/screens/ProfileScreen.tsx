@@ -8,6 +8,26 @@ import { cores, espaco, raio } from '../theme'
 
 const VALORES = [20, 50, 100]
 
+// Tipados aqui porque as rotas devolvem `Record<string, unknown>`: elas nao
+// tem schema Pydantic nomeado, e o SDK reflete isso. Mesmo padrao de FleetScreen.
+interface Plano {
+  codigo: string
+  nome: string
+  preco_mensal_brl: number
+  desconto_pct: number
+  kwh_inclusos: number
+  isenta_taxa_de_conexao: boolean
+}
+
+interface Assinatura {
+  assinante: boolean
+  renova?: boolean
+  estado?: string
+  plano: Plano
+  kwh_restantes: number | null
+  periodo_ate: string
+}
+
 export default function ProfileScreen() {
   const { user, logout, recarregarPerfil } = useAuth()
   const veiculos = useApi<Veiculo[]>(() => app.myVehicles(), [])
@@ -18,6 +38,19 @@ export default function ProfileScreen() {
       void veiculos.refetch({ silent: true })
     }
   })
+
+  const assinatura = useApi<Assinatura>(() => app.subscription() as unknown as Promise<Assinatura>, [])
+  const planos = useApi<Plano[]>(() => app.plans() as unknown as Promise<Plano[]>, [])
+  const assinar = useAction((codigo: string) => app.subscribe(codigo), {
+    onSuccess: () => {
+      void assinatura.refetch({ silent: true })
+      void recarregarPerfil()
+    }
+  })
+  const cancelar = useAction(() => app.unsubscribe(), {
+    onSuccess: () => void assinatura.refetch({ silent: true })
+  })
+  const [confirmandoCancelamento, setConfirmandoCancelamento] = useState(false)
 
   const [valor, setValor] = useState(50)
   const recarregar = useAction((quanto: number) => app.topUpWallet(quanto), {
@@ -78,6 +111,90 @@ export default function ProfileScreen() {
           pending={recarregar.pending}
           onPress={() => void recarregar.run(valor)}
         />
+      </View>
+
+      <View style={s.bloco}>
+        <Text style={s.blocoTitulo}>Plano de recarga</Text>
+        {assinatura.data?.assinante ? (
+          <>
+            <Text style={s.planoNome}>{assinatura.data.plano.nome}</Text>
+            <Text style={s.planoLinha}>
+              {assinatura.data.plano.desconto_pct > 0
+                ? `${assinatura.data.plano.desconto_pct}% de desconto em toda recarga`
+                : 'sem desconto percentual'}
+              {assinatura.data.plano.kwh_inclusos > 0 &&
+                ` · ${assinatura.data.plano.kwh_inclusos} kWh inclusos por mês`}
+            </Text>
+            {assinatura.data.kwh_restantes != null && (
+              <Text style={s.planoLinha}>
+                Restam {assinatura.data.kwh_restantes.toFixed(1)} kWh da franquia deste mês.
+              </Text>
+            )}
+            {/* Cancelada dentro do mês pago ainda dá desconto. Dizer só
+                "cancelada" faria o motorista achar que perdeu o que pagou. */}
+            <Text style={s.planoLinha}>
+              {assinatura.data.renova
+                ? `Renova em ${assinatura.data.periodo_ate}.`
+                : `Cancelado — o benefício vale até ${assinatura.data.periodo_ate}.`}
+            </Text>
+            {assinatura.data.renova &&
+              (confirmandoCancelamento ? (
+                <View style={s.confirmacao}>
+                  <Text style={s.planoLinha}>
+                    Cancelar a renovação? O plano continua valendo até{' '}
+                    {assinatura.data.periodo_ate}.
+                  </Text>
+                  <View style={s.linhaDeBotoes}>
+                    <Botao
+                      titulo="Sim, cancelar"
+                      variante="secundario"
+                      pending={cancelar.pending}
+                      onPress={() => void cancelar.run()}
+                      style={s.meioBotao}
+                    />
+                    <Botao
+                      titulo="Manter"
+                      onPress={() => setConfirmandoCancelamento(false)}
+                      style={s.meioBotao}
+                    />
+                  </View>
+                </View>
+              ) : (
+                <Botao
+                  titulo="Cancelar renovação"
+                  variante="secundario"
+                  onPress={() => setConfirmandoCancelamento(true)}
+                />
+              ))}
+          </>
+        ) : (
+          <>
+            <Text style={s.planoLinha}>
+              Assine e economize em toda recarga. A mensalidade sai da sua carteira.
+            </Text>
+            {(planos.data ?? []).map((plano) => (
+              <View key={plano.codigo} style={s.cartaoDoPlano}>
+                <Text style={s.planoNome}>{plano.nome}</Text>
+                <Text style={s.planoLinha}>
+                  {brl(plano.preco_mensal_brl)}/mês
+                  {plano.desconto_pct > 0 && ` · ${plano.desconto_pct}% de desconto`}
+                  {plano.kwh_inclusos > 0 && ` · ${plano.kwh_inclusos} kWh inclusos`}
+                  {plano.isenta_taxa_de_conexao && ' · sem taxa de conexão'}
+                </Text>
+                <Botao
+                  titulo={`Assinar ${plano.nome}`}
+                  pending={assinar.pending}
+                  onPress={() => void assinar.run(plano.codigo)}
+                />
+              </View>
+            ))}
+            {(planos.data ?? []).length === 0 && (
+              <Text style={s.planoLinha}>Nenhum plano disponível no momento.</Text>
+            )}
+          </>
+        )}
+        {assinar.error && <Aviso mensagem={assinar.error.detail} />}
+        {cancelar.error && <Aviso mensagem={cancelar.error.detail} />}
       </View>
 
       <View style={s.bloco}>
@@ -157,6 +274,19 @@ export default function ProfileScreen() {
 }
 
 const s = StyleSheet.create({
+  planoNome: { color: cores.texto, fontSize: 15, fontWeight: '600', marginTop: espaco.sm },
+  planoLinha: { color: cores.textoFraco, fontSize: 13, marginTop: 2, lineHeight: 18 },
+  cartaoDoPlano: {
+    marginTop: espaco.sm,
+    padding: espaco.sm,
+    borderRadius: raio.sm,
+    borderWidth: 1,
+    borderColor: cores.borda,
+    gap: espaco.xs
+  },
+  confirmacao: { marginTop: espaco.sm, gap: espaco.sm },
+  linhaDeBotoes: { flexDirection: 'row', gap: espaco.sm },
+  meioBotao: { flex: 1 },
   tela: { flex: 1, backgroundColor: cores.fundo },
   conteudo: { padding: espaco.md, gap: espaco.md, paddingBottom: espaco.xl },
   identidade: { gap: 2 },

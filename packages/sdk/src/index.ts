@@ -19,7 +19,7 @@ export {
   type TokenPair
 } from './tokens'
 export { api, request, type Metodo, type RequestOptions } from './http'
-export { app, auth, payments, power, sessions, tariffs } from './endpoints'
+export { app, auth, campaigns, payments, platform, power, sessions, tariffs } from './endpoints'
 export * from './format'
 export { useAction, useApi, type UseActionResult, type UseApiOptions, type UseApiResult } from './hooks'
 export { useSiteStream, type StatusDoStream, type TelemetriaDoSite } from './stream'

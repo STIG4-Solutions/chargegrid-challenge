@@ -20,6 +20,8 @@ import DemandContract from './views/ev/DemandContract.jsx'
 import Utilization from './views/ev/Utilization.jsx'
 import PriorityRules from './views/ev/PriorityRules.jsx'
 import Portfolio from './views/ev/Portfolio.jsx'
+import Campaigns from './views/ev/Campaigns.jsx'
+import Contract from './views/ev/Contract.jsx'
 
 export default function App() {
   const { status } = useAuth()
@@ -60,6 +62,8 @@ export default function App() {
               <Route path="utilization" element={<Utilization />} />
               <Route path="priority" element={<PriorityRules />} />
               <Route path="portfolio" element={<Portfolio />} />
+              <Route path="campaigns" element={<Campaigns />} />
+              <Route path="contract" element={<Contract />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/station_monitor" replace />} />

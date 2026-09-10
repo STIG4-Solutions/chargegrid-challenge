@@ -39,3 +39,14 @@ Thumbs.db
 # em massa vira cota queimada. Local: no diretório do app. Nuvem: variável de
 # ambiente do tipo `file` no EAS.
 **/google-services.json
+
+# Artefatos treinados do modelo de previsao.
+#
+# Binario de ~2 MB por retreino, e regeneravel: o seed e' deterministico, entao
+# `python treinar.py` produz o mesmo artefato em qualquer maquina. Versionar
+# faria o repositorio crescer sem que ninguem consiga revisar o diff.
+#
+# O `openapi.json` fica versionado pelo motivo oposto: ele E' o contrato, e
+# revisar a mudanca dele e' exatamente o que se quer.
+apps/forecast/modelos/*.joblib
+apps/forecast/modelos/metricas_*.json

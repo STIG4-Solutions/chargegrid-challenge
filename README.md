@@ -13,11 +13,12 @@ e sem OCPP não existe cobrança. A plataforma cobre esses três vazios.
 | Dashboard comercial | `apps/dashboard/` | React 19 · Vite | operador do estabelecimento |
 | App do motorista | `apps/mobile/` | React Native · Expo (iOS + Android) | usuário final |
 | Cliente compartilhado | `packages/sdk/` | TypeScript | os dois clientes |
+| Previsão de demanda | `apps/forecast/` | Python · LightGBM | job offline, fora da API |
 
 ## O que cada lado faz
 
-A seção **Recarga EV** tem sete abas. As três primeiras operam o presente; as quatro últimas
-decidem o futuro — é onde o painel deixa de relatar e passa a recomendar.
+A seção **Recarga EV** tem nove abas. As três primeiras operam o presente; as demais decidem o
+futuro — é onde o painel deixa de relatar e passa a recomendar.
 
 | Aba | Pergunta que responde |
 |---|---|
@@ -28,6 +29,8 @@ decidem o futuro — é onde o painel deixa de relatar e passa a recomendar.
 | Ocupação & Retorno | qual ponto se paga, e qual está ocupado sem faturar |
 | Regras de Prioridade | quem carrega quando falta potência, e por quê |
 | Visão de Rede | qual praça segura a operação (aparece com mais de um site) |
+| Campanhas | quanto custa comprar comportamento do motorista, e se comprou |
+| Plano & Contrato | o que a praça paga à GoodWe, e quanto custa sair antes do prazo |
 
 ### App do motorista
 
@@ -43,14 +46,76 @@ que a API já produzia e ninguém mostrava:
 | Recibo em PDF | o documento que vai para a prestação de contas da empresa |
 | Reportar problema | cabo cortado e vaga ocupada não têm sensor; o motorista vê antes |
 | Modo frota | gasto por centro de custo, para quem paga a conta de vários carros |
+| Missões | o que falta para o próximo cashback, com o progresso real de cada meta |
+| Plano de recarga | assinatura mensal: desconto em toda recarga e franquia de kWh |
 
 Dois deles fecham ciclo com o painel: o reporte alimenta a manutenção preditiva — um ponto com
 duas reclamações e nenhum sinal de sensor sobe para prioridade alta —, e o conselho de horário
 sai das mesmas janelas tarifárias que o operador configura.
 
+As missões fecham um terceiro: o operador cria a campanha numa aba, e é ela que aparece como
+meta no app. O que ele gasta ali volta como número na tela dele — quantas pessoas alcançou,
+quantas cumpriram, quanto do orçamento saiu.
+
+## Retenção: quem paga o quê
+
+Três mecanismos, e trocar o bolso de qualquer um produz um modelo que não se sustenta.
+
+| Mecanismo | Quem paga | Quando o motorista sente |
+|---|---|---|
+| Desconto na fatura | o estabelecimento | na hora de decidir onde carregar |
+| Cashback na carteira | a rede | depois, e por isso ele volta |
+| Plano de recarga | o próprio motorista | em toda recarga, por assinatura |
+
+Desconto sai da margem do estabelecimento naquela sessão — é comercial clássico, e se consome
+onde nasce. Cashback vira crédito de carteira, que só vale **dentro da plataforma** e é
+resgatável em qualquer site: um estabelecimento que o bancasse estaria financiando uma recarga
+que amanhã acontece no concorrente. Por isso quem banca é a rede.
+
+Quando assinatura e campanha valem juntas, o motorista recebe **o melhor de cada componente,
+nunca a soma**. Somar produziria desconto sem teto que ninguém orçou; deixar a campanha vencer
+tiraria de quem pagou o que ele comprou.
+
+Do outro lado, o estabelecimento assina a plataforma com prazo mínimo. `minimo_ate` **não
+avança na renovação automática** — prender por mais doze meses quem apenas deixou o contrato
+correr é abusivo. A cobrança é emitida, não liquidada: não há integração bancária, e a baixa é
+manual, feita por admin. Isso está declarado na tela e na resposta da API.
+
+## Previsão de demanda, e por que ela mora fora
+
+`apps/forecast/` prevê quanto cada eletroposto deve vender no próximo mês. É um job offline, e
+a API apenas **lê** a tabela que ele escreve.
+
+A separação não é estética. O processo do FastAPI também roda os workers de potência: um
+`import lightgbm` que falhe derrubaria junto o rebalanceamento — que é o que impede o disjuntor
+de abrir. Previsão de faturamento não pode compartilhar processo com controle de carga.
+
+**O modelo atual perde da régua**, e a tela diz isso ao operador:
+
+| | |
+|---|---|
+| WAPE mensal do modelo | 9,05% |
+| WAPE mensal da média móvel de 28 dias | **7,61%** |
+| Cobertura da faixa p10–p90 | 62,3% (deveria ser ~80%) |
+
+Uma média móvel de três linhas erra menos. Os dois números vão para o banco e o painel avisa:
+a previsão vale como referência, não como base para contratar demanda. As causas prováveis são
+estruturais — três estações treinadas onde o pipeline foi desenhado para oito — e perseguir
+acurácia contra dado gerado não significaria nada. `apps/forecast/README.md` detalha.
+
 ## Rodar
 
 **Backend** (sobe Postgres, migra, popula e serve):
+
+O seed gera **dois anos de histórico**: 4 sites, ~17.800 sessões faturadas, campanha com
+missões já em progresso, planos de assinatura e um contrato de plataforma. Não é enfeite —
+o modelo de previsão descarta local com menos de 150 dias de energia, os relatórios de ocupação
+medem janelas de 30 dias, e uma missão de "recarregue 5 vezes este mês" é indemonstrável com
+uma semana de dados. Com poucos dias no banco, as três entregam tela vazia e parecem quebradas.
+
+É determinístico por semente fixa: duas máquinas produzem o mesmo banco, e um artefato de
+previsão treinado numa continua valendo na outra.
+
 
 ```bash
 cp apps/api/.env.example apps/api/.env
@@ -62,9 +127,12 @@ npm run infra:up          # API em http://localhost:8000
 
 ```bash
 npm install
-cp apps/dashboard/.env.example apps/dashboard/.env  # VITE_API_URL=http://localhost:8000
 npm run dev                        # http://localhost:5173
 ```
+
+O servidor de desenvolvimento aponta sozinho para `http://localhost:8000`: ele lê o bloco
+`desenvolvimento` de `config/domains.json`, enquanto o build usa o de produção. Só é preciso
+`VITE_API_URL` em `apps/dashboard/.env` para apontar para outro lugar.
 
 **App do motorista:**
 
@@ -218,10 +286,10 @@ npm ls react           # tem que aparecer uma única
 
 ```bash
 npm run verify:api                         # 17 cenários do SDK com fetch simulado
-npm run verify:dashboard                   # 11 cenários da lógica do painel, sem navegador
+npm run verify:dashboard                   # 62 cenários da lógica do painel, sem navegador
 npm run typecheck                          # tipos do SDK e do app contra o contrato
 npm run build                              # dashboard
-cd apps/api && python -m pytest -q          # 400 testes (precisa do Postgres)
+cd apps/api && python -m pytest -q          # 518 testes (precisa do Postgres)
 cd apps/api && python -m ruff check .
 cd apps/api && python -m scripts.smoke_test # 57 cenários ponta a ponta (API no ar)
 cd apps/mobile && npx expo export --platform android --output-dir .expo-bundle
@@ -231,10 +299,15 @@ O `verify:api` roda contra um armazenamento **assíncrono de propósito** — o 
 Se passa nele, passa no `localStorage` síncrono da web.
 
 O `verify:dashboard` segue o mesmo formato — Node puro mais esbuild, sem runner de teste no
-projeto — e cobre a lógica que decide **o que vai para o servidor**: o diff do editor de
-orçamento, que é o que impede um operador de reverter em silêncio a alteração de outro.
-Renderização (chave de lista, foco, remoção de linha) fica de fora: exigiria DOM e as
-dependências que vêm com ele. É limite conhecido, não esquecimento.
+projeto — e cobre a lógica que decide **o que vai para o servidor** ou **quanta confiança a
+tela transmite**: o diff do editor de orçamento, a validação do formulário de campanha, a
+calibração da faixa de previsão e o cálculo da multa de rescisão. Renderização (chave de lista,
+foco, remoção de linha) fica de fora: exigiria DOM e as dependências que vêm com ele. É limite
+conhecido, não esquecimento.
+
+**Teste de mutação é o padrão de aceite**: reverter a guarda e confirmar que o teste quebra.
+Não é cerimônia — ele já encontrou quatro guardas decorativas neste projeto, incluindo um
+`max(0, ...)` que era código morto e uma checagem de escopo duplicada que o SQL já fazia.
 
 ## Estrutura
 
@@ -242,6 +315,7 @@ dependências que vêm com ele. É limite conhecido, não esquecimento.
 apps/
   api/                    API FastAPI, migrations, testes e Dockerfile
   dashboard/              dashboard comercial React + Vite
+  forecast/               job de previsão de demanda (LightGBM), fora da API
   mobile/                 app do motorista React Native + Expo
 packages/
   sdk/                    cliente TypeScript compartilhado pelos dois apps

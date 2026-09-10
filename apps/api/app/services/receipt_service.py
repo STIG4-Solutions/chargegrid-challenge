@@ -38,19 +38,32 @@ from app.models.user import User
 
 # Rotulos legiveis para o `kind` das linhas. Um recibo que diz "energy" nao
 # serve para prestacao de contas - quem le nao e' quem escreveu o codigo.
+# As chaves TEM que ser as que `tariff_engine` emite. Tres delas nao eram:
+# "session" e "minimum" nunca existiram - o motor sempre emitiu "session_fee" e
+# "min_charge" -, e "dynamic" faltava. Como a leitura e' `ROTULOS.get(kind, kind)`,
+# o recibo caia na chave crua e imprimia a palavra `session_fee` no campo "tipo",
+# num documento que vai para prestacao de contas. Nenhum teste cobria.
 ROTULOS = {
     "energy": "Energia",
     "time": "Tempo de recarga",
     "idle": "Ociosidade",
-    "session": "Taxa de sessão",
-    "minimum": "Complemento de valor mínimo",
-    "discount": "Desconto",
+    "session_fee": "Taxa de conexão",
+    "min_charge": "Complemento de valor mínimo",
+    "dynamic": "Ajuste dinâmico de demanda",
+    "plano": "Plano — kWh inclusos",
+    "desconto": "Desconto",
 }
 
 
 def _brl(valor: float) -> str:
-    inteiro, _, centavos = f"{valor:,.2f}".partition(".")
-    return f"R$ {inteiro.replace(',', '.')},{centavos}"
+    # O sinal vem ANTES do simbolo: "-R$ 5,60", e nao "R$ -5,60".
+    #
+    # Nao era visivel enquanto nenhuma linha podia ser negativa. Agora as linhas
+    # de plano e de desconto sao, e "R$ -5,60" num recibo de prestacao de contas
+    # se le como erro de formatacao - quando nao passa despercebido.
+    sinal = "-" if valor < 0 else ""
+    inteiro, _, centavos = f"{abs(valor):,.2f}".partition(".")
+    return f"{sinal}R$ {inteiro.replace(',', '.')},{centavos}"
 
 
 def _quantidade(q: float, unidade: str) -> str:

@@ -1321,6 +1321,283 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/campaigns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Listar */
+        get: operations["listar_api_v1_campaigns_get"];
+        put?: never;
+        /** Criar */
+        post: operations["criar_api_v1_campaigns_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns/{campanha_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Encerrar
+         * @description Encerra a campanha. NAO apaga.
+         *
+         *     Apagar levaria junto o progresso de quem estava no meio dela, e o RESTRICT em
+         *     `rewards.campaign_id` recusaria a exclusao assim que a primeira recompensa
+         *     tivesse sido concedida - com um erro de banco que ninguem sabe ler. Desativar
+         *     e' o que o operador quer dizer com "encerrar", e preserva o rastro.
+         */
+        delete: operations["encerrar_api_v1_campaigns__campanha_id__delete"];
+        options?: never;
+        head?: never;
+        /** Atualizar */
+        patch: operations["atualizar_api_v1_campaigns__campanha_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/campaigns/{campanha_id}/desempenho": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Desempenho */
+        get: operations["desempenho_api_v1_campaigns__campanha_id__desempenho_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/missions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Minhas Missoes
+         * @description Missoes vigentes com o progresso DESTE motorista.
+         *
+         *     Seguranca: o progresso e' filtrado por `user.id` do token, nunca por
+         *     parametro - senao qualquer um leria o desempenho de qualquer outro.
+         */
+        get: operations["minhas_missoes_api_v1_app_missions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/rewards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Minhas Recompensas
+         * @description Historico de recompensas, so' as de quem esta pedindo.
+         */
+        get: operations["minhas_recompensas_api_v1_app_rewards_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/power/demand/energy-forecast": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Demand Energy Forecast
+         * @description Quanto este site deve VENDER no proximo mes, em kWh e em reais.
+         *
+         *     A aba ja responde "quanto vou puxar" - kW, contrato, custo evitado. Isto
+         *     responde "quanto vou vender", e as duas alimentam a MESMA decisao: quanta
+         *     demanda contratar. Por isso mora aqui e nao numa aba propria.
+         *
+         *     A API so' LE: quem escreve e' o job de `apps/forecast`, que roda fora do
+         *     processo da API. Sem linha para a competencia, a resposta e' `disponivel:
+         *     false` - e a tela diz que nao ha previsao, em vez de inventar um numero.
+         *
+         *     Seguranca: filtra por `site_id` do escopo, que para operador comum e' sempre
+         *     o site dele, independentemente do que a query pedir.
+         */
+        get: operations["demand_energy_forecast_api_v1_power_demand_energy_forecast_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Planos De Recarga
+         * @description Catalogo de planos. Escopo de rede: nao pertencem a praca nenhuma.
+         */
+        get: operations["planos_de_recarga_api_v1_app_plans_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/subscription": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Minha Assinatura
+         * @description Plano, franquia restante e proxima cobranca - so' de quem esta pedindo.
+         */
+        get: operations["minha_assinatura_api_v1_app_subscription_get"];
+        put?: never;
+        /**
+         * Assinar
+         * @description Assina e cobra a primeira mensalidade da carteira.
+         *
+         *     Saldo insuficiente vira 402, e nao 500: e' uma condicao esperada, e o app
+         *     precisa distinguir "recarregue a carteira" de "algo quebrou".
+         */
+        post: operations["assinar_api_v1_app_subscription_post"];
+        /**
+         * Cancelar Assinatura
+         * @description Cancela a renovacao. O mes ja pago continua valendo ate o fim.
+         */
+        delete: operations["cancelar_assinatura_api_v1_app_subscription_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Planos
+         * @description O que a GoodWe vende. Escopo de rede.
+         */
+        get: operations["planos_api_v1_platform_plans_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/contract": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Contrato
+         * @description Contrato desta praca, com as ultimas cobrancas.
+         *
+         *     Seguranca: `site_id` vem do escopo, que para operador comum e' sempre o site
+         *     dele - trocar o parametro na URL nao mostra o contrato do vizinho.
+         */
+        get: operations["contrato_api_v1_platform_contract_get"];
+        put?: never;
+        /** Contratar */
+        post: operations["contratar_api_v1_platform_contract_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/contract/terminate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rescindir
+         * @description Pede a rescisao. Dentro do prazo minimo, emite a multa junto.
+         *
+         *     Nao e' DELETE: nao apaga nem encerra no ato. O contrato corre ate o fim do
+         *     ciclo ja cobrado, e a resposta diz ate quando e quanto custa.
+         */
+        post: operations["rescindir_api_v1_platform_contract_terminate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/invoices/{cobranca_id}/settle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dar Baixa
+         * @description Baixa MANUAL, e so' de admin.
+         *
+         *     Nao ha integracao bancaria: a cobranca nasce aberta e alguem da rede confirma
+         *     o recebimento. Deixar o proprio estabelecimento declarar que pagou nao seria
+         *     baixa manual, seria baixa nenhuma.
+         */
+        post: operations["dar_baixa_api_v1_platform_invoices__cobranca_id__settle_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2681,6 +2958,239 @@ export interface components {
             amount: number | string;
             /** Idempotency Key */
             idempotency_key?: string | null;
+        };
+        /** CampanhaIn */
+        CampanhaIn: {
+            /** Nome */
+            nome: string;
+            /** Descricao */
+            descricao?: string | null;
+            /**
+             * Patrocinador
+             * @default rede
+             */
+            patrocinador: string;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /**
+             * Ativa
+             * @default true
+             */
+            ativa: boolean;
+            /** Beneficio Tipo */
+            beneficio_tipo: string;
+            /** Beneficio Valor */
+            beneficio_valor: number;
+            /** Teto Por Recompensa */
+            teto_por_recompensa?: number | null;
+            /**
+             * Orcamento Brl
+             * @default 0
+             */
+            orcamento_brl: number;
+            /** Limite Por Motorista */
+            limite_por_motorista?: number | null;
+            /**
+             * Missoes
+             * @default []
+             */
+            missoes: components["schemas"]["MissaoIn"][];
+        };
+        /**
+         * CampanhaOut
+         * @description Visao do operador: inclui o dinheiro.
+         */
+        CampanhaOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Nome */
+            nome: string;
+            /** Descricao */
+            descricao: string | null;
+            /** Patrocinador */
+            patrocinador: string;
+            /** Site Id */
+            site_id: string | null;
+            /** Fleet Id */
+            fleet_id: string | null;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Ativa */
+            ativa: boolean;
+            /** Beneficio Tipo */
+            beneficio_tipo: string;
+            /** Beneficio Valor */
+            beneficio_valor: number;
+            /** Teto Por Recompensa */
+            teto_por_recompensa: number | null;
+            /** Orcamento Brl */
+            orcamento_brl: number;
+            /** Consumido Brl */
+            consumido_brl: number;
+            /** Limite Por Motorista */
+            limite_por_motorista: number | null;
+            /** Missoes */
+            missoes?: components["schemas"]["MissaoOut"][];
+        };
+        /**
+         * DesempenhoOut
+         * @description O que o operador precisa para decidir se a campanha vale.
+         *
+         *     Sem `motoristas_alcancados` e `concluidas`, "consumido_brl" sozinho nao diz
+         *     se o dinheiro comprou comportamento ou so' saiu do caixa.
+         */
+        DesempenhoOut: {
+            /**
+             * Campanha Id
+             * Format: uuid
+             */
+            campanha_id: string;
+            /** Nome */
+            nome: string;
+            /** Motoristas Alcancados */
+            motoristas_alcancados: number;
+            /** Missoes Concluidas */
+            missoes_concluidas: number;
+            /** Recompensas Creditadas */
+            recompensas_creditadas: number;
+            /** Consumido Brl */
+            consumido_brl: number;
+            /** Orcamento Brl */
+            orcamento_brl: number;
+            /** Orcamento Disponivel */
+            orcamento_disponivel: number;
+            /** Percentual Consumido */
+            percentual_consumido: number;
+        };
+        /**
+         * MissaoDoMotoristaOut
+         * @description Visao do motorista: sem numero de orcamento.
+         *
+         *     Expor `orcamento_brl` aqui vazaria a estrategia comercial do estabelecimento
+         *     para quem carrega nele.
+         */
+        MissaoDoMotoristaOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Codigo */
+            codigo: string;
+            /** Titulo */
+            titulo: string;
+            /** Descricao */
+            descricao: string | null;
+            /** Metrica */
+            metrica: string;
+            /** Alvo */
+            alvo: number;
+            /** Janela */
+            janela: string;
+            /** Progresso */
+            progresso: number;
+            /** Concluida */
+            concluida: boolean;
+            /** Concluida Em */
+            concluida_em: string | null;
+            /** Periodo */
+            periodo: string | null;
+            /** Campanha */
+            campanha: string;
+            /** Recompensa */
+            recompensa: string;
+        };
+        /** MissaoIn */
+        MissaoIn: {
+            /** Codigo */
+            codigo: string;
+            /** Titulo */
+            titulo: string;
+            /** Descricao */
+            descricao?: string | null;
+            /** Metrica */
+            metrica: string;
+            /** Alvo */
+            alvo: number;
+            /**
+             * Janela
+             * @default campanha
+             */
+            janela: string;
+            /**
+             * Ordem
+             * @default 0
+             */
+            ordem: number;
+            /**
+             * Repetivel
+             * @default false
+             */
+            repetivel: boolean;
+        };
+        /** MissaoOut */
+        MissaoOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Codigo */
+            codigo: string;
+            /** Titulo */
+            titulo: string;
+            /** Descricao */
+            descricao: string | null;
+            /** Metrica */
+            metrica: string;
+            /** Alvo */
+            alvo: number;
+            /** Janela */
+            janela: string;
+            /** Ordem */
+            ordem: number;
+            /** Repetivel */
+            repetivel: boolean;
+        };
+        /** RecompensaOut */
+        RecompensaOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Campanha */
+            campanha: string;
+            /** Valor Brl */
+            valor_brl: number;
+            /** Estado */
+            estado: string;
+            /** Tipo */
+            tipo: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
         };
     };
     responses: never;
@@ -5146,6 +5656,516 @@ export interface operations {
                 };
                 content: {
                     "application/json": Record<string, never>;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listar_api_v1_campaigns_get: {
+        parameters: {
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampanhaOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    criar_api_v1_campaigns_post: {
+        parameters: {
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CampanhaIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampanhaOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    encerrar_api_v1_campaigns__campanha_id__delete: {
+        parameters: {
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path: {
+                campanha_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    atualizar_api_v1_campaigns__campanha_id__patch: {
+        parameters: {
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path: {
+                campanha_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampanhaOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    desempenho_api_v1_campaigns__campanha_id__desempenho_get: {
+        parameters: {
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path: {
+                campanha_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DesempenhoOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    minhas_missoes_api_v1_app_missions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MissaoDoMotoristaOut"][];
+                };
+            };
+        };
+    };
+    minhas_recompensas_api_v1_app_rewards_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecompensaOut"][];
+                };
+            };
+        };
+    };
+    demand_energy_forecast_api_v1_power_demand_energy_forecast_get: {
+        parameters: {
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    planos_de_recarga_api_v1_app_plans_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+        };
+    };
+    minha_assinatura_api_v1_app_subscription_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    assinar_api_v1_app_subscription_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancelar_assinatura_api_v1_app_subscription_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    planos_api_v1_platform_plans_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+        };
+    };
+    contrato_api_v1_platform_contract_get: {
+        parameters: {
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    contratar_api_v1_platform_contract_post: {
+        parameters: {
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rescindir_api_v1_platform_contract_terminate_post: {
+        parameters: {
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dar_baixa_api_v1_platform_invoices__cobranca_id__settle_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cobranca_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */

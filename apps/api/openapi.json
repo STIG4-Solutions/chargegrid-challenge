@@ -4675,6 +4675,859 @@
           }
         }
       }
+    },
+    "/api/v1/campaigns": {
+      "get": {
+        "tags": [
+          "campanhas"
+        ],
+        "summary": "Listar",
+        "operationId": "listar_api_v1_campaigns_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CampanhaOut"
+                  },
+                  "title": "Response Listar Api V1 Campaigns Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "campanhas"
+        ],
+        "summary": "Criar",
+        "operationId": "criar_api_v1_campaigns_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampanhaIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampanhaOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/campaigns/{campanha_id}": {
+      "patch": {
+        "tags": [
+          "campanhas"
+        ],
+        "summary": "Atualizar",
+        "operationId": "atualizar_api_v1_campaigns__campanha_id__patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campanha_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campanha Id"
+            }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampanhaOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "campanhas"
+        ],
+        "summary": "Encerrar",
+        "description": "Encerra a campanha. NAO apaga.\n\nApagar levaria junto o progresso de quem estava no meio dela, e o RESTRICT em\n`rewards.campaign_id` recusaria a exclusao assim que a primeira recompensa\ntivesse sido concedida - com um erro de banco que ninguem sabe ler. Desativar\ne' o que o operador quer dizer com \"encerrar\", e preserva o rastro.",
+        "operationId": "encerrar_api_v1_campaigns__campanha_id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campanha_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campanha Id"
+            }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/campaigns/{campanha_id}/desempenho": {
+      "get": {
+        "tags": [
+          "campanhas"
+        ],
+        "summary": "Desempenho",
+        "operationId": "desempenho_api_v1_campaigns__campanha_id__desempenho_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campanha_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campanha Id"
+            }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesempenhoOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/app/missions": {
+      "get": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "Minhas Missoes",
+        "description": "Missoes vigentes com o progresso DESTE motorista.\n\nSeguranca: o progresso e' filtrado por `user.id` do token, nunca por\nparametro - senao qualquer um leria o desempenho de qualquer outro.",
+        "operationId": "minhas_missoes_api_v1_app_missions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MissaoDoMotoristaOut"
+                  },
+                  "type": "array",
+                  "title": "Response Minhas Missoes Api V1 App Missions Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/app/rewards": {
+      "get": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "Minhas Recompensas",
+        "description": "Historico de recompensas, so' as de quem esta pedindo.",
+        "operationId": "minhas_recompensas_api_v1_app_rewards_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RecompensaOut"
+                  },
+                  "type": "array",
+                  "title": "Response Minhas Recompensas Api V1 App Rewards Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/power/demand/energy-forecast": {
+      "get": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "Demand Energy Forecast",
+        "description": "Quanto este site deve VENDER no proximo mes, em kWh e em reais.\n\nA aba ja responde \"quanto vou puxar\" - kW, contrato, custo evitado. Isto\nresponde \"quanto vou vender\", e as duas alimentam a MESMA decisao: quanta\ndemanda contratar. Por isso mora aqui e nao numa aba propria.\n\nA API so' LE: quem escreve e' o job de `apps/forecast`, que roda fora do\nprocesso da API. Sem linha para a competencia, a resposta e' `disponivel:\nfalse` - e a tela diz que nao ha previsao, em vez de inventar um numero.\n\nSeguranca: filtra por `site_id` do escopo, que para operador comum e' sempre\no site dele, independentemente do que a query pedir.",
+        "operationId": "demand_energy_forecast_api_v1_power_demand_energy_forecast_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Demand Energy Forecast Api V1 Power Demand Energy Forecast Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/app/plans": {
+      "get": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "Planos De Recarga",
+        "description": "Catalogo de planos. Escopo de rede: nao pertencem a praca nenhuma.",
+        "operationId": "planos_de_recarga_api_v1_app_plans_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response Planos De Recarga Api V1 App Plans Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/app/subscription": {
+      "get": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "Minha Assinatura",
+        "description": "Plano, franquia restante e proxima cobranca - so' de quem esta pedindo.",
+        "operationId": "minha_assinatura_api_v1_app_subscription_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Minha Assinatura Api V1 App Subscription Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "Assinar",
+        "description": "Assina e cobra a primeira mensalidade da carteira.\n\nSaldo insuficiente vira 402, e nao 500: e' uma condicao esperada, e o app\nprecisa distinguir \"recarregue a carteira\" de \"algo quebrou\".",
+        "operationId": "assinar_api_v1_app_subscription_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Payload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Assinar Api V1 App Subscription Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "Cancelar Assinatura",
+        "description": "Cancela a renovacao. O mes ja pago continua valendo ate o fim.",
+        "operationId": "cancelar_assinatura_api_v1_app_subscription_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/platform/plans": {
+      "get": {
+        "tags": [
+          "plataforma"
+        ],
+        "summary": "Planos",
+        "description": "O que a GoodWe vende. Escopo de rede.",
+        "operationId": "planos_api_v1_platform_plans_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response Planos Api V1 Platform Plans Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/platform/contract": {
+      "get": {
+        "tags": [
+          "plataforma"
+        ],
+        "summary": "Contrato",
+        "description": "Contrato desta praca, com as ultimas cobrancas.\n\nSeguranca: `site_id` vem do escopo, que para operador comum e' sempre o site\ndele - trocar o parametro na URL nao mostra o contrato do vizinho.",
+        "operationId": "contrato_api_v1_platform_contract_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Contrato Api V1 Platform Contract Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "plataforma"
+        ],
+        "summary": "Contratar",
+        "operationId": "contratar_api_v1_platform_contract_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Contratar Api V1 Platform Contract Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/contract/terminate": {
+      "post": {
+        "tags": [
+          "plataforma"
+        ],
+        "summary": "Rescindir",
+        "description": "Pede a rescisao. Dentro do prazo minimo, emite a multa junto.\n\nNao e' DELETE: nao apaga nem encerra no ato. O contrato corre ate o fim do\nciclo ja cobrado, e a resposta diz ate quando e quanto custa.",
+        "operationId": "rescindir_api_v1_platform_contract_terminate_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Rescindir Api V1 Platform Contract Terminate Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/invoices/{cobranca_id}/settle": {
+      "post": {
+        "tags": [
+          "plataforma"
+        ],
+        "summary": "Dar Baixa",
+        "description": "Baixa MANUAL, e so' de admin.\n\nNao ha integracao bancaria: a cobranca nasce aberta e alguem da rede confirma\no recebimento. Deixar o proprio estabelecimento declarar que pagou nao seria\nbaixa manual, seria baixa nenhuma.",
+        "operationId": "dar_baixa_api_v1_platform_invoices__cobranca_id__settle_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cobranca_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Cobranca Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Dar Baixa Api V1 Platform Invoices  Cobranca Id  Settle Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -8209,6 +9062,544 @@
         ],
         "title": "WalletTopUpIn",
         "description": "Corpo do credito na carteira.\n\nO valor era um parametro de query, e float. Dinheiro nao anda na URL - ela\nvaza para log de servidor, historico e referer - e todo o resto do dominio\nusa Decimal. Aqui ele volta a ser Decimal, com duas casas."
+      },
+      "CampanhaIn": {
+        "properties": {
+          "nome": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "Nome"
+          },
+          "descricao": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descricao"
+          },
+          "patrocinador": {
+            "type": "string",
+            "title": "Patrocinador",
+            "default": "rede"
+          },
+          "starts_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Starts At"
+          },
+          "ends_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ends At"
+          },
+          "ativa": {
+            "type": "boolean",
+            "title": "Ativa",
+            "default": true
+          },
+          "beneficio_tipo": {
+            "type": "string",
+            "title": "Beneficio Tipo"
+          },
+          "beneficio_valor": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Beneficio Valor"
+          },
+          "teto_por_recompensa": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Teto Por Recompensa"
+          },
+          "orcamento_brl": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Orcamento Brl",
+            "default": 0
+          },
+          "limite_por_motorista": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limite Por Motorista"
+          },
+          "missoes": {
+            "items": {
+              "$ref": "#/components/schemas/MissaoIn"
+            },
+            "type": "array",
+            "title": "Missoes",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "nome",
+          "starts_at",
+          "ends_at",
+          "beneficio_tipo",
+          "beneficio_valor"
+        ],
+        "title": "CampanhaIn"
+      },
+      "CampanhaOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "nome": {
+            "type": "string",
+            "title": "Nome"
+          },
+          "descricao": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descricao"
+          },
+          "patrocinador": {
+            "type": "string",
+            "title": "Patrocinador"
+          },
+          "site_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site Id"
+          },
+          "fleet_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fleet Id"
+          },
+          "starts_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Starts At"
+          },
+          "ends_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ends At"
+          },
+          "ativa": {
+            "type": "boolean",
+            "title": "Ativa"
+          },
+          "beneficio_tipo": {
+            "type": "string",
+            "title": "Beneficio Tipo"
+          },
+          "beneficio_valor": {
+            "type": "number",
+            "title": "Beneficio Valor"
+          },
+          "teto_por_recompensa": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Teto Por Recompensa"
+          },
+          "orcamento_brl": {
+            "type": "number",
+            "title": "Orcamento Brl"
+          },
+          "consumido_brl": {
+            "type": "number",
+            "title": "Consumido Brl"
+          },
+          "limite_por_motorista": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limite Por Motorista"
+          },
+          "missoes": {
+            "items": {
+              "$ref": "#/components/schemas/MissaoOut"
+            },
+            "type": "array",
+            "title": "Missoes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "nome",
+          "descricao",
+          "patrocinador",
+          "site_id",
+          "fleet_id",
+          "starts_at",
+          "ends_at",
+          "ativa",
+          "beneficio_tipo",
+          "beneficio_valor",
+          "teto_por_recompensa",
+          "orcamento_brl",
+          "consumido_brl",
+          "limite_por_motorista"
+        ],
+        "title": "CampanhaOut",
+        "description": "Visao do operador: inclui o dinheiro."
+      },
+      "DesempenhoOut": {
+        "properties": {
+          "campanha_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Campanha Id"
+          },
+          "nome": {
+            "type": "string",
+            "title": "Nome"
+          },
+          "motoristas_alcancados": {
+            "type": "integer",
+            "title": "Motoristas Alcancados"
+          },
+          "missoes_concluidas": {
+            "type": "integer",
+            "title": "Missoes Concluidas"
+          },
+          "recompensas_creditadas": {
+            "type": "integer",
+            "title": "Recompensas Creditadas"
+          },
+          "consumido_brl": {
+            "type": "number",
+            "title": "Consumido Brl"
+          },
+          "orcamento_brl": {
+            "type": "number",
+            "title": "Orcamento Brl"
+          },
+          "orcamento_disponivel": {
+            "type": "number",
+            "title": "Orcamento Disponivel"
+          },
+          "percentual_consumido": {
+            "type": "number",
+            "title": "Percentual Consumido"
+          }
+        },
+        "type": "object",
+        "required": [
+          "campanha_id",
+          "nome",
+          "motoristas_alcancados",
+          "missoes_concluidas",
+          "recompensas_creditadas",
+          "consumido_brl",
+          "orcamento_brl",
+          "orcamento_disponivel",
+          "percentual_consumido"
+        ],
+        "title": "DesempenhoOut",
+        "description": "O que o operador precisa para decidir se a campanha vale.\n\nSem `motoristas_alcancados` e `concluidas`, \"consumido_brl\" sozinho nao diz\nse o dinheiro comprou comportamento ou so' saiu do caixa."
+      },
+      "MissaoDoMotoristaOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "codigo": {
+            "type": "string",
+            "title": "Codigo"
+          },
+          "titulo": {
+            "type": "string",
+            "title": "Titulo"
+          },
+          "descricao": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descricao"
+          },
+          "metrica": {
+            "type": "string",
+            "title": "Metrica"
+          },
+          "alvo": {
+            "type": "number",
+            "title": "Alvo"
+          },
+          "janela": {
+            "type": "string",
+            "title": "Janela"
+          },
+          "progresso": {
+            "type": "number",
+            "title": "Progresso"
+          },
+          "concluida": {
+            "type": "boolean",
+            "title": "Concluida"
+          },
+          "concluida_em": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Concluida Em"
+          },
+          "periodo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Periodo"
+          },
+          "campanha": {
+            "type": "string",
+            "title": "Campanha"
+          },
+          "recompensa": {
+            "type": "string",
+            "title": "Recompensa"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "codigo",
+          "titulo",
+          "descricao",
+          "metrica",
+          "alvo",
+          "janela",
+          "progresso",
+          "concluida",
+          "concluida_em",
+          "periodo",
+          "campanha",
+          "recompensa"
+        ],
+        "title": "MissaoDoMotoristaOut",
+        "description": "Visao do motorista: sem numero de orcamento.\n\nExpor `orcamento_brl` aqui vazaria a estrategia comercial do estabelecimento\npara quem carrega nele."
+      },
+      "MissaoIn": {
+        "properties": {
+          "codigo": {
+            "type": "string",
+            "maxLength": 40,
+            "title": "Codigo"
+          },
+          "titulo": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "Titulo"
+          },
+          "descricao": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descricao"
+          },
+          "metrica": {
+            "type": "string",
+            "title": "Metrica"
+          },
+          "alvo": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Alvo"
+          },
+          "janela": {
+            "type": "string",
+            "title": "Janela",
+            "default": "campanha"
+          },
+          "ordem": {
+            "type": "integer",
+            "title": "Ordem",
+            "default": 0
+          },
+          "repetivel": {
+            "type": "boolean",
+            "title": "Repetivel",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "codigo",
+          "titulo",
+          "metrica",
+          "alvo"
+        ],
+        "title": "MissaoIn"
+      },
+      "MissaoOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "codigo": {
+            "type": "string",
+            "title": "Codigo"
+          },
+          "titulo": {
+            "type": "string",
+            "title": "Titulo"
+          },
+          "descricao": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descricao"
+          },
+          "metrica": {
+            "type": "string",
+            "title": "Metrica"
+          },
+          "alvo": {
+            "type": "number",
+            "title": "Alvo"
+          },
+          "janela": {
+            "type": "string",
+            "title": "Janela"
+          },
+          "ordem": {
+            "type": "integer",
+            "title": "Ordem"
+          },
+          "repetivel": {
+            "type": "boolean",
+            "title": "Repetivel"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "codigo",
+          "titulo",
+          "descricao",
+          "metrica",
+          "alvo",
+          "janela",
+          "ordem",
+          "repetivel"
+        ],
+        "title": "MissaoOut"
+      },
+      "RecompensaOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "campanha": {
+            "type": "string",
+            "title": "Campanha"
+          },
+          "valor_brl": {
+            "type": "number",
+            "title": "Valor Brl"
+          },
+          "estado": {
+            "type": "string",
+            "title": "Estado"
+          },
+          "tipo": {
+            "type": "string",
+            "title": "Tipo"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "campanha",
+          "valor_brl",
+          "estado",
+          "tipo",
+          "created_at"
+        ],
+        "title": "RecompensaOut"
       }
     },
     "securitySchemes": {

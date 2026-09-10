@@ -80,7 +80,21 @@ async def test_valor_minimo_entra_como_complemento(db, ponto, motorista, tarifa)
     assert float(fatura.total) == pytest.approx(float(tarifa.min_charge))
     complemento = [linha for linha in fatura.lines if linha.kind == "min_charge"]
     assert len(complemento) == 1
-    assert float(fatura.subtotal) < float(fatura.total)
+
+    # O complemento cobre exatamente o que faltava para o minimo.
+    #
+    # Antes esta linha era `subtotal < total`, e o subtotal ficava DE FORA do
+    # complemento: o recibo listava energia 1,00 + complemento 4,00 e anunciava
+    # subtotal 1,00 com total 5,00 - um documento de prestacao de contas cujas
+    # linhas nao somam o proprio subtotal. Agora o complemento entra no subtotal,
+    # e `subtotal - desconto == total` vale em toda fatura.
+    outras = sum(
+        float(linha.amount) for linha in fatura.lines if linha.kind != "min_charge"
+    )
+    assert float(complemento[0].amount) == pytest.approx(
+        float(tarifa.min_charge) - outras
+    )
+    assert float(fatura.subtotal) == pytest.approx(float(fatura.total))
 
 
 async def test_ociosidade_dentro_da_tolerancia_nao_e_cobrada(db, ponto, motorista, tarifa):

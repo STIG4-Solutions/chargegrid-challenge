@@ -38,7 +38,15 @@ async def _mais_um_site_com_tarifa(db, nome: str):
     from app.models.site import Site
     from app.models.tariff import Tariff
 
-    s = Site(id=uuid.uuid4(), name=nome, grid_limit_kw=75, reserved_kw=10)
+    # Slug sorteado: o helper e chamado varias vezes no mesmo teste, e o
+    # indice unico recusaria o segundo site.
+    s = Site(
+        id=uuid.uuid4(),
+        slug=f"site-{uuid.uuid4().hex[:8]}",
+        name=nome,
+        grid_limit_kw=75,
+        reserved_kw=10,
+    )
     db.add(s)
     await db.flush()
 

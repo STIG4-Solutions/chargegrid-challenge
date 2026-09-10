@@ -9,7 +9,9 @@ export const titles = {
   '/ev': 'Recarga EV',
   '/ev/power': 'Gerenciamento de Potência',
   '/ev/sessions': 'Ciclo da Sessão',
-  '/ev/tariff': 'Tarifação & Pagamento'
+  '/ev/tariff': 'Tarifação & Pagamento',
+  '/ev/campaigns': 'Campanhas',
+  '/ev/contract': 'Plano & Contrato'
 }
 
 export function titleFor(pathname) {

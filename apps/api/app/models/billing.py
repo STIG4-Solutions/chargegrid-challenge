@@ -5,6 +5,7 @@ from datetime import date, datetime
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     Enum,
@@ -49,8 +50,12 @@ class Invoice(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "invoices"
 
     code: Mapped[str] = mapped_column(String(24), unique=True, index=True, nullable=False)
-    site_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("sites.id", ondelete="CASCADE"), nullable=False
+    # Nulavel desde a 0017: a mensalidade de assinatura e' cobrada pela REDE e
+    # nao pertence a praca nenhuma. As consultas que filtram por site usam
+    # `= :site_id`, que ja exclui NULL - entao ela nao entra na receita de
+    # recarga de nenhum estabelecimento, que e' exatamente o desejado.
+    site_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("sites.id", ondelete="CASCADE")
     )
     session_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("charging_sessions.id", ondelete="SET NULL"), unique=True
@@ -145,6 +150,12 @@ class WalletTopUp(UUIDMixin, TimestampMixin, Base):
     """
 
     __tablename__ = "wallet_topups"
+    __table_args__ = (
+        CheckConstraint(
+            "origem IN ('topup', 'cashback', 'estorno', 'ajuste')",
+            name="ck_wallet_topups_origem",
+        ),
+    )
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
@@ -154,3 +165,15 @@ class WalletTopUp(UUIDMixin, TimestampMixin, Base):
     idempotency_key: Mapped[str | None] = mapped_column(String(80), unique=True, index=True)
     provider: Mapped[str] = mapped_column(String(40), default="mock", nullable=False)
     provider_ref: Mapped[str | None] = mapped_column(String(120), index=True)
+    # De onde veio o dinheiro. `provider` responde por qual meio ele entrou -
+    # sempre "mock" hoje -, nao por que ele entrou. Sem esta coluna o extrato do
+    # motorista mostra "R$ 12,00" sem dizer se foi recarga que ele fez, cashback
+    # de missao ou estorno, que e' exatamente a pergunta que o docstring acima
+    # diz que esta tabela existe para responder.
+    origem: Mapped[str] = mapped_column(
+        String(16), default="topup", server_default="topup", nullable=False
+    )
+    # A recompensa que virou este credito. Sem FK de proposito: `rewards` aponta
+    # de volta para ca' em `wallet_topup_id`, e uma segunda FK no sentido inverso
+    # criaria ciclo de dependencia entre as duas tabelas na criacao do schema.
+    origem_ref: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True))

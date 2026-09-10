@@ -8,6 +8,7 @@ Execute os comandos desta pagina a partir da raiz do repositorio, exceto quando 
 - Docker com Compose v2 para PostgreSQL e API em containers.
 - Python 3.11 ou superior para executar a API e seus testes fora do Docker; a imagem da API usa Python 3.12.
 - Expo Go, um aparelho ou um emulador para usar o mobile. Os builds nativos seguem as instrucoes do [app](../apps/mobile/README.md).
+- O job de previsao (`apps/forecast`) roda em container proprio; nao e' necessario para desenvolver a API nem os clientes.
 
 ## Preparar o clone
 
@@ -26,7 +27,7 @@ Para gerar uma chave local de assinatura, por exemplo:
 node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 ```
 
-O dashboard usa `VITE_API_URL` em `apps/dashboard/.env`. O mobile aceita `EXPO_PUBLIC_API_URL` em `apps/mobile/.env`; em um aparelho fisico, use um endereco da API acessivel pela rede do aparelho. As variaveis publicas dos frontends sao incorporadas ao aplicativo e nao devem receber segredos.
+O dashboard aponta sozinho para a API local: o `vite.config.js` le o bloco `desenvolvimento` de `config/domains.json` quando o comando e' `serve`, e o de producao quando e' `build`. `VITE_API_URL` em `apps/dashboard/.env` continua tendo precedencia, e so' e' preciso para apontar para outro lugar. O mobile aceita `EXPO_PUBLIC_API_URL` em `apps/mobile/.env`; em um aparelho fisico, use um endereco da API acessivel pela rede do aparelho. As variaveis publicas dos frontends sao incorporadas ao aplicativo e nao devem receber segredos.
 
 ## Iniciar as aplicacoes
 
@@ -88,6 +89,28 @@ A suite cria e usa um banco separado com sufixo `_test`. Para os cenarios de fum
 python -m scripts.smoke_test
 ```
 
+Ao adicionar uma guarda, verifique que ela nao e' decorativa: reverta a condicao e confirme que
+algum teste quebra. E' o padrao de aceite do projeto, e ja encontrou guardas que nao protegiam
+nada — incluindo um piso `max(0, ...)` inalcancavel e uma checagem de escopo que o SQL ja fazia.
+
+## Previsao de demanda
+
+O job vive em `apps/forecast` e nao sobe com o Compose: roda sob demanda, doze vezes por ano.
+
+```bash
+docker build -t chargegrid-forecast apps/forecast
+
+# treinar com os dados do banco (ao mudar a rede, ou por trimestre)
+docker run --rm --network backend_default   -e POSTGRES_HOST=db -e POSTGRES_USER=... -e POSTGRES_PASSWORD=... -e POSTGRES_DB=...   -v "$PWD/apps/forecast/modelos:/forecast/modelos"   chargegrid-forecast python treinar.py
+
+# gerar a previsao do mes e gravar em site_forecasts
+docker run --rm --network backend_default   -e POSTGRES_HOST=db -e POSTGRES_USER=... -e POSTGRES_PASSWORD=... -e POSTGRES_DB=...   -v "$PWD/apps/forecast/modelos:/forecast/modelos"   chargegrid-forecast python exportar.py
+```
+
+Sem linha na tabela, o painel mostra "nenhuma previsao calculada" — que e' melhor que um numero
+inventado. O artefato `.joblib` nao e' versionado: o seed e' deterministico, entao `treinar.py`
+o reproduz em qualquer maquina.
+
 ## Atalhos
 
 | Comando | Acao |
@@ -101,5 +124,12 @@ python -m scripts.smoke_test
 | `npm run infra:up` | Iniciar PostgreSQL e API |
 | `npm run infra:down` | Parar o ambiente preservando o volume |
 | `npm run infra:config` | Validar a configuracao do Compose |
+
+Para recriar o banco do zero — o unico jeito de o seed rodar de novo, ja que ele pula quando ha
+dados — remova o volume. **Isso apaga o banco local:**
+
+```bash
+npm run infra:down -- -v && npm run infra:up
+```
 
 Os comandos anteriores `dev`, `build`, `preview` e `mobile` continuam disponiveis como aliases. Para atualizar um clone anterior a esta organizacao, consulte a [orientacao de migracao](repository-structure.md#atualizacao-de-clones-anteriores).

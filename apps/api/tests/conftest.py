@@ -120,6 +120,7 @@ async def site(db: AsyncSession):
     s = Site(
         id=uuid.uuid4(),
         name="Site de Teste",
+        slug="site-de-teste",
         grid_limit_kw=75,
         reserved_kw=20,
         allow_pv_kw=False,
@@ -354,6 +355,7 @@ async def segundo_site(db: AsyncSession):
     s = Site(
         id=uuid.uuid4(),
         name="Site Vizinho",
+        slug="site-vizinho",
         grid_limit_kw=75,
         reserved_kw=10,
         allow_pv_kw=False,

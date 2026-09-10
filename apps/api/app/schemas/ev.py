@@ -308,6 +308,9 @@ class RatedLineOut(BaseModel):
 
 class RatingOut(BaseModel):
     subtotal: float
+    # Sem ele a previa do app mostraria um total que nao fecha com as linhas: o
+    # motorista veria o desconto na fatura, e nao na tela que o levou a plugar.
+    desconto: float = 0
     total: float
     energy_kwh: float
     billable_minutes: int

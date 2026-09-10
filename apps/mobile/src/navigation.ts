@@ -7,6 +7,7 @@ export type Abas = {
   Mapa: undefined
   Agenda: undefined
   Historico: undefined
+  Missoes: undefined
   Frota: undefined
   Perfil: undefined
 }

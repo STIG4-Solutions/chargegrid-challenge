@@ -64,6 +64,19 @@ async def charge_invoice(
     if float(invoice.total) <= 0:
         raise PaymentError("fatura sem valor a cobrar")
 
+    # Fatura SEM site e' da rede - hoje, a mensalidade de assinatura. Nao ha
+    # estabelecimento a quem perguntar se o meio esta habilitado, e a carteira e'
+    # instrumento da propria plataforma: nao passa por adquirente e nao tem taxa
+    # de site. Qualquer outro meio exige um site, porque a taxa do adquirente
+    # sai do que o estabelecimento recebe - e sem estabelecimento nao ha de onde.
+    if invoice.site_id is None:
+        if kind != PaymentMethodKind.WALLET:
+            raise PaymentError(
+                "fatura da rede só pode ser paga pela carteira: "
+                f"{kind} depende de um estabelecimento"
+            )
+        return await _charge_wallet(db, invoice, payer, idempotency_key)
+
     method = await _method_config(db, invoice.site_id, kind)
 
     # Carteira pre-paga liquida internamente, sem passar por adquirente.

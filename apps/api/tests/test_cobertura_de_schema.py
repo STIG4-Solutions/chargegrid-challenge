@@ -25,12 +25,14 @@ deixa de ser uma opcao, que era exatamente o que permitia os tres casos acima.
 from sqlalchemy import inspect
 
 from app.models.billing import Invoice, InvoiceLine, Payment, SitePaymentMethod
+from app.models.campaign import Campaign, Mission, Reward
 from app.models.charge_point import ChargePoint
 from app.models.reservation import Reservation
 from app.models.session import ChargingSession, SessionEvent
 from app.models.tariff import Tariff, TariffWindow
 from app.models.user import RfidCard, User, Vehicle
 from app.schemas import auth as A
+from app.schemas import campanha as C
 from app.schemas import ev as E
 
 # Motivos que se repetem, para a tabela abaixo nao virar copia e cola.
@@ -65,6 +67,25 @@ OMISSOES = {
     (Vehicle, A.VehicleOut): {
         "user_id": "a rota so' devolve os carros do proprio usuario",
         "created_at": AUDITORIA,
+        "updated_at": AUDITORIA,
+    },
+    (Campaign, C.CampanhaOut): {
+        "created_at": AUDITORIA,
+        "updated_at": AUDITORIA,
+    },
+    (Mission, C.MissaoOut): {
+        "campaign_id": PAI,
+        "created_at": AUDITORIA,
+        "updated_at": AUDITORIA,
+    },
+    (Reward, C.RecompensaOut): {
+        "user_id": "a rota so' devolve as recompensas do proprio motorista",
+        "campaign_id": "o nome da campanha vai no lugar; o id nao leva a nada no app",
+        "mission_progress_id": INTERNO,
+        "wallet_topup_id": "o extrato da carteira e' outra tela, com identificador proprio",
+        "invoice_id": "so' vale para recompensa aplicada como desconto, que ainda nao existe",
+        "expires_at": "nenhuma concessao tem prazo hoje; campo sempre nulo so' confunde",
+        "notified_at": INTERNO,
         "updated_at": AUDITORIA,
     },
     (RfidCard, A.RfidCardOut): {
@@ -208,7 +229,7 @@ def test_todo_schema_de_orm_esta_na_tabela():
 
     descobertos = {
         obj
-        for modulo in (A, E)
+        for modulo in (A, C, E)
         for obj in vars(modulo).values()
         if isinstance(obj, type) and issubclass(obj, ORMModel) and obj is not ORMModel
     }
@@ -231,7 +252,7 @@ def test_nenhum_segredo_vaza_por_schema():
     from app.schemas.common import ORMModel
 
     vazando: list[str] = []
-    for modulo in (A, E):
+    for modulo in (A, C, E):
         for nome, obj in vars(modulo).items():
             if not (isinstance(obj, type) and issubclass(obj, ORMModel)):
                 continue

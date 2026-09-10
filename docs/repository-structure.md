@@ -8,6 +8,7 @@ O ChargeGrid usa um monorepo com aplicacoes independentes e um SDK compartilhado
 | --- | --- |
 | `apps/api` | API FastAPI, migrations, testes, scripts Python e Dockerfile |
 | `apps/dashboard` | Dashboard comercial e operacional React + Vite; `scripts/` traz a verificacao da logica pura |
+| `apps/forecast` | Job offline de previsao de demanda; `pipeline/` e' o modelo vendorizado |
 | `apps/mobile` | Aplicativo do motorista React Native + Expo |
 | `packages/sdk` | Cliente da API, autenticacao e utilitarios compartilhados pelos clientes |
 | `config/domains.json` | Enderecos publicos usados como padrao pelas aplicacoes |
@@ -17,6 +18,13 @@ O ChargeGrid usa um monorepo com aplicacoes independentes e um SDK compartilhado
 | `compose.yaml` | Coordenacao do ambiente local PostgreSQL + API |
 
 Os diretorios internos de cada aplicacao seguem sua organizacao atual. O SDK e importado por `@chargegrid/sdk`; aplicacoes nao importam arquivos internos umas das outras.
+
+`apps/forecast` fica FORA dos workspaces npm: e' Python, tem `requirements.txt` proprio e roda
+em container separado. A separacao e' deliberada e nao apenas de linguagem — o processo da API
+tambem roda os workers de potencia, e um `import lightgbm` quebrado nao pode derrubar o
+rebalanceamento junto. O diretorio `pipeline/` e' copia do projeto de modelagem, mantida sem
+alteracao para poder ser reatualizada sem conflito; `banco.py`, `treinar.py` e `exportar.py`
+sao deste projeto.
 
 ## Nomes
 
