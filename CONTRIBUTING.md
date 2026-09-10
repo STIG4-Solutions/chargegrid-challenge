@@ -42,8 +42,8 @@ Os nomes de diretorios e pacotes seguem a convencao em ingles. A documentacao e 
 ## Migrations
 
 - Indice ou constraint declarado apenas na migration **some** de um banco criado por
-  `create_all`, e `alembic check` nao acusa: ele compara modelos com migrations. Declare nos
-  dois lugares.
+  `create_all`. Declare nos dois lugares: `tests/test_deriva_de_schema.py` roda
+  `alembic check` e reprova quando os dois lados divergem.
 - Nomes de constraint vao **sem** o prefixo `ck_<tabela>_`: a `NAMING_CONVENTION` o acrescenta.
   Escrever o nome completo o duplica, e passando de 63 caracteres o Postgres trunca com hash —
   o nome no banco deixa de bater com o do metadata. Ver a migration `0018`.

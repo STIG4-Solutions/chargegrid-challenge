@@ -125,6 +125,20 @@ class SessionEvent(UUIDMixin, Base):
     """Trilha de auditoria do ciclo - alimenta a timeline do dashboard."""
 
     __tablename__ = "session_events"
+    # A fila do worker de push: eventos ainda nao notificados. Indice PARCIAL
+    # porque essa fatia e' minuscula perto do historico inteiro - indexar a
+    # tabela toda desperdicaria espaco proporcional a algo que nunca e' lido.
+    #
+    # Declarado aqui, e nao so' na migration, pelo mesmo motivo dos indices de
+    # sessao ativa logo acima: o que so' existe na migration some de um banco
+    # criado por `create_all`, e `alembic check` nao tem com o que comparar.
+    __table_args__ = (
+        Index(
+            "ix_session_events_pendentes",
+            "occurred_at",
+            postgresql_where=text("notified_at IS NULL"),
+        ),
+    )
 
     session_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("charging_sessions.id", ondelete="CASCADE"), nullable=False

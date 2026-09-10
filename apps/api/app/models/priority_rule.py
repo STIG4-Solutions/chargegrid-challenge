@@ -22,7 +22,7 @@ from __future__ import annotations
 import uuid
 from datetime import time
 
-from sqlalchemy import Boolean, ForeignKey, Index, Integer, String, Time
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Index, Integer, String, Time
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -31,8 +31,29 @@ from app.db.base import Base, TimestampMixin, UUIDMixin
 
 class PriorityRule(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "priority_rules"
+    # As constraints ficam declaradas aqui, e nao so' na migration.
+    #
+    # O que existe apenas na migration some de um banco criado por `create_all`,
+    # e `alembic check` acusa deriva permanente: ele compara MODELOS com
+    # migrations, e do lado do modelo nao havia o que comparar. Enquanto isso
+    # durou, o comando ficou vermelho por padrao - e um verificador que sempre
+    # falha deixa de ser lido, inclusive quando a deriva for de verdade.
+    #
+    # O nome vai SEM o prefixo `ck_priority_rules_`: a NAMING_CONVENTION o
+    # acrescenta, e escrever o nome completo o duplicaria.
     __table_args__ = (
         Index("ix_priority_rules_site_ordem", "site_id", "ordem"),
+        CheckConstraint(
+            "(janela_inicio IS NULL) = (janela_fim IS NULL)", name="janela_completa"
+        ),
+        CheckConstraint(
+            "criterio_tipo IN ('sempre', 'ponto', 'conector')", name="criterio"
+        ),
+        # 'sempre' casa com tudo e nao usa valor; os outros dois sao inuteis sem ele.
+        CheckConstraint(
+            "criterio_tipo = 'sempre' OR criterio_valor IS NOT NULL",
+            name="valor_quando_preciso",
+        ),
     )
 
     site_id: Mapped[uuid.UUID] = mapped_column(

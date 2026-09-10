@@ -20,7 +20,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, Text, text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, Text, text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -43,6 +43,12 @@ CATEGORIAS = (
 
 class ChargePointReport(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "charge_point_reports"
+    # Constraints declaradas aqui, e nao so' na migration: o que existe apenas
+    # la' some de um banco criado por `create_all`, e `alembic check` acusa
+    # deriva permanente - ele compara MODELOS com migrations.
+    #
+    # Os nomes vao SEM o prefixo `ck_charge_point_reports_`: a
+    # NAMING_CONVENTION o acrescenta.
     __table_args__ = (
         Index("ix_charge_point_reports_cp_time", "charge_point_id", "created_at"),
         # A manutencao consulta o que ainda esta aberto; e' a fatia pequena.
@@ -50,6 +56,15 @@ class ChargePointReport(UUIDMixin, TimestampMixin, Base):
             "ix_charge_point_reports_abertos",
             "charge_point_id",
             postgresql_where=text("resolved_at IS NULL"),
+        ),
+        CheckConstraint(
+            "categoria IN ('" + "', '".join(CATEGORIAS) + "')", name="categoria"
+        ),
+        # Resolver exige dizer quando. Sem isso um registro com `resolucao`
+        # preenchida e sem responsavel se declara resolvido por ninguem.
+        CheckConstraint(
+            "(resolved_at IS NULL) OR (resolved_by IS NOT NULL)",
+            name="resolucao_completa",
         ),
     )
 
