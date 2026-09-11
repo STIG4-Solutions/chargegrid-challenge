@@ -188,13 +188,25 @@ SQLite fingindo ser Postgres passaria em testes que a produção reprovaria.
 Cada teste roda dentro de uma transação desfeita no fim, então nada sobra no banco e a ordem
 de execução não importa. O `conftest.py` explica os detalhes.
 
-Com a API no ar, o teste de fumaça percorre o fluxo comercial inteiro — login, orçamento,
-sessão, fila de espera, agendamento e cobrança Pix — em 57 cenários:
+Com a API no ar, o teste de fumaça percorre o produto inteiro — login, orçamento, sessão,
+fila de espera, agendamento, cobrança Pix, carteira, missões, campanhas, assinatura, contrato
+da plataforma e previsão — em **116 cenários**:
 
 ```bash
 python -m scripts.smoke_test                  # usa http://127.0.0.1:8000
 python -m scripts.smoke_test http://host:porta
 ```
+
+É a única camada que exercita HTTP, serviço, banco e worker **juntos**, com o seed real por
+baixo, e por isso ela enxerga o que nenhum teste de unidade enxerga: recompensa concedida sem
+o dinheiro correspondente na carteira, multa que o servidor calcula de um jeito e o painel de
+outro, rota de dinheiro aberta para quem não devia.
+
+Toda seção é **re-executável** — o que cria, encerra; o que assina, cancela; o que gasta,
+recarrega antes. Não é cortesia: um smoke que só passa na primeira rodada falha na segunda e
+ensina todo mundo a ignorar falha. A exceção documentada é a campanha, porque `DELETE` ali
+significa *encerrar* e não *apagar*: cada rodada deixa uma campanha inativa chamada
+`Smoke (pode apagar) …`.
 
 ---
 

@@ -298,7 +298,7 @@ npm run typecheck                          # tipos do SDK e do app contra o cont
 npm run build                              # dashboard
 cd apps/api && python -m pytest -q          # 538 testes (precisa do Postgres)
 cd apps/api && python -m ruff check .
-cd apps/api && python -m scripts.smoke_test # 57 cenários ponta a ponta (API no ar)
+cd apps/api && python -m scripts.smoke_test # 116 cenários ponta a ponta (API no ar)
 cd apps/mobile && npx expo export --platform android --output-dir .expo-bundle
 ```
 

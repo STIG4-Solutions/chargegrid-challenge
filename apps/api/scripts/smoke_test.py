@@ -1,10 +1,28 @@
 """Teste de fumaca ponta a ponta contra uma API ja no ar.
 
-Percorre o fluxo comercial completo: login, orcamento de potencia, ciclo da
-sessao, faturamento e cobranca. Serve para validar um ambiente recem-subido.
+Percorre o produto inteiro: login, orcamento de potencia, ciclo da sessao,
+faturamento, cobranca, carteira, missoes, campanhas, assinatura, contrato da
+plataforma e previsao. Serve para validar um ambiente recem-subido.
 
     python -m scripts.smoke_test            # usa http://127.0.0.1:8000
     python -m scripts.smoke_test http://host:porta
+
+E' a unica camada que exercita HTTP, servico, banco e worker juntos, com o seed
+real por baixo - e por isso ela ve coisas que os testes de unidade nao veem:
+recompensa concedida sem o dinheiro correspondente na carteira, multa que o
+servidor calcula de um jeito e o painel de outro, rota de dinheiro aberta para
+quem nao devia.
+
+TODA SECAO E' RE-EXECUTAVEL, e isso e' requisito, nao cortesia: um smoke que so'
+passa na primeira rodada falha na segunda e ensina todo mundo a ignorar falha.
+O que cria, encerra; o que assina, cancela; o que gasta, recarrega antes.
+
+CUIDADO ao usar este arquivo para teste de MUTACAO. Ele escreve num banco de
+verdade: uma guarda revertida pode deixar rastro inconsistente que sobrevive a
+reversao da mutacao. Ja aconteceu - suprimir a gravacao do debito da carteira
+deixou uma fatura paga sem linha no razao, e a divergencia so' apareceu na
+rodada seguinte, parecendo defeito do produto. Mutacao aqui pede banco
+descartavel.
 """
 
 from __future__ import annotations
@@ -12,6 +30,7 @@ from __future__ import annotations
 import os
 import sys
 import time
+import uuid
 from datetime import UTC, datetime, timedelta
 
 import httpx
@@ -27,8 +46,13 @@ API = f"{BASE}/api/v1"
 _cfg = get_settings()
 _OPERADOR_SENHA = _cfg.seed_operator_password or os.environ.get("SEED_OPERATOR_PASSWORD", "")
 _MOTORISTA_SENHA = _cfg.seed_driver_password or os.environ.get("SEED_DRIVER_PASSWORD", "")
+_ADMIN_SENHA = _cfg.seed_admin_password or os.environ.get("SEED_ADMIN_PASSWORD", "")
 OPERADOR = ("operador@chargegrid.com.br", _OPERADOR_SENHA)
 MOTORISTA = ("joao.silva@email.com", _MOTORISTA_SENHA)
+# Opcional: so' a baixa manual da cobranca da plataforma precisa de admin. Sem
+# ela o smoke roda inteiro e declara esse trecho como pulado, em vez de falhar
+# por configuracao - que nao e' o que um teste de fumaca deve reportar.
+ADMIN = ("admin@chargegrid.com.br", _ADMIN_SENHA)
 
 def _exigir_credenciais() -> None:
     """Checagem na execucao, nao na importacao: o pytest coleta este arquivo
@@ -116,7 +140,7 @@ def autenticacao(client: httpx.Client) -> dict:
     drv = {"Authorization": f"Bearer {login(client, *MOTORISTA)}"}
     r = client.get(f"{API}/power/overview", headers=drv)
     check("motorista bloqueado no painel", r.status_code == 403, f"HTTP {r.status_code}")
-    return op
+    return op, drv
 
 
 def potencia(client: httpx.Client, op: dict) -> dict:
@@ -568,11 +592,469 @@ def coerencia_da_tarifa(client: httpx.Client, op: dict) -> None:
     check("tarifa com historico e protegida", r.status_code == 409, f"HTTP {r.status_code}")
 
 
+
+
+# ---------------------------------------------------------------------------
+# Fases 2 a 5: carteira, gamificacao, campanhas, assinatura e contrato.
+#
+# Cobrem o que os testes da API nao alcancam: a travessia HTTP -> servico ->
+# banco -> worker, com o seed real por baixo. Sao tambem as features mais novas,
+# e ate aqui as unicas sem nenhuma prova ponta a ponta.
+#
+# Toda secao aqui e' RE-EXECUTAVEL. O que cria, apaga; o que assina, cancela.
+# Um smoke que so' passa na primeira rodada e' pior que nenhum: ele falha na
+# segunda e todo mundo aprende a ignorar a falha.
+# ---------------------------------------------------------------------------
+
+
+def _fecha(extrato: dict) -> bool:
+    """A invariante da carteira: os movimentos somam o saldo."""
+    return abs(round(sum(m["valor"] for m in extrato["movimentos"]), 2) - extrato["saldo"]) < 0.01
+
+
+def carteira(client: httpx.Client, drv: dict) -> None:
+    """O razao fecha com o saldo, pela API.
+
+    `SUM(wallet_entries.amount) = users.wallet_balance` e' conferida no banco
+    pelos testes de unidade; aqui ela e' conferida onde o motorista a ve - o
+    extrato contra o perfil.
+    """
+    secao("Carteira e razao")
+
+    extrato = client.get(f"{API}/app/wallet/statement", headers=drv).json()
+    perfil = client.get(f"{API}/auth/me", headers=drv).json()
+    check(
+        "extrato bate com o saldo do perfil",
+        abs(extrato["saldo"] - perfil["wallet_balance"]) < 0.01,
+        f"extrato R$ {extrato['saldo']:.2f} / perfil R$ {perfil['wallet_balance']:.2f}",
+    )
+    check(
+        "movimentos somam o saldo",
+        _fecha(extrato),
+        f"{len(extrato['movimentos'])} movimento(s)",
+    )
+
+    # `balance_after` tem de ser o acumulado ate aquela linha. Uma coluna de
+    # saldo que nao acompanha os valores e' pior que coluna nenhuma.
+    corrido, coerente = 0.0, True
+    for m in reversed(extrato["movimentos"]):
+        corrido = round(corrido + m["valor"], 2)
+        if abs(corrido - m["saldo_apos"]) > 0.01:
+            coerente = False
+            break
+    check("saldo_apos acompanha a soma corrida", coerente, f"{len(extrato['movimentos'])} linha(s)")
+
+    creditos_antes = len([m for m in extrato["movimentos"] if m["origem"] == "topup"])
+    chave = f"smoke-{uuid.uuid4().hex[:12]}"
+    antes = extrato["saldo"]
+
+    r = client.post(
+        f"{API}/app/wallet/topup", json={"amount": "1.00", "idempotency_key": chave}, headers=drv
+    )
+    check(
+        "credito entra na carteira",
+        r.status_code == 200 and abs(r.json()["wallet_balance"] - (antes + 1)) < 0.01,
+        f"R$ {r.json().get('wallet_balance')}",
+    )
+
+    r = client.post(
+        f"{API}/app/wallet/topup", json={"amount": "1.00", "idempotency_key": chave}, headers=drv
+    )
+    check(
+        "mesma chave nao credita de novo",
+        r.status_code == 200 and abs(r.json()["wallet_balance"] - (antes + 1)) < 0.01,
+        f"R$ {r.json().get('wallet_balance')}",
+    )
+
+    depois = client.get(f"{API}/app/wallet/statement", headers=drv).json()
+    creditos = len([m for m in depois["movimentos"] if m["origem"] == "topup"])
+    check(
+        "o credito virou UMA linha no razao",
+        creditos == creditos_antes + 1,
+        f"{creditos_antes} -> {creditos}",
+    )
+    check("o razao fecha depois do credito", _fecha(depois), f"R$ {depois['saldo']:.2f}")
+
+
+def gamificacao(client: httpx.Client, drv: dict) -> None:
+    """Missao concluida, recompensa concedida, dinheiro na carteira.
+
+    A travessia que nenhum teste de unidade percorre inteira: o progresso e'
+    gravado no commit da fatura, a concessao roda no worker, o credito cai na
+    carteira e o extrato mostra. Se um elo quebrar, o motorista le "missao
+    concluida" e nao encontra o dinheiro.
+    """
+    secao("Missoes e recompensas")
+
+    missoes = client.get(f"{API}/app/missions", headers=drv).json()
+    ha_missoes = isinstance(missoes, list) and len(missoes) > 0
+    if not check("missoes listadas", ha_missoes, str(len(missoes))):
+        return
+
+    campos = {"progresso", "concluida", "alvo", "campanha"}
+    check("missao traz progresso e alvo", campos <= set(missoes[0]), ", ".join(sorted(campos)))
+    check("progresso nunca e negativo", all(float(m["progresso"]) >= 0 for m in missoes))
+    concluidas = [m for m in missoes if m["concluida"]]
+    check(
+        "missao concluida tem instante",
+        all(m.get("concluida_em") for m in concluidas),
+        f"{len(concluidas)} concluida(s)",
+    )
+
+    recompensas = client.get(f"{API}/app/rewards", headers=drv).json()
+    creditadas = [r for r in recompensas if r["estado"] == "creditada"]
+    if not check(
+        "recompensa concedida e creditada",
+        len(creditadas) > 0,
+        f"{len(creditadas)} de {len(recompensas)}",
+    ):
+        return
+
+    # O elo que so' aparece aqui: recompensa creditada PRECISA ter dinheiro
+    # correspondente no razao. Sem esta checagem, `estado='creditada'` podia ser
+    # uma etiqueta sem lastro nenhum.
+    extrato = client.get(f"{API}/app/wallet/statement", headers=drv).json()
+    cashbacks = [m for m in extrato["movimentos"] if m["origem"] == "cashback"]
+    check(
+        "toda recompensa creditada tem credito no razao",
+        len(cashbacks) >= len(creditadas),
+        f"{len(creditadas)} recompensa(s) / {len(cashbacks)} credito(s)",
+    )
+    concedido = round(sum(float(r["valor_brl"]) for r in creditadas), 2)
+    creditado = round(sum(m["valor"] for m in cashbacks), 2)
+    check(
+        "os valores batem centavo a centavo",
+        abs(concedido - creditado) < 0.01,
+        f"R$ {concedido:.2f} concedidos / R$ {creditado:.2f} creditados",
+    )
+    check(
+        "o cashback aparece traduzido no extrato",
+        all("ashback" in m["rotulo"] for m in cashbacks),
+        cashbacks[0]["rotulo"],
+    )
+
+
+def campanhas(client: httpx.Client, op: dict, drv: dict) -> None:
+    """Ciclo de vida da campanha, pelo operador.
+
+    Deixa rastro de proposito: `DELETE` ENCERRA a campanha, nao a apaga - apagar
+    levaria junto o progresso de quem estava no meio dela, e o RESTRICT em
+    `rewards.campaign_id` recusaria a exclusao assim que a primeira recompensa
+    fosse concedida. Entao cada rodada deixa uma campanha inativa chamada
+    "Smoke (pode apagar) ...". E' o custo de exercitar a criacao de verdade, e o
+    nome diz o que fazer com ela.
+    """
+    secao("Campanhas")
+
+    r = client.get(f"{API}/campaigns", headers=drv)
+    check("motorista nao administra campanha", r.status_code == 403, f"HTTP {r.status_code}")
+
+    existentes = client.get(f"{API}/campaigns", headers=op).json()
+    check("campanhas do seed visiveis", len(existentes) > 0, f"{len(existentes)}")
+
+    inicio = datetime.now(UTC)
+    fim = inicio + timedelta(days=30)
+    corpo = {
+        "nome": f"Smoke (pode apagar) {uuid.uuid4().hex[:8]}",
+        "patrocinador": "site",
+        "starts_at": inicio.isoformat(),
+        "ends_at": fim.isoformat(),
+        # Cashback, e nao desconto: missao premia o ACUMULADO, e desconto se
+        # aplica na hora, sem nada a acumular. O schema recusa a combinacao, e
+        # as duas recusas estao cobertas logo abaixo.
+        "beneficio_tipo": "cashback_fixo",
+        "beneficio_valor": 5,
+        "teto_por_recompensa": 5,
+        "orcamento_brl": 500,
+        "missoes": [
+            {
+                "codigo": "smoke-tres",
+                "titulo": "Tres recargas",
+                "metrica": "sessoes",
+                "alvo": 3,
+                "janela": "mensal",
+            }
+        ],
+    }
+
+    invertido = dict(corpo, starts_at=fim.isoformat(), ends_at=inicio.isoformat())
+    r = client.post(f"{API}/campaigns", json=invertido, headers=op)
+    check("periodo invertido rejeitado", r.status_code == 422, f"HTTP {r.status_code}")
+
+    r = client.post(f"{API}/campaigns", json=dict(corpo, beneficio_valor=0), headers=op)
+    check("beneficio zerado rejeitado", r.status_code == 422, f"HTTP {r.status_code}")
+
+    # A recusa deliberada: nenhuma fatura aponta para `fleet_id`, entao a empresa
+    # pagaria e o funcionario embolsaria.
+    r = client.post(f"{API}/campaigns", json=dict(corpo, patrocinador="frota"), headers=op)
+    check("campanha de frota recusada", r.status_code == 422, f"HTTP {r.status_code}")
+
+    # Os dois lados da mesma regra: missao premia acumulado, desconto acontece na
+    # hora. Juntar os dois criaria campanha cuja missao nunca premia ninguem.
+    r = client.post(
+        f"{API}/campaigns",
+        json=dict(corpo, beneficio_tipo="desconto_pct", teto_por_recompensa=None),
+        headers=op,
+    )
+    check("missao com desconto recusada", r.status_code == 422, f"HTTP {r.status_code}")
+
+    r = client.post(f"{API}/campaigns", json=dict(corpo, missoes=[]), headers=op)
+    check("cashback sem missao recusado", r.status_code == 422, f"HTTP {r.status_code}")
+
+    r = client.post(f"{API}/campaigns", json=corpo, headers=op)
+    if not check("campanha criada", r.status_code == 201, f"HTTP {r.status_code} {r.text[:90]}"):
+        return
+    nova = r.json()
+    check("missao veio junto", len(nova["missoes"]) == 1, nova["missoes"][0]["codigo"])
+    check("orcamento comeca sem consumo", float(nova["consumido_brl"]) == 0.0)
+
+    r = client.patch(f"{API}/campaigns/{nova['id']}", json={"ativa": False}, headers=op)
+    check("campanha pausada", r.status_code == 200 and r.json()["ativa"] is False)
+
+    r = client.patch(f"{API}/campaigns/{nova['id']}", json={"patrocinador": "rede"}, headers=op)
+    check("trocar quem paga e recusado", r.status_code == 422, f"HTTP {r.status_code}")
+
+    r = client.get(f"{API}/campaigns/{nova['id']}/desempenho", headers=op)
+    check("desempenho responde", r.status_code == 200, f"HTTP {r.status_code}")
+
+    r = client.delete(f"{API}/campaigns/{nova['id']}", headers=op)
+    check("campanha encerrada", r.status_code == 204, f"HTTP {r.status_code}")
+
+    # `DELETE` aqui significa ENCERRAR, e a diferenca importa: a campanha
+    # continua na lista, inativa, com o rastro de quem participou intacto. Um
+    # operador que espere sumico vai achar que o botao falhou - e quem for
+    # trocar isto por um DELETE de verdade esbarra neste check antes de esbarrar
+    # no RESTRICT de `rewards.campaign_id`.
+    encerrada = next(
+        (c for c in client.get(f"{API}/campaigns", headers=op).json() if c["id"] == nova["id"]),
+        None,
+    )
+    check(
+        "encerrar desativa sem apagar o rastro",
+        encerrada is not None and encerrada["ativa"] is False,
+        "continua listada, inativa" if encerrada else "SUMIU da lista",
+    )
+
+
+def assinatura_do_motorista(client: httpx.Client, drv: dict) -> None:
+    """Assinar cobra da carteira, e o razao registra.
+
+    Assina e cancela na mesma passada: o mes pago continua valendo, mas o estado
+    volta a permitir nova assinatura - entao a rodada seguinte encontra o
+    ambiente como achou.
+
+    A secao se FINANCIA: cada rodada debita uma mensalidade da carteira do
+    motorista do seed, e sem recarregar antes o smoke funciona algumas vezes e
+    depois passa a falhar com 402 - uma falha de ambiente que parece defeito de
+    codigo. Foi o que aconteceu aqui na quinta rodada, com o saldo em R$ 14,50.
+    """
+    secao("Assinatura do motorista")
+
+    planos = client.get(f"{API}/app/plans", headers=drv).json()
+    if not check("planos publicados", len(planos) > 0, ", ".join(p["codigo"] for p in planos)):
+        return
+    plano = min(planos, key=lambda p: float(p["preco_mensal_brl"]))
+
+    if client.get(f"{API}/app/subscription", headers=drv).json().get("assinante"):
+        client.delete(f"{API}/app/subscription", headers=drv)
+
+    r = client.post(f"{API}/app/subscription", json={"codigo": "nao-existe"}, headers=drv)
+    check("plano inexistente recusado", r.status_code in (404, 422), f"HTTP {r.status_code}")
+
+    r = client.post(f"{API}/app/subscription", json={}, headers=drv)
+    check("assinatura sem codigo recusada", r.status_code == 422, f"HTTP {r.status_code}")
+
+    mensalidade = float(plano["preco_mensal_brl"])
+    saldo = client.get(f"{API}/auth/me", headers=drv).json()["wallet_balance"]
+    if saldo < mensalidade:
+        client.post(
+            f"{API}/app/wallet/topup",
+            json={"amount": f"{mensalidade:.2f}", "idempotency_key": f"smoke-{uuid.uuid4().hex}"},
+            headers=drv,
+        )
+
+    saldo_antes = client.get(f"{API}/auth/me", headers=drv).json()["wallet_balance"]
+    r = client.post(f"{API}/app/subscription", json={"codigo": plano["codigo"]}, headers=drv)
+    if not check("assinatura criada", r.status_code == 201, f"HTTP {r.status_code} {r.text[:90]}"):
+        return
+    check("assinante ativo", r.json().get("assinante") is True, plano["codigo"])
+
+    saldo_depois = client.get(f"{API}/auth/me", headers=drv).json()["wallet_balance"]
+    check(
+        "mensalidade debitada da carteira",
+        abs((saldo_antes - saldo_depois) - mensalidade) < 0.01,
+        f"R$ {saldo_antes:.2f} -> R$ {saldo_depois:.2f} (plano R$ {mensalidade:.2f})",
+    )
+
+    extrato = client.get(f"{API}/app/wallet/statement", headers=drv).json()
+    ultimo = extrato["movimentos"][0] if extrato["movimentos"] else {}
+    check(
+        "o debito da mensalidade esta no razao",
+        ultimo.get("origem") == "pagamento" and abs(ultimo.get("valor", 0) + mensalidade) < 0.01,
+        f"{ultimo.get('rotulo')} R$ {ultimo.get('valor')}",
+    )
+    check("o razao fecha depois da cobranca", _fecha(extrato), f"R$ {extrato['saldo']:.2f}")
+
+    r = client.post(f"{API}/app/subscription", json={"codigo": plano["codigo"]}, headers=drv)
+    check("segunda assinatura barrada", r.status_code == 409, f"HTTP {r.status_code}")
+
+    r = client.delete(f"{API}/app/subscription", headers=drv)
+    check("assinatura cancelada", r.status_code == 204, f"HTTP {r.status_code}")
+
+    # Cancelar para a RENOVACAO, nao o mes que ja foi pago. Cobrar o mes inteiro
+    # e cortar o beneficio no instante do cancelamento seria vender trinta dias e
+    # entregar cinco - entao `assinante` continua verdadeiro e `renova` vira
+    # falso. E' a diferenca que a tela precisa mostrar, e que este check trava.
+    depois = client.get(f"{API}/app/subscription", headers=drv).json()
+    check(
+        "o mes ja pago continua valendo",
+        depois.get("assinante") is True and depois.get("renova") is False,
+        f"assinante={depois.get('assinante')} renova={depois.get('renova')} "
+        f"ate {depois.get('periodo_ate')}",
+    )
+
+
+def contrato_da_plataforma(client: httpx.Client, op: dict, drv: dict) -> None:
+    """O contrato do estabelecimento com a GoodWe.
+
+    NAO rescinde, de proposito: a rescisao nao tem volta pela API, e um smoke que
+    destroi o ambiente roda uma vez so'. A multa e' conferida pela ARITMETICA que
+    a propria rota publica.
+    """
+    secao("Contrato da plataforma")
+
+    r = client.get(f"{API}/platform/contract", headers=drv)
+    check("motorista nao ve o contrato", r.status_code == 403, f"HTTP {r.status_code}")
+
+    planos = client.get(f"{API}/platform/plans", headers=op).json()
+    check(
+        "planos da plataforma publicados",
+        len(planos) > 0,
+        ", ".join(p["codigo"] for p in planos),
+    )
+
+    c = client.get(f"{API}/platform/contract", headers=op).json()
+    if not check("contrato do seed presente", c.get("contratado") is True, c.get("estado")):
+        return
+
+    check(
+        "prazo minimo depois do inicio",
+        c["minimo_ate"] > c["starts_on"],
+        f"{c['starts_on']} -> {c['minimo_ate']}",
+    )
+    check(
+        "dentro do prazo tem meses restantes",
+        (c["meses_restantes"] > 0) == c["dentro_do_prazo_minimo"],
+        f"{c['meses_restantes']} mes(es)",
+    )
+
+    # A multa incide sobre a MENSALIDADE DO PLANO - nao sobre a cobranca cheia,
+    # que ainda soma pontos excedentes e a taxa por transacao. O painel usa a
+    # mesma base (`Contract.jsx` passa `d.plano.preco_mensal_brl` para
+    # `multaPorRescisao`), entao este check trava os dois lados na mesma conta:
+    # se um deles passar a somar os pontos, aqui quebra.
+    plano = c["plano"]
+    esperada = round(
+        plano["preco_mensal_brl"] * c["meses_restantes"] * c["multa_percentual"] / 100, 2
+    )
+    check(
+        "multa e a mesma conta do painel",
+        abs(c["multa_se_rescindir_hoje"] - esperada) < 0.02,
+        f"R$ {c['multa_se_rescindir_hoje']:.2f} = {plano['preco_mensal_brl']} x "
+        f"{c['meses_restantes']} x {c['multa_percentual']}%",
+    )
+
+    cobrancas = c.get("cobrancas", [])
+    check("cobrancas emitidas", len(cobrancas) > 0, f"{len(cobrancas)}")
+    competencias = [b["competencia"] for b in cobrancas]
+    check(
+        "nenhuma competencia faturada duas vezes",
+        len(competencias) == len(set(competencias)),
+        f"{len(set(competencias))} competencia(s)",
+    )
+
+    aberta = next((b for b in cobrancas if b["estado"] != "paga"), None)
+
+    # Quem recebe e' a rede, nao a praca. Deixar o proprio estabelecimento
+    # declarar que pagou nao seria baixa manual, seria baixa nenhuma.
+    alvo = aberta["id"] if aberta else uuid.uuid4()
+    r = client.post(f"{API}/platform/invoices/{alvo}/settle", headers=op)
+    check(
+        "operador nao da baixa na propria cobranca",
+        r.status_code == 403,
+        f"HTTP {r.status_code}",
+    )
+
+    if not _ADMIN_SENHA:
+        check("baixa manual nao verificada (defina SEED_ADMIN_PASSWORD)", True, "pulado")
+        return
+    adm = {"Authorization": f"Bearer {login(client, *ADMIN)}"}
+
+    r = client.post(f"{API}/platform/invoices/{uuid.uuid4()}/settle", headers=adm)
+    check("baixa de cobranca inexistente e 404", r.status_code == 404, f"HTTP {r.status_code}")
+
+    if aberta is None:
+        check("nenhuma cobranca em aberto para baixar", True, "todas ja pagas")
+        return
+    r = client.post(f"{API}/platform/invoices/{aberta['id']}/settle", headers=adm)
+    check(
+        "baixa manual registrada pelo admin",
+        r.status_code == 200 and r.json().get("estado") == "paga",
+        f"HTTP {r.status_code}",
+    )
+    r = client.post(f"{API}/platform/invoices/{aberta['id']}/settle", headers=adm)
+    check("baixa repetida e inofensiva", r.status_code == 200, "idempotente")
+
+
+def previsao(client: httpx.Client, op: dict) -> None:
+    """A previsao, e o que a tela promete sobre ela.
+
+    O que se confere nao e' acuracia - e' HONESTIDADE: banda so' quando o numero
+    vem do modelo, e aviso sempre que a origem nao for o modelo.
+    """
+    secao("Previsao de energia")
+
+    d = client.get(f"{API}/power/demand/energy-forecast", headers=op).json()
+    if not check("previsao disponivel", d.get("disponivel") is True, d.get("motivo", "")):
+        return
+
+    check("competencia e primeiro do mes", d["competencia"].endswith("-01"), d["competencia"])
+    check("energia prevista positiva", float(d["kwh_previsto"]) > 0, f"{d['kwh_previsto']:.0f} kWh")
+    check("fonte declarada", d["fonte"] in ("modelo", "media_movel"), d["fonte"])
+
+    tem_banda = d["kwh_p10"] is not None or d["kwh_p90"] is not None
+    check(
+        "banda so existe quando o numero vem do modelo",
+        (d["fonte"] == "modelo") or not tem_banda,
+        f"fonte={d['fonte']}, banda={'sim' if tem_banda else 'nao'}",
+    )
+    if d["fonte"] == "modelo" and tem_banda:
+        check(
+            "a banda contem o previsto",
+            float(d["kwh_p10"]) <= float(d["kwh_previsto"]) <= float(d["kwh_p90"]),
+            f"{d['kwh_p10']:.0f} <= {d['kwh_previsto']:.0f} <= {d['kwh_p90']:.0f}",
+        )
+
+    avisos = d.get("avisos", [])
+    if d["fonte"] != "modelo":
+        check(
+            "media movel vem com aviso",
+            len(avisos) > 0,
+            avisos[0]["texto"][:60] if avisos else "NENHUM",
+        )
+        check(
+            "o WAPE publicado sustenta a escolha",
+            d["wape_modelo_pct"] is None
+            or float(d["wape_modelo_pct"]) >= float(d["wape_baseline_pct"]),
+            f"modelo {d['wape_modelo_pct']}% / regua {d['wape_baseline_pct']}%",
+        )
+
+
 def main() -> int:
     _exigir_credenciais()
     print(f"Alvo: {BASE}")
     with httpx.Client(timeout=30.0) as client:
-        op = autenticacao(client)
+        op, drv = autenticacao(client)
         limpas = limpar_sessoes_ativas(client, op)
         if limpas:
             print(f"      {limpas} sessão(ões) de execução anterior encerrada(s)")
@@ -586,6 +1068,12 @@ def main() -> int:
             fatura = faturamento(client, op, ses)
             if fatura is not None:
                 cobranca(client, op, fatura)
+        carteira(client, drv)
+        gamificacao(client, drv)
+        campanhas(client, op, drv)
+        assinatura_do_motorista(client, drv)
+        contrato_da_plataforma(client, op, drv)
+        previsao(client, op)
     return resumo()
 
 
