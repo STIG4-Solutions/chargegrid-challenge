@@ -143,6 +143,7 @@ ruff check app     # lint
 | `test_http_autorizacao.py` | quem entra em cada rota — pela porta da frente, com token de verdade |
 | `test_http_app_motorista.py` | fluxos do app por HTTP: escopo por usuário, validação e serialização |
 | `test_http_carteira.py` | crédito na carteira: idempotência, razão e recusa de valor inválido |
+| `test_razao_da_carteira.py` | que o razão **feche com o saldo** depois de crédito e débito |
 | `test_http_consultas.py` | custo de consulta do mapa de estações — trava o N+1 |
 | `test_http_paginacao.py` | teto e paginação das listas |
 | `test_http_telemetria.py` | reamostragem da série — cobre a janela sem truncar |
@@ -507,7 +508,7 @@ só enxerga o que é dele.
 `GET /app/sessions/{id}/preview` (custo pelo mesmo motor que fatura) ·
 `POST /app/sessions/{id}/stop` ·
 `POST /app/reservations` (agendamento com checagem de conflito) ·
-`GET /app/invoices` · `POST /app/wallet/topup`.
+`GET /app/invoices` · `POST /app/wallet/topup` · `GET /app/wallet/statement`.
 
 ### Teto da recarga
 
@@ -735,12 +736,26 @@ fleets ── users ─┬─ vehicles      (o centro de custo mora aqui)
                  ├─ rfid_cards
                  ├─ reservations
                  ├─ push_devices
-                 ├─ wallet_topups            (crédito, com a origem declarada)
+                 ├─ wallet_entries           (razão: crédito E débito, com a origem)
                  ├─ driver_subscriptions ── driver_plans
                  └─ mission_progress ── missions ── campaigns
                           └─ rewards          (o "eu te devo", separado do progresso)
 platform_plans ── site_subscriptions
 ```
+
+`wallet_entries` é **razão, não log**: cada linha tem sinal, e a soma delas é o saldo.
+
+    SUM(wallet_entries.amount) = users.wallet_balance
+
+Ela se chamou `wallet_topups` e guardava só entrada — o débito mexia em `users.wallet_balance`
+sem deixar linha. Metade de um razão responde metade da pergunta: o motorista via o saldo cair
+e não havia o que conferir, e com o cashback das campanhas ele passou a ver o saldo **subir**
+sozinho também. A migration `0021` reconstruiu o passado a partir de `payments` e abriu o razão
+de cada motorista com o saldo herdado, que é o que faz a invariante valer para trás.
+
+O sinal diz a direção e `origem` diz o motivo, e um CHECK impede que divirjam: um `cashback`
+negativo passaria por qualquer validação em Python e só apareceria quando o saldo de alguém não
+fechasse. `ajuste` é o único de sinal livre — correção de operador existe nos dois sentidos.
 
 O dinheiro anda nas **duas direções**, e as tabelas refletem isso. Em `invoices` o motorista
 paga o estabelecimento; em `platform_invoices` o estabelecimento paga a rede. Juntá-las seria

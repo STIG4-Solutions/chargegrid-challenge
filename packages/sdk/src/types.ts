@@ -59,6 +59,32 @@ export type Campanha = S['CampanhaOut']
 export type CampanhaNova = S['CampanhaIn']
 export type DesempenhoDaCampanha = S['DesempenhoOut']
 
+/**
+ * Um movimento da carteira. Escrito à mão, e não gerado de `schema.ts`: a rota
+ * devolve `dict`, sem `response_model`, então o OpenAPI não descreve o corpo.
+ *
+ * A alternativa seria `Record<string, unknown>`, como em `energyForecast` — e
+ * aí a tela leria campo por campo sem o `tsc` conferir nada. Um extrato de
+ * dinheiro merece o tipo.
+ */
+export interface MovimentoDaCarteira {
+  id: string
+  data: string
+  /** Negativo é saída. O sinal é a direção; `origem` é o motivo. */
+  valor: number
+  saldo_apos: number
+  origem: 'topup' | 'cashback' | 'estorno' | 'ajuste' | 'pagamento'
+  /** `origem` já traduzida para quem recebeu o dinheiro. */
+  rotulo: string
+  invoice_id: string | null
+}
+
+export interface ExtratoDaCarteira {
+  /** Soma de TODOS os movimentos, não só dos que vieram nesta página. */
+  saldo: number
+  movimentos: MovimentoDaCarteira[]
+}
+
 /** Página genérica devolvida pelas listagens. */
 export interface Pagina<T> {
   items: T[]

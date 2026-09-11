@@ -13,7 +13,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.errors import Conflict, NotFound, PaymentError
 from app.core.logging import get_logger
-from app.models.billing import Invoice, Payment, SitePaymentMethod, WalletTopUp
+from app.models.billing import Invoice, Payment, SitePaymentMethod, WalletEntry
 from app.models.enums import InvoiceStatus, PaymentMethodKind, PaymentStatus
 from app.models.user import User
 from app.services import billing_service
@@ -145,7 +145,32 @@ async def _charge_wallet(
             f"saldo insuficiente na carteira: {saldo} disponível, {total} necessário"
         )
 
-    payer.wallet_balance = money(Decimal(str(saldo)) - total)
+    novo_saldo = money(Decimal(str(saldo)) - total)
+    payer.wallet_balance = novo_saldo
+
+    # A linha do debito. Ate aqui o saldo caia sem deixar rastro, e a carteira
+    # so' tinha meio razao: o motorista via o numero diminuir e nao havia o que
+    # conferir. Sem esta linha `SUM(wallet_entries.amount)` deixa de bater com
+    # `users.wallet_balance`, que e' a invariante que o teste fixa.
+    #
+    # Vai no MESMO commit do `Payment`, e nao podia ser diferente: ou o dinheiro
+    # saiu e a linha existe, ou nenhum dos dois aconteceu.
+    #
+    # A chave de idempotencia e' deterministica pela fatura - `wallet:<codigo>`.
+    # O retry que ja' foi cobrado esbarra no UNIQUE em vez de debitar de novo.
+    db.add(
+        WalletEntry(
+            user_id=payer.id,
+            amount=-total,
+            balance_after=novo_saldo,
+            idempotency_key=f"wallet:{invoice.code}",
+            provider="wallet",
+            provider_ref=f"wallet_{invoice.code}",
+            origem="pagamento",
+            invoice_id=invoice.id,
+        )
+    )
+
     payment = Payment(
         invoice_id=invoice.id,
         method=PaymentMethodKind.WALLET,
@@ -224,7 +249,7 @@ async def topup_wallet(
     if idempotency_key:
         anterior = (
             await db.execute(
-                select(WalletTopUp).where(WalletTopUp.idempotency_key == idempotency_key)
+                select(WalletEntry).where(WalletEntry.idempotency_key == idempotency_key)
             )
         ).scalar_one_or_none()
         if anterior is not None:
@@ -236,11 +261,12 @@ async def topup_wallet(
     novo_saldo = money(Decimal(str(saldo)) + amount)
 
     db.add(
-        WalletTopUp(
+        WalletEntry(
             user_id=user.id,
             amount=amount,
             balance_after=novo_saldo,
             idempotency_key=idempotency_key,
+            origem="topup",
         )
     )
     user.wallet_balance = novo_saldo

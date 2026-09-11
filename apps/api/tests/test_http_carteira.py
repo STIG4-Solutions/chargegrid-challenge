@@ -9,7 +9,7 @@ import uuid
 
 from sqlalchemy import select
 
-from app.models.billing import WalletTopUp
+from app.models.billing import WalletEntry
 
 ROTA = "/api/v1/app/wallet/topup"
 
@@ -42,7 +42,7 @@ async def test_mesma_chave_nao_credita_duas_vezes(api, como_motorista, db):
     assert await _saldo(api, como_motorista) == antes + 30, "creditou duas vezes"
 
     registros = (
-        (await db.execute(select(WalletTopUp).where(WalletTopUp.idempotency_key == chave)))
+        (await db.execute(select(WalletEntry).where(WalletEntry.idempotency_key == chave)))
         .scalars()
         .all()
     )
@@ -66,7 +66,13 @@ async def test_credito_deixa_rastro_com_saldo_resultante(api, como_motorista, mo
         ROTA, headers=como_motorista, json={"amount": "25.00", "idempotency_key": uuid.uuid4().hex}
     )
     registro = (
-        (await db.execute(select(WalletTopUp).where(WalletTopUp.user_id == motorista.id)))
+        (
+            await db.execute(
+                select(WalletEntry).where(
+                    WalletEntry.user_id == motorista.id, WalletEntry.origem == "topup"
+                )
+            )
+        )
         .scalars()
         .one()
     )

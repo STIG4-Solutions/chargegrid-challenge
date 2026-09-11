@@ -255,7 +255,7 @@ class Reward(UUIDMixin, TimestampMixin, Base):
         # Creditar exige dizer ONDE. Sem isto, uma recompensa pode se declarar
         # paga sem que exista credito nenhum na carteira do motorista.
         CheckConstraint(
-            "estado <> 'creditada' OR wallet_topup_id IS NOT NULL",
+            "estado <> 'creditada' OR wallet_entry_id IS NOT NULL",
             name="ck_rewards_credito_completo",
         ),
         CheckConstraint(f"estado IN ({_em(ESTADOS_DA_RECOMPENSA)})", name="ck_rewards_estado"),
@@ -283,8 +283,8 @@ class Reward(UUIDMixin, TimestampMixin, Base):
     valor_brl: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     estado: Mapped[str] = mapped_column(String(12), default="pendente", nullable=False)
 
-    wallet_topup_id: Mapped[uuid.UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("wallet_topups.id", ondelete="SET NULL")
+    wallet_entry_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("wallet_entries.id", ondelete="SET NULL")
     )
     invoice_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("invoices.id", ondelete="SET NULL")

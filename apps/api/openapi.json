@@ -4168,6 +4168,58 @@
         ]
       }
     },
+    "/api/v1/app/wallet/statement": {
+      "get": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "Wallet Statement",
+        "description": "O extrato da carteira: credito e debito, do mais novo ao mais antigo.\n\nO motorista so' via um saldo. Com cashback de campanha ele passou a mudar\nsozinho, e um numero que muda sem explicacao e' o tipo de coisa que vira\nchamado de suporte - ou desconfianca, que e' pior.\n\nSempre o proprio: o `user_id` vem do token, nunca da URL. Nao ha parametro\nque permita pedir o extrato de outro motorista.",
+        "operationId": "wallet_statement_api_v1_app_wallet_statement_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Wallet Statement Api V1 App Wallet Statement Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/app/charge-points/{charge_point_id}/when-to-start": {
       "get": {
         "tags": [

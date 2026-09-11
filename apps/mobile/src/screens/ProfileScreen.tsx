@@ -1,6 +1,15 @@
 import { useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
-import { app, brl, num, useAction, useApi, type ApiError, type Veiculo } from '@chargegrid/sdk'
+import {
+  app,
+  brl,
+  num,
+  useAction,
+  useApi,
+  type ApiError,
+  type ExtratoDaCarteira,
+  type Veiculo
+} from '@chargegrid/sdk'
 import { Aviso, Botao, Carregando, Tela } from '../components'
 import { useAuth } from '../auth'
 import { API_URL } from '../api'
@@ -53,8 +62,14 @@ export default function ProfileScreen() {
   const [confirmandoCancelamento, setConfirmandoCancelamento] = useState(false)
 
   const [valor, setValor] = useState(50)
+  const extrato = useApi<ExtratoDaCarteira>(() => app.walletStatement(20), [])
   const recarregar = useAction((quanto: number) => app.topUpWallet(quanto), {
-    onSuccess: () => void recarregarPerfil()
+    onSuccess: () => {
+      void recarregarPerfil()
+      // O extrato tambem mudou: sem isto o saldo no topo sobe e a lista abaixo
+      // continua mostrando o movimento anterior como o ultimo.
+      void extrato.refetch({ silent: true })
+    }
   })
 
   const [modelo, setModelo] = useState('')
@@ -111,6 +126,34 @@ export default function ProfileScreen() {
           pending={recarregar.pending}
           onPress={() => void recarregar.run(valor)}
         />
+
+        {/*
+          O extrato. Ate aqui o motorista so' via o saldo - e com o cashback das
+          campanhas ele passou a mudar sozinho. Um numero que muda sem
+          explicacao vira chamado de suporte, ou desconfianca.
+        */}
+        {extrato.data && extrato.data.movimentos.length > 0 && (
+          <View style={s.extrato}>
+            <Text style={s.extratoTitulo}>Últimos movimentos</Text>
+            {extrato.data.movimentos.map((m) => (
+              <View key={m.id} style={s.movimento}>
+                <View style={s.movimentoTexto}>
+                  <Text style={s.movimentoRotulo} numberOfLines={1}>
+                    {m.rotulo}
+                  </Text>
+                  <Text style={s.movimentoData}>
+                    {new Date(m.data).toLocaleDateString('pt-BR')}
+                  </Text>
+                </View>
+                {/* O sinal e' a informacao: verde entra, vermelho sai. */}
+                <Text style={[s.movimentoValor, m.valor < 0 ? s.saida : s.entrada]}>
+                  {m.valor < 0 ? '−' : '+'}
+                  {brl(Math.abs(m.valor))}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
       </View>
 
       <View style={s.bloco}>
@@ -305,6 +348,15 @@ const s = StyleSheet.create({
   saldo: { color: cores.texto, fontSize: 32, fontWeight: '800', letterSpacing: -0.5 },
   nota: { color: cores.textoFraco, fontSize: 11, lineHeight: 15 },
   chips: { flexDirection: 'row', gap: espaco.sm },
+  extrato: { gap: espaco.xs, marginTop: espaco.sm },
+  extratoTitulo: { color: cores.textoFraco, fontSize: 11, fontWeight: '700', letterSpacing: 0.6 },
+  movimento: { flexDirection: 'row', alignItems: 'center', gap: espaco.sm },
+  movimentoTexto: { flex: 1 },
+  movimentoRotulo: { color: cores.texto, fontSize: 13 },
+  movimentoData: { color: cores.textoFraco, fontSize: 11 },
+  movimentoValor: { fontSize: 13, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  entrada: { color: cores.verde },
+  saida: { color: cores.texto },
   chip: { flex: 1, paddingHorizontal: espaco.sm },
   veiculo: {
     borderTopWidth: 1,

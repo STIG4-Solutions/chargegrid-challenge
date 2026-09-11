@@ -36,7 +36,7 @@ from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
 from app.core.security import hash_password
 from app.db.session import SessionLocal, engine
-from app.models.billing import Invoice, InvoiceLine, SitePaymentMethod
+from app.models.billing import Invoice, InvoiceLine, SitePaymentMethod, WalletEntry
 from app.models.charge_point import ChargePoint, ChargePointConnection
 from app.models.enums import (
     AuthMethod,
@@ -946,6 +946,20 @@ async def seed() -> None:
             )
             db.add(driver)
             await db.flush()
+            # O saldo inicial precisa da propria linha no razao. Creditar
+            # `wallet_balance` direto deixaria `SUM(wallet_entries.amount)`
+            # diferente do saldo no primeiro motorista criado - e a invariante
+            # que o razao existe para sustentar nasceria falsa no seed.
+            db.add(
+                WalletEntry(
+                    user_id=driver.id,
+                    amount=100.0,
+                    balance_after=100.0,
+                    idempotency_key=f"seed:abertura:{driver.id}",
+                    provider="seed",
+                    origem="ajuste",
+                )
+            )
             veiculo = Vehicle(
                 user_id=driver.id, model=model, battery_kwh=battery, max_ac_kw=max_ac
             )

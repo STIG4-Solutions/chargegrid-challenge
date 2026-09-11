@@ -266,5 +266,12 @@ export const app = {
     api.post<{ wallet_balance: number }>('/app/wallet/topup', {
       amount: amount.toFixed(2),
       idempotency_key: idempotencyKey
-    })
+    }),
+  /**
+   * O extrato da carteira: credito e debito, do mais novo ao mais antigo.
+   *
+   * Sempre o do proprio motorista - o dono vem do token, e nao ha parametro que
+   * permita pedir o de outra pessoa.
+   */
+  walletStatement: (limit = 50) => api.get<T.ExtratoDaCarteira>('/app/wallet/statement', { limit })
 }

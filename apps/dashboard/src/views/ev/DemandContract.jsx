@@ -371,7 +371,14 @@ const TOM_DO_AVISO = {
  * nota de rodapé. Um valor previsto desenhado igual a um valor medido diz ao
  * operador que os dois valem o mesmo, e ele contrata demanda por isso.
  */
-function PrevisaoDeEnergia({ d }) {
+/**
+ * Exportado para o teste montar o card com props, sem subir a aba inteira.
+ *
+ * O que se confere aqui nao cabe nas funcoes puras de `previsao.js`: elas
+ * respondem "ha banda?" e "o modelo ganha?"; o card decide o que o operador LE
+ * - o rotulo do numero, os avisos, e se a barra de incerteza aparece.
+ */
+export function PrevisaoDeEnergia({ d }) {
   if (!d.disponivel) {
     return (
       <div className="panel">

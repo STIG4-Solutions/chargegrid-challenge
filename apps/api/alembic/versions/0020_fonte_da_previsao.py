@@ -67,11 +67,13 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_constraint("ck_site_forecasts_banda_so_do_modelo", "site_forecasts", type_="check")
+    # Nomes CURTOS: a convencao prefixa `ck_<tabela>_`. Passar o nome completo
+    # aqui pediria `ck_site_forecasts_ck_site_forecasts_...`, que nao existe.
+    op.drop_constraint("banda_so_do_modelo", "site_forecasts", type_="check")
     op.create_check_constraint(
         "ck_site_forecasts_fallback_sem_banda",
         "site_forecasts",
         "modelo_aplicavel OR kwh_p10 IS NULL",
-    )
-    op.drop_constraint("ck_site_forecasts_fonte_conhecida", "site_forecasts", type_="check")
+    )  # nome completo aqui: e' o que a 0016 criou, ja' dobrado pela convencao
+    op.drop_constraint("fonte_conhecida", "site_forecasts", type_="check")
     op.drop_column("site_forecasts", "fonte")

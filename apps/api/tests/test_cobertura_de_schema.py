@@ -82,7 +82,7 @@ OMISSOES = {
         "user_id": "a rota so' devolve as recompensas do proprio motorista",
         "campaign_id": "o nome da campanha vai no lugar; o id nao leva a nada no app",
         "mission_progress_id": INTERNO,
-        "wallet_topup_id": "o extrato da carteira e' outra tela, com identificador proprio",
+        "wallet_entry_id": "o extrato da carteira e' outra tela, com identificador proprio",
         "invoice_id": "so' vale para recompensa aplicada como desconto, que ainda nao existe",
         "expires_at": "nenhuma concessao tem prazo hoje; campo sempre nulo so' confunde",
         "notified_at": INTERNO,

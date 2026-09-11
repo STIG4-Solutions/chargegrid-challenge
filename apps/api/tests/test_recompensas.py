@@ -20,7 +20,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from app.models.billing import WalletTopUp
+from app.models.billing import WalletEntry
 from app.models.campaign import Campaign, Mission, MissionProgress, Reward
 from app.models.push_device import PushDevice
 from app.services import campaign_service, notification_service
@@ -114,7 +114,11 @@ async def test_o_credito_diz_de_onde_veio(db, motorista):
     await campaign_service.conceder_pendentes(db)
 
     credito = (
-        await db.execute(select(WalletTopUp).where(WalletTopUp.user_id == motorista.id))
+        await db.execute(
+            select(WalletEntry).where(
+                WalletEntry.user_id == motorista.id, WalletEntry.origem == "cashback"
+            )
+        )
     ).scalar_one()
     assert credito.origem == "cashback"
     assert credito.origem_ref is not None

@@ -7,7 +7,7 @@ from app.models.billing import (
     InvoiceLine,
     Payment,
     SitePaymentMethod,
-    WalletTopUp,
+    WalletEntry,
 )
 from app.models.campaign import Campaign, Mission, MissionProgress, Reward
 from app.models.charge_point import ChargePoint, ChargePointConnection, ChargePointFault
@@ -93,5 +93,5 @@ __all__ = [
     "User",
     "UserRole",
     "Vehicle",
-    "WalletTopUp",
+    "WalletEntry",
 ]

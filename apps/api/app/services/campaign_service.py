@@ -36,7 +36,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.logging import get_logger
-from app.models.billing import Invoice, WalletTopUp
+from app.models.billing import Invoice, WalletEntry
 from app.models.campaign import Campaign, Mission, MissionProgress, Reward
 from app.models.enums import InvoiceStatus, SessionState
 from app.models.session import ChargingSession
@@ -417,7 +417,7 @@ async def _creditar(db: AsyncSession, recompensa: Reward, campanha: Campaign) ->
     """Credita a carteira, no mesmo desenho de `payment_service.topup_wallet`.
 
     A chave de idempotencia e' DETERMINISTICA - `reward:<id>` -, e nao sorteada:
-    o UNIQUE que ja existe em `wallet_topups.idempotency_key` vira a protecao
+    o UNIQUE que ja existe em `wallet_entries.idempotency_key` vira a protecao
     contra credito duplo sem precisar de tabela de trava nova.
     """
     dono = (
@@ -427,7 +427,7 @@ async def _creditar(db: AsyncSession, recompensa: Reward, campanha: Campaign) ->
     ).scalar_one()
 
     saldo = Decimal(str(dono.wallet_balance)) + Decimal(str(recompensa.valor_brl))
-    credito = WalletTopUp(
+    credito = WalletEntry(
         id=uuid.uuid4(),
         user_id=dono.id,
         amount=recompensa.valor_brl,
@@ -446,7 +446,7 @@ async def _creditar(db: AsyncSession, recompensa: Reward, campanha: Campaign) ->
         return
 
     dono.wallet_balance = money(saldo)
-    recompensa.wallet_topup_id = credito.id
+    recompensa.wallet_entry_id = credito.id
     recompensa.estado = "creditada"
     campanha.consumido_brl = money(
         Decimal(str(campanha.consumido_brl)) + Decimal(str(recompensa.valor_brl))

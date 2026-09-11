@@ -212,6 +212,7 @@ async def segundo_ponto(db: AsyncSession, site, tarifa):
 
 @pytest.fixture
 async def motorista(db: AsyncSession):
+    from app.models.billing import WalletEntry
     from app.models.enums import UserRole
     from app.models.user import User
 
@@ -224,6 +225,22 @@ async def motorista(db: AsyncSession):
         wallet_balance=100,
     )
     db.add(u)
+    await db.flush()
+    # O saldo de abertura tem linha no razao, como em producao: a migration
+    # 0021 cria uma para todo saldo herdado. Sem ela o motorista de teste
+    # nasceria com a invariante `SUM(wallet_entries) = wallet_balance` ja
+    # quebrada, e o teste que a confere nao provaria nada.
+    db.add(
+        WalletEntry(
+            id=uuid.uuid4(),
+            user_id=u.id,
+            amount=100,
+            balance_after=100,
+            idempotency_key=f"teste:abertura:{u.id}",
+            provider="fixture",
+            origem="ajuste",
+        )
+    )
     await db.flush()
     return u
 

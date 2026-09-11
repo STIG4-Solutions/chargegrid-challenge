@@ -293,9 +293,10 @@ npm ls react           # tem que aparecer uma única
 ```bash
 npm run verify:api                         # 17 cenários do SDK com fetch simulado
 npm run verify:dashboard                   # 62 cenários da lógica do painel, sem navegador
+npm run test:dashboard                     # 21 testes de renderização (vitest + jsdom)
 npm run typecheck                          # tipos do SDK e do app contra o contrato
 npm run build                              # dashboard
-cd apps/api && python -m pytest -q          # 518 testes (precisa do Postgres)
+cd apps/api && python -m pytest -q          # 538 testes (precisa do Postgres)
 cd apps/api && python -m ruff check .
 cd apps/api && python -m scripts.smoke_test # 57 cenários ponta a ponta (API no ar)
 cd apps/mobile && npx expo export --platform android --output-dir .expo-bundle
@@ -304,12 +305,17 @@ cd apps/mobile && npx expo export --platform android --output-dir .expo-bundle
 O `verify:api` roda contra um armazenamento **assíncrono de propósito** — o do React Native.
 Se passa nele, passa no `localStorage` síncrono da web.
 
-O `verify:dashboard` segue o mesmo formato — Node puro mais esbuild, sem runner de teste no
-projeto — e cobre a lógica que decide **o que vai para o servidor** ou **quanta confiança a
-tela transmite**: o diff do editor de orçamento, a validação do formulário de campanha, a
-calibração da faixa de previsão e o cálculo da multa de rescisão. Renderização (chave de lista,
-foco, remoção de linha) fica de fora: exigiria DOM e as dependências que vêm com ele. É limite
-conhecido, não esquecimento.
+O `verify:dashboard` é Node puro mais esbuild, sem runner, e cobre a lógica que decide **o
+que vai para o servidor**: o diff do editor de orçamento, a validação do formulário de
+campanha, a calibração da faixa de previsão e o cálculo da multa de rescisão.
+
+O `test:dashboard` cobre o que aquele não alcança — **o que o operador lê**. As funções puras
+podiam estar todas certas e a tela ainda mentir: bastava o card ignorar `fonte` e chamar de
+"energia prevista" um número que é média móvel. São 21 testes em `apps/dashboard/tests`, com
+vitest e jsdom.
+
+A divisão não é arbitrária: lógica pura no `verify`, decisão de apresentação no `test`. Só o
+segundo precisa de DOM, e é por isso que ele veio depois.
 
 **Teste de mutação é o padrão de aceite**: reverter a guarda e confirmar que o teste quebra.
 Não é cerimônia — ele já encontrou quatro guardas decorativas neste projeto, incluindo um

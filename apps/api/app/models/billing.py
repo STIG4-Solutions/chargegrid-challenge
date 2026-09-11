@@ -134,8 +134,8 @@ class Payment(UUIDMixin, TimestampMixin, Base):
     invoice = relationship("Invoice", back_populates="payments")
 
 
-class WalletTopUp(UUIDMixin, TimestampMixin, Base):
-    """Cada credito na carteira pre-paga, com a chave que impede o duplicado.
+class WalletEntry(UUIDMixin, TimestampMixin, Base):
+    """Cada movimento da carteira pre-paga - credito E debito.
 
     Existe por duas razoes que se resolvem na mesma tabela.
 
@@ -147,13 +147,38 @@ class WalletTopUp(UUIDMixin, TimestampMixin, Base):
     garante, nao um SELECT antes do INSERT: dois toques simultaneos passariam
     pelos dois SELECTs antes de qualquer INSERT, e o motorista seria creditado
     duas vezes.
+
+    POR QUE UMA TABELA SO'. Ela se chamou `wallet_topups` e guardava apenas
+    entrada; o debito alterava o saldo sem deixar linha. Metade de um razao
+    responde metade da pergunta: o motorista via o saldo cair e nao havia o que
+    conferir - e com o cashback das campanhas ele passou a ver o saldo subir
+    sozinho tambem.
+
+    Duas tabelas separadas seriam piores que uma incompleta: `balance_after`
+    perde o sentido quando os movimentos se intercalam, e reconciliar exigiria
+    UNION. Com uma, a invariante e' direta e testavel:
+
+        SUM(wallet_entries.amount) = users.wallet_balance
+
+    O SINAL diz a direcao e `origem` diz o motivo, e os dois nao podem divergir
+    - dai o CHECK. Um 'cashback' negativo passaria por qualquer validacao em
+    Python e so' apareceria quando o saldo de alguem nao fechasse.
     """
 
-    __tablename__ = "wallet_topups"
+    __tablename__ = "wallet_entries"
     __table_args__ = (
+        # Nomes CURTOS: a convencao de `Base.metadata` prefixa `ck_<tabela>_`.
+        # Passar o nome completo aqui gerava `ck_wallet_topups_ck_wallet_topups_
+        # origem`, que foi o que a 0021 precisou renomear.
         CheckConstraint(
-            "origem IN ('topup', 'cashback', 'estorno', 'ajuste')",
-            name="ck_wallet_topups_origem",
+            "origem IN ('topup', 'cashback', 'estorno', 'ajuste', 'pagamento')",
+            name="origem",
+        ),
+        CheckConstraint(
+            "(origem = 'pagamento' AND amount < 0) "
+            "OR (origem IN ('topup', 'cashback', 'estorno') AND amount > 0) "
+            "OR (origem = 'ajuste' AND amount <> 0)",
+            name="sinal_da_origem",
         ),
     )
 
@@ -165,8 +190,8 @@ class WalletTopUp(UUIDMixin, TimestampMixin, Base):
     idempotency_key: Mapped[str | None] = mapped_column(String(80), unique=True, index=True)
     provider: Mapped[str] = mapped_column(String(40), default="mock", nullable=False)
     provider_ref: Mapped[str | None] = mapped_column(String(120), index=True)
-    # De onde veio o dinheiro. `provider` responde por qual meio ele entrou -
-    # sempre "mock" hoje -, nao por que ele entrou. Sem esta coluna o extrato do
+    # Por que o dinheiro se moveu. `provider` responde por qual meio ele entrou
+    # - sempre "mock" hoje -, nao por que. Sem esta coluna o extrato do
     # motorista mostra "R$ 12,00" sem dizer se foi recarga que ele fez, cashback
     # de missao ou estorno, que e' exatamente a pergunta que o docstring acima
     # diz que esta tabela existe para responder.
@@ -174,6 +199,12 @@ class WalletTopUp(UUIDMixin, TimestampMixin, Base):
         String(16), default="topup", server_default="topup", nullable=False
     )
     # A recompensa que virou este credito. Sem FK de proposito: `rewards` aponta
-    # de volta para ca' em `wallet_topup_id`, e uma segunda FK no sentido inverso
+    # de volta para ca' em `wallet_entry_id`, e uma segunda FK no sentido inverso
     # criaria ciclo de dependencia entre as duas tabelas na criacao do schema.
     origem_ref: Mapped[uuid.UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    # Qual fatura este debito pagou. Sem ela o extrato mostra "-R$ 43,20" e o
+    # motorista nao tem como amarrar a linha a recarga que fez. Nulo nos
+    # creditos, que nao pagam fatura nenhuma.
+    invoice_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("invoices.id", ondelete="SET NULL")
+    )

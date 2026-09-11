@@ -66,6 +66,7 @@ from app.services import (
     session_service,
     start_advice_service,
     subscription_service,
+    wallet_service,
 )
 
 # Teto de agendamentos simultaneos por motorista. Nao e' regra de negocio
@@ -616,6 +617,24 @@ async def my_invoices(
         .scalars()
         .all()
     )
+
+
+@router.get("/wallet/statement")
+async def wallet_statement(
+    db: DbSession,
+    user: DriverUser,
+    limit: int = Query(default=wallet_service.PAGINA, ge=1, le=200),
+) -> dict:
+    """O extrato da carteira: credito e debito, do mais novo ao mais antigo.
+
+    O motorista so' via um saldo. Com cashback de campanha ele passou a mudar
+    sozinho, e um numero que muda sem explicacao e' o tipo de coisa que vira
+    chamado de suporte - ou desconfianca, que e' pior.
+
+    Sempre o proprio: o `user_id` vem do token, nunca da URL. Nao ha parametro
+    que permita pedir o extrato de outro motorista.
+    """
+    return await wallet_service.extrato(db, user.id, limite=limit)
 
 
 @router.post("/wallet/topup")
