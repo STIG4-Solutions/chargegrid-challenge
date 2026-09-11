@@ -1,0 +1,38 @@
+{
+  "gerado_por": "python treinar.py --ate 2026-08-31 --meses-backtest 3",
+  "versao_pipeline": "1.0.0",
+  "versoes": {
+    "lightgbm": "4.7.0",
+    "numpy": "2.5.3",
+    "pandas": "3.0.5",
+    "scikit_learn": "1.9.0"
+  },
+  "periodo_treino": [
+    "2025-03-01",
+    "2026-08-31"
+  ],
+  "n_linhas_treino": 1647,
+  "estacoes_treinadas": [
+    "lab-fiap-eco-station",
+    "posto-anhanguera-km-68",
+    "shopping-morumbi-g3"
+  ],
+  "determinismo": {
+    "deterministic": true,
+    "force_row_wise": true,
+    "num_threads": 4
+  },
+  "metricas": {
+    "meses_testados": [
+      "2026-06-01",
+      "2026-07-01",
+      "2026-08-01"
+    ],
+    "n_obs_teste": 276,
+    "wape_diario": 24.97,
+    "wape_mensal": 8.31,
+    "wape_mensal_baseline_m28": 7.61,
+    "vies_medio_pct": 0.72,
+    "cobertura_p10_p90_diaria": 62.3
+  }
+}

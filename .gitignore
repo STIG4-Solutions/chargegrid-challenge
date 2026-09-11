@@ -42,11 +42,22 @@ Thumbs.db
 
 # Artefatos treinados do modelo de previsao.
 #
-# Binario de ~2 MB por retreino, e regeneravel: o seed e' deterministico, entao
-# `python treinar.py` produz o mesmo artefato em qualquer maquina. Versionar
-# faria o repositorio crescer sem que ninguem consiga revisar o diff.
+# O MODELO fica de fora: 2 MB de binario por retreino, com diff que ninguem
+# consegue revisar. O dump em texto do LightGBM nao ajuda - sao 6 MB.
 #
-# O `openapi.json` fica versionado pelo motivo oposto: ele E' o contrato, e
-# revisar a mudanca dele e' exatamente o que se quer.
+# O que o mantem regeneravel nao e' o seed sozinho, como esta linha ja afirmou
+# por engano. Sao tres coisas, e as tres precisaram ser consertadas:
+#
+#   - `requirements.txt` com versoes EXATAS, porque `lightgbm>=4.0` treina
+#     arvores diferentes em clones construidos em meses diferentes;
+#   - `deterministic=True` e `force_row_wise=True` em `treinar.py`, porque o
+#     LightGBM varia com a contagem de nucleos da maquina;
+#   - `--ate` explicito, porque o historico do seed e' ancorado em `now()` e a
+#     janela de treino escorrega com o calendario.
+#
+# AS METRICAS FICAM VERSIONADAS, e isso e' deliberado: `metricas_atual.json` e'
+# a evidencia dos numeros publicados no README, e o comando que o refaz esta
+# dentro dele. Pesa 1 KB de texto. Mesmo motivo de `openapi.json` ser
+# versionado - ele E' a afirmacao, e revisar a mudanca dele e' o que se quer.
 apps/forecast/modelos/*.joblib
-apps/forecast/modelos/metricas_*.json
+apps/forecast/modelos/metricas_2*.json

@@ -26,6 +26,13 @@ docker run --rm --network backend_default \
   -v "$PWD/apps/forecast/modelos:/forecast/modelos" \
   chargegrid-forecast python treinar.py
 
+# Refazer EXATAMENTE o artefato publicado: o comando está dentro de
+# modelos/metricas_atual.json, no campo `gerado_por`
+docker run --rm --network backend_default ... \n  chargegrid-forecast python treinar.py --ate 2026-08-31
+
+# Testes do pipeline (não precisam do banco)
+docker run --rm -v "$PWD/apps/forecast:/forecast" \n  chargegrid-forecast python -m pytest tests -q
+
 # Gerar a previsão do mês e gravar no banco (uma vez por mês)
 docker run --rm --network backend_default \
   -e POSTGRES_HOST=db -e POSTGRES_USER=... -e POSTGRES_PASSWORD=... -e POSTGRES_DB=... \
@@ -35,6 +42,32 @@ docker run --rm --network backend_default \
 
 Sem linha na tabela, o painel mostra "nenhuma previsão calculada" — que é
 melhor que um número inventado.
+
+## O artefato não vai para o git. As métricas vão
+
+O modelo são 2 MB de binário por retreino, com diff que ninguém revisa (o dump
+em texto do LightGBM é pior: 6 MB). Já **`modelos/metricas_atual.json`** pesa
+1 KB, é texto, e carrega dentro o comando que o refaz — é a *evidência* dos
+números publicados aqui. Mesmo critério de `openapi.json` ser versionado: ele
+**é** a afirmação, e revisar a mudança dele é exatamente o que se quer.
+
+Isso só vale se o treino for reproduzível, e ele não era. Três coisas faltavam:
+
+| o que faltava | por quê |
+|---|---|
+| versões **exatas** em `requirements.txt` | `lightgbm>=4.0` treina árvores diferentes em clones construídos com meses de diferença — e o artefato é um *pickle*, que nem carrega entre versões |
+| `--ate` explícito | o histórico do seed é ancorado em `now()`, então a janela de treino escorrega com o calendário |
+| `num_threads` fixo | a ordem em que as somas parciais se juntam depende da contagem de threads, e ponto flutuante não é associativo |
+
+Verificado: dois treinos independentes com `--ate 2026-08-31` produziram árvores
+com o **mesmo SHA-256** e métricas idênticas.
+
+Sobre `deterministic=True` e `force_row_wise=True`, que acompanham o
+`num_threads`: são **preventivos, não demonstrados**. A documentação do LightGBM
+é explícita quanto ao contrato, mas a divergência por número de threads não foi
+reproduzida aqui — `tests/test_determinismo.py` tentou com 900, 8.000 e 30.000
+linhas, em máquina de 20 núcleos, e os modelos saíram iguais com e sem as flags.
+O teste registra o resultado negativo para ninguém refazer o experimento.
 
 ## O que veio do repositório de modelagem
 
@@ -51,12 +84,14 @@ de CSV e escrevem na tabela em vez de um arquivo.
 ## Estado atual do modelo — leia antes de confiar no número
 
 O backtest que o artefato carrega — três meses, e é de onde saem os números que
-o painel mostra:
+o painel mostra. Todos saem de **`modelos/metricas_atual.json`**, que é versionado
+e traz dentro o comando que o refaz:
 
 | métrica | valor |
 |---|---|
-| WAPE mensal do modelo | **9,05%** |
+| WAPE mensal do modelo | **8,31%** |
 | WAPE mensal da média móvel de 28 dias | **7,61%** |
+| WAPE diário do modelo | 24,97% |
 | Cobertura da faixa p10–p90 | **62,3%** (deveria ser ~80%) |
 
 Três meses são doze estação-meses, e a diferença caberia no ruído de amostragem —
