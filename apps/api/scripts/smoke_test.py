@@ -607,8 +607,23 @@ def coerencia_da_tarifa(client: httpx.Client, op: dict) -> None:
 # ---------------------------------------------------------------------------
 
 
+# Teto da rota. Conferir a invariante exige TODOS os movimentos, e o extrato
+# pagina - `saldo` e' a soma de tudo, `movimentos` e' a pagina pedida.
+TETO_DO_EXTRATO = 200
+
+
+def _extrato(client: httpx.Client, drv: dict, limite: int = TETO_DO_EXTRATO) -> dict:
+    return client.get(f"{API}/app/wallet/statement", params={"limit": limite}, headers=drv).json()
+
+
 def _fecha(extrato: dict) -> bool:
-    """A invariante da carteira: os movimentos somam o saldo."""
+    """A invariante da carteira: os movimentos somam o saldo.
+
+    So' vale sobre o extrato COMPLETO. A primeira versao somava a pagina padrao
+    de 50 e comparava com o saldo total: passou por varias rodadas e comecou a
+    falhar sozinha no dia em que o motorista do seed chegou ao 51o movimento -
+    uma falha que parecia defeito do produto e era do teste.
+    """
     return abs(round(sum(m["valor"] for m in extrato["movimentos"]), 2) - extrato["saldo"]) < 0.01
 
 
@@ -621,7 +636,7 @@ def carteira(client: httpx.Client, drv: dict) -> None:
     """
     secao("Carteira e razao")
 
-    extrato = client.get(f"{API}/app/wallet/statement", headers=drv).json()
+    extrato = _extrato(client, drv)
     perfil = client.get(f"{API}/auth/me", headers=drv).json()
     check(
         "extrato bate com o saldo do perfil",
@@ -666,7 +681,7 @@ def carteira(client: httpx.Client, drv: dict) -> None:
         f"R$ {r.json().get('wallet_balance')}",
     )
 
-    depois = client.get(f"{API}/app/wallet/statement", headers=drv).json()
+    depois = _extrato(client, drv)
     creditos = len([m for m in depois["movimentos"] if m["origem"] == "topup"])
     check(
         "o credito virou UMA linha no razao",
@@ -713,7 +728,7 @@ def gamificacao(client: httpx.Client, drv: dict) -> None:
     # O elo que so' aparece aqui: recompensa creditada PRECISA ter dinheiro
     # correspondente no razao. Sem esta checagem, `estado='creditada'` podia ser
     # uma etiqueta sem lastro nenhum.
-    extrato = client.get(f"{API}/app/wallet/statement", headers=drv).json()
+    extrato = _extrato(client, drv)
     cashbacks = [m for m in extrato["movimentos"] if m["origem"] == "cashback"]
     check(
         "toda recompensa creditada tem credito no razao",
@@ -886,7 +901,7 @@ def assinatura_do_motorista(client: httpx.Client, drv: dict) -> None:
         f"R$ {saldo_antes:.2f} -> R$ {saldo_depois:.2f} (plano R$ {mensalidade:.2f})",
     )
 
-    extrato = client.get(f"{API}/app/wallet/statement", headers=drv).json()
+    extrato = _extrato(client, drv)
     ultimo = extrato["movimentos"][0] if extrato["movimentos"] else {}
     check(
         "o debito da mensalidade esta no razao",

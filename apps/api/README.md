@@ -368,6 +368,39 @@ de ontem. A taxa do adquirente é separada, então o lojista vê receita bruta e
 | `POST /payments/webhook` | Liquidação do PSP, com HMAC obrigatório |
 | `GET /revenue/summary` | Receita bruta × líquida do período |
 
+#### Pix: escrito e testado, não homologado
+
+`PixProvider` fala a API Pix do BACEN — OAuth2 `client_credentials` sobre mTLS, `PUT /v2/cob/{txid}`,
+`GET /v2/cob/{txid}`, `PUT /v2/pix/{e2eid}/devolucao/{id}`. Os 33 testes o exercitam contra um PSP
+de mentira (`httpx.MockTransport`): caminho, cabeçalho, corpo, renovação de token, erro em RFC 7807
+e a travessia completa do webhook até a fatura paga.
+
+O que **não** existe é uma execução contra um PSP real — não há conta contratada. Trate como
+integração escrita e testada, não homologada; o primeiro contato com um PSP de verdade vai achar
+divergência de detalhe, porque sempre acha.
+
+Três coisas da especificação que custam caro descobrir tarde:
+
+| detalhe | por quê |
+|---|---|
+| `txid` é `[a-zA-Z0-9]{26,35}` | `INV-1042` tem hífen e oito caracteres — o PSP recusa. O nosso é derivado da fatura, **determinístico**, e começa pelo código dela para a conciliação manual continuar possível |
+| `PUT /v2/cob/{txid}`, não `POST /v2/cob` | com txid próprio a chamada é idempotente por construção: o retry de uma resposta perdida reaproveita a cobrança em vez de abrir a segunda |
+| valor é **string** com duas casas | `Decimal("10.1")` vira `"10.1"` e o PSP recusa; `float` chega a `"10.100000000000001"` |
+
+O corpo do webhook do Pix é `{"pix": [...]}` — uma lista, sem campo de status, e **sem referência
+no topo**. Por isso `provedor_do_evento` olha dentro de `pix[]` e `traduzir_webhook` desmonta a
+lista: sem esses dois, o evento cai no provedor global, nunca é traduzido, e a fatura fica aberta
+com o dinheiro já recebido.
+
+Configuração em `SitePaymentMethod.provider_config`, por estabelecimento — o dinheiro cai direto no
+lojista: `base_url`, `client_id`, `client_secret`, `chave_pix`, `certificado`, `chave_privada`,
+`verify`, `expiracao_segundos`, `webhook_secret`.
+
+**Uma ressalva de segurança que o código não resolve sozinho:** o Pix autentica o webhook por
+**mTLS**, não por HMAC. Aqui o HMAC continua obrigatório porque é o que dá para verificar dentro da
+aplicação; num deploy real, o proxy que termina o TLS precisa exigir e validar o certificado de
+cliente do PSP. Sem isso, a autenticação do webhook vale o quanto vale o segredo compartilhado.
+
 ---
 
 ### 4. Demanda contratada

@@ -315,7 +315,13 @@ async def charge_invoice(
 
 @router.post("/payments/webhook", include_in_schema=True)
 async def payment_webhook(request: Request, db: DbSession) -> dict:
-    """Liquidacao assincrona do PSP. Assinatura HMAC obrigatoria."""
+    """Liquidacao assincrona do PSP. Assinatura HMAC obrigatoria.
+
+    Um POST pode trazer MAIS DE UM pagamento: o Pix notifica em lote, com uma
+    lista de recebimentos no mesmo corpo. Quem sabe desmontar isso e' o
+    provedor - a rota nao supoe a forma do corpo, e por isso a resposta e'
+    sempre `{"eventos": [...]}`, com um elemento no caso comum.
+    """
     body = await request.body()
     signature = request.headers.get("x-signature") or request.headers.get("x-hub-signature-256")
 
@@ -325,7 +331,14 @@ async def payment_webhook(request: Request, db: DbSession) -> dict:
     provedor = await payment_service.provedor_do_evento(db, body)
     if not provedor.verify_webhook(body, signature):
         raise HTTPException(status_code=401, detail="assinatura de webhook inválida")
-    return await payment_service.handle_webhook(db, await request.json())
+
+    eventos = provedor.traduzir_webhook(await request.json())
+    if not eventos:
+        raise HTTPException(status_code=422, detail="webhook sem pagamento reconhecível")
+    # Um a um, e cada um no proprio commit: o lote do PSP pode citar um
+    # pagamento que nao e' nosso, e derrubar os outros por causa dele faria o
+    # PSP reenviar o lote inteiro para sempre.
+    return {"eventos": [await payment_service.handle_webhook(db, e) for e in eventos]}
 
 
 @router.get("/revenue/summary", response_model=RevenueSummary)

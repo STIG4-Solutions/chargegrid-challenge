@@ -3100,7 +3100,7 @@
           "recarga ev · tarifação e pagamento"
         ],
         "summary": "Payment Webhook",
-        "description": "Liquidacao assincrona do PSP. Assinatura HMAC obrigatoria.",
+        "description": "Liquidacao assincrona do PSP. Assinatura HMAC obrigatoria.\n\nUm POST pode trazer MAIS DE UM pagamento: o Pix notifica em lote, com uma\nlista de recebimentos no mesmo corpo. Quem sabe desmontar isso e' o\nprovedor - a rota nao supoe a forma do corpo, e por isso a resposta e'\nsempre `{\"eventos\": [...]}`, com um elemento no caso comum.",
         "operationId": "payment_webhook_api_v1_payments_webhook_post",
         "responses": {
           "200": {

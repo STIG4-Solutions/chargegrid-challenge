@@ -294,6 +294,15 @@ async def provedor_do_evento(db: AsyncSession, body: bytes):
     try:
         evento = json.loads(body)
         referencia = evento.get("provider_ref") or evento.get("txid")
+        if not referencia:
+            # O Pix nao poe referencia no topo: o corpo dele e'
+            # `{"pix": [{"txid": ..., "endToEndId": ...}, ...]}`. Sem olhar
+            # dentro da lista, a busca falha, cai-se no provedor global - que e'
+            # o `mock` - e o corpo nunca chega a ser traduzido: a fatura fica
+            # aberta com o dinheiro ja recebido.
+            recebidos = evento.get("pix")
+            if isinstance(recebidos, list) and recebidos:
+                referencia = (recebidos[0] or {}).get("txid")
     except (ValueError, AttributeError):
         referencia = None
 
