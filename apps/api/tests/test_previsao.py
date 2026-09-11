@@ -32,6 +32,7 @@ async def _previsao(db, site, **kwargs):
         faturamento_previsto_brl=Decimal("11596.20"),
         media_diaria_28d=Decimal("265.0"),
         modelo_aplicavel=True,
+        fonte="modelo",
         modelo_versao="1.0.0",
         dias_de_historico=713,
         cobertura_declarada_pct=Decimal("80"),
@@ -84,7 +85,9 @@ async def test_a_previsao_mais_recente_vence(db, site):
 
 async def test_fallback_avisa_que_nao_e_previsao(db, site):
     """Media movel de 28 dias nao pode ser apresentada como previsao."""
-    await _previsao(db, site, modelo_aplicavel=False, kwh_p10=None, kwh_p90=None)
+    await _previsao(
+        db, site, modelo_aplicavel=False, fonte="media_movel", kwh_p10=None, kwh_p90=None
+    )
 
     saida = await forecast_service.previsao_do_site(db, site.id)
     assert saida["modelo_aplicavel"] is False
@@ -93,8 +96,8 @@ async def test_fallback_avisa_que_nao_e_previsao(db, site):
 
 
 async def test_faixa_sub_calibrada_e_anunciada(db, site):
-    """O caso real medido: 56% de cobertura numa faixa que promete 80%."""
-    await _previsao(db, site, cobertura_medida_pct=Decimal("56.5"))
+    """O caso real medido: 63% de cobertura numa faixa que promete 80%."""
+    await _previsao(db, site, fonte="modelo", cobertura_medida_pct=Decimal("56.5"))
 
     saida = await forecast_service.previsao_do_site(db, site.id)
     aviso = next(a for a in saida["avisos"] if "estreita" in a["texto"])
@@ -104,33 +107,88 @@ async def test_faixa_sub_calibrada_e_anunciada(db, site):
 
 async def test_diferenca_pequena_de_cobertura_nao_vira_alarme(db, site):
     """Backtest de tres meses tem ruido; acusar por um ponto so' geraria alarme."""
-    await _previsao(db, site, cobertura_medida_pct=Decimal("77"))
+    await _previsao(db, site, fonte="modelo", cobertura_medida_pct=Decimal("77"))
 
     saida = await forecast_service.previsao_do_site(db, site.id)
     assert not any("estreita" in a["texto"] for a in saida["avisos"])
 
 
-async def test_modelo_que_perde_da_regua_e_anunciado(db, site):
-    """O resultado real do primeiro retreino: 12,36% contra 9,45% da media movel.
+async def test_sem_banda_na_tela_nao_se_avisa_sobre_a_banda(db, site):
+    """Aviso sobre algo que o operador nao esta vendo e' ruido.
 
-    Sem este aviso, a tela apresentaria como base de decisao um numero que erra
-    mais que tres linhas de codigo - e o operador contrataria demanda por ele.
+    E ruido faz o aviso seguinte - o que explica de onde veio o numero - ser
+    ignorado junto.
     """
     await _previsao(
-        db, site, wape_modelo_pct=Decimal("12.36"), wape_baseline_pct=Decimal("9.45")
+        db, site, fonte="media_movel", kwh_p10=None, kwh_p90=None,
+        cobertura_medida_pct=Decimal("56.5"),
     )
 
     saida = await forecast_service.previsao_do_site(db, site.id)
-    aviso = next(a for a in saida["avisos"] if "régua" in a["texto"])
-    assert "12.4%" in aviso["texto"] or "12.4" in aviso["texto"]
-    assert aviso["nivel"] == "alto"
+    assert not any("estreita" in a["texto"] for a in saida["avisos"])
 
 
-async def test_modelo_que_ganha_da_regua_nao_gera_aviso(db, site):
-    await _previsao(db, site, wape_modelo_pct=Decimal("7.5"), wape_baseline_pct=Decimal("10.4"))
+async def test_modelo_que_perde_da_regua_entrega_a_regua(db, site):
+    """O resultado real medido: o modelo perde no mensal, entao nao e' ele que sai.
+
+    Apresentar como previsao um numero que erra mais que uma media movel de tres
+    linhas seria pior que nao ter modelo nenhum - o operador contrataria demanda
+    por ele. O job grava a regua, e `fonte` diz isso.
+    """
+    await _previsao(
+        db,
+        site,
+        fonte="media_movel",
+        kwh_p10=None,
+        kwh_p90=None,
+        wape_modelo_pct=Decimal("9.05"),
+        wape_baseline_pct=Decimal("7.61"),
+    )
 
     saida = await forecast_service.previsao_do_site(db, site.id)
-    assert not any("régua" in a["texto"] for a in saida["avisos"])
+
+    assert saida["fonte"] == "media_movel"
+    assert saida["modelo_aplicavel"] is True, "o modelo conhece o local; ele e' que perde"
+    aviso = next(a for a in saida["avisos"] if "média dos últimos 28 dias" in a["texto"])
+    assert "9.1%" in aviso["texto"] and "7.6%" in aviso["texto"]
+    # Nivel medio, e nao alto: o numero entregue e' o BOM. O alto fica para
+    # quando falta historico, que e' quando nao ha o que oferecer.
+    assert aviso["nivel"] == "medio"
+
+
+async def test_os_dois_fallbacks_dizem_coisas_diferentes(db, site, segundo_site):
+    """Mesmo numero, motivos opostos.
+
+    Falta de historico e' "ainda nao da' para prever"; modelo pior que a regua e'
+    "da' para prever e a previsao nao ajuda". Juntar os dois faria o operador
+    achar que falta dado quando o que falta e' modelo melhor.
+    """
+    await _previsao(
+        db, site, modelo_aplicavel=False, fonte="media_movel", kwh_p10=None, kwh_p90=None
+    )
+    sem_historico = await forecast_service.previsao_do_site(db, site.id)
+
+    await _previsao(
+        db, segundo_site, fonte="media_movel", kwh_p10=None, kwh_p90=None,
+        wape_modelo_pct=Decimal("9.05"), wape_baseline_pct=Decimal("7.61"),
+    )
+    modelo_pior = await forecast_service.previsao_do_site(db, segundo_site.id)
+
+    assert sem_historico["avisos"][0]["texto"] != modelo_pior["avisos"][0]["texto"]
+    assert "Sem histórico" in sem_historico["avisos"][0]["texto"]
+    assert "não supera" in modelo_pior["avisos"][0]["texto"]
+
+
+async def test_modelo_que_ganha_da_regua_e_usado(db, site):
+    await _previsao(
+        db, site, fonte="modelo",
+        wape_modelo_pct=Decimal("7.5"), wape_baseline_pct=Decimal("10.4"),
+    )
+
+    saida = await forecast_service.previsao_do_site(db, site.id)
+    assert saida["fonte"] == "modelo"
+    assert saida["kwh_p10"] is not None, "previsao de verdade vem com banda"
+    assert not any("não supera" in a["texto"] for a in saida["avisos"])
 
 
 # ------------------------------------------------------------------ o banco
@@ -145,7 +203,12 @@ async def test_banco_recusa_banda_pela_metade(db, site):
 async def test_banco_recusa_banda_em_fallback(db, site):
     """Incerteza em volta de uma media movel daria ares de previsao a uma conta."""
     with pytest.raises(IntegrityError):
-        await _previsao(db, site, modelo_aplicavel=False)
+        await _previsao(db, site, fonte="media_movel")
+
+
+async def test_banco_recusa_fonte_desconhecida(db, site):
+    with pytest.raises(IntegrityError):
+        await _previsao(db, site, fonte="chute")
 
 
 async def test_banco_recusa_duas_previsoes_da_mesma_competencia(db, site):

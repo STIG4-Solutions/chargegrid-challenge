@@ -18,8 +18,8 @@ significa "nao ha previsao", e a tela diz isso em vez de inventar um numero.
 
 AS DUAS COLUNAS DE COBERTURA existem por um motivo especifico. O modelo entrega
 uma faixa p10-p90 que deveria conter o valor real em ~80% das vezes; o backtest
-do proprio pipeline mediu 66,8%. A faixa e' mais estreita do que anuncia, e o
-README do modelo afirma o contrario. Guardar os dois numeros lado a lado faz a
+do retreino com os dados deste banco mediu 62,3%. A faixa e' mais estreita do que
+anuncia, e o README do modelo afirma o contrario. Guardar os dois numeros lado a lado faz a
 divergencia virar dado na linha, e nao nota de rodape que ninguem le.
 """
 
@@ -61,13 +61,12 @@ class SiteForecast(UUIDMixin, TimestampMixin, Base):
             " OR (kwh_p10 IS NOT NULL AND kwh_p90 IS NOT NULL)",
             name="ck_site_forecasts_banda_completa",
         ),
-        # Fallback nao tem banda: quando o modelo nao se aplica, o numero e' a
-        # media dos ultimos 28 dias, e desenhar incerteza em volta dela daria
-        # ares de previsao a uma conta de padaria.
-        CheckConstraint(
-            "modelo_aplicavel OR kwh_p10 IS NULL",
-            name="ck_site_forecasts_fallback_sem_banda",
-        ),
+        # A banda depende da FONTE, nao de `modelo_aplicavel`: ha um caso em
+        # que o modelo se aplica e mesmo assim nao e' usado, porque perde da
+        # regua. Desenhar incerteza em volta de uma media movel daria ares de
+        # previsao a uma conta de padaria.
+        CheckConstraint("fonte = 'modelo' OR kwh_p10 IS NULL", name="banda_so_do_modelo"),
+        CheckConstraint("fonte IN ('modelo', 'media_movel')", name="fonte_conhecida"),
         CheckConstraint("kwh_previsto >= 0", name="ck_site_forecasts_kwh_nao_negativo"),
         Index("ix_site_forecasts_competencia", "competencia"),
     )
@@ -91,9 +90,17 @@ class SiteForecast(UUIDMixin, TimestampMixin, Base):
     # sem ela, nao da' para dizer se o modelo agregou algo a uma media movel.
     media_diaria_28d: Mapped[Decimal | None] = mapped_column(Numeric(12, 3))
 
-    # False = o modelo nao conhece este local (ou ele tem historico curto demais),
-    # e `kwh_previsto` e' media movel de 28 dias, nao previsao.
+    # `modelo_aplicavel` responde "o modelo CONHECE este local?"; `fonte`
+    # responde "de onde veio o numero que esta em `kwh_previsto`?". Sao tres
+    # casos, e sem as duas colunas o terceiro fica invisivel:
+    #
+    #   aplicavel=False, fonte=media_movel  -> historico curto demais
+    #   aplicavel=True,  fonte=media_movel  -> o modelo perde da regua aqui
+    #   aplicavel=True,  fonte=modelo       -> previsao de verdade
     modelo_aplicavel: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    fonte: Mapped[str] = mapped_column(
+        String(16), default="media_movel", server_default="media_movel", nullable=False
+    )
     modelo_versao: Mapped[str | None] = mapped_column(String(40))
     dias_de_historico: Mapped[int | None] = mapped_column(Integer)
 

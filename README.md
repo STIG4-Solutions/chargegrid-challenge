@@ -90,18 +90,24 @@ A separação não é estética. O processo do FastAPI também roda os workers d
 `import lightgbm` que falhe derrubaria junto o rebalanceamento — que é o que impede o disjuntor
 de abrir. Previsão de faturamento não pode compartilhar processo com controle de carga.
 
-**O modelo atual perde da régua**, e a tela diz isso ao operador:
+**O modelo ganha no diário e perde no mensal**, que é a granularidade que a tela mostra:
 
-| | |
-|---|---|
-| WAPE mensal do modelo | 9,05% |
-| WAPE mensal da média móvel de 28 dias | **7,61%** |
-| Cobertura da faixa p10–p90 | 62,3% (deveria ser ~80%) |
+| granularidade | modelo | régua (média móvel de 28 dias) |
+|---|---|---|
+| diário | **29,4%** | 34,3% |
+| mensal | 12,0% | **9,6%** |
 
-Uma média móvel de três linhas erra menos. Os dois números vão para o banco e o painel avisa:
-a previsão vale como referência, não como base para contratar demanda. As causas prováveis são
-estruturais — três estações treinadas onde o pipeline foi desenhado para oito — e perseguir
-acurácia contra dado gerado não significaria nada. `apps/forecast/README.md` detalha.
+Medido sobre 36 estação-meses fora da amostra. Ele aprende o dia a dia — no ponto corporativo,
+onde o fim de semana é 4× mais fraco, erra 33,6% contra 52,8% da régua. Mas somando 30 dias
+esse padrão quase se cancela, e sobra a variância que o modelo adiciona.
+
+Combinar os dois foi testado e não resolve: a correlação entre os erros mensais é **0,944** —
+eles erram junto, porque no agregado ambos são essencialmente "nível × dias".
+
+Então o job grava **o preditor que mede melhor**, e a coluna `fonte` diz qual foi. Não é
+desistir do modelo: quando ele passar a ganhar — com operação real, com mais estações —, o
+próprio backtest inverte a escolha sem ninguém mexer em código.
+`apps/forecast/README.md` detalha.
 
 ## Rodar
 

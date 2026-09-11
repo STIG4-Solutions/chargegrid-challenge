@@ -483,10 +483,15 @@ que pagou não seria baixa manual.
 A API apenas **lê** `site_forecasts`. Quem escreve é `apps/forecast`, fora deste processo: um
 `import lightgbm` que falhe não pode derrubar o rebalanceamento de potência junto.
 
-Três avisos acompanham o número, e cada um responde a uma pergunta diferente: histórico
-insuficiente (o valor é média móvel, não previsão); faixa mais estreita do que anuncia; e
-**modelo que não supera a régua**. Nenhum é escondido — mesma tradição de `confiavel` em
-`demand_service` e `so_humano` em `maintenance_service`.
+Duas colunas respondem perguntas diferentes: `modelo_aplicavel` diz se o modelo **conhece** o
+local, e `fonte` diz de onde veio o número que está em `kwh_previsto`. Isso produz três estados,
+e o aviso muda em cada um — falta de histórico e modelo pior que a régua entregam o **mesmo
+número** por motivos opostos, e juntá-los faria o operador achar que falta dado quando o que
+falta é modelo melhor.
+
+A faixa só é desenhada quando `fonte = 'modelo'`; o CHECK do banco também recusa banda em
+média móvel. Nada disso é escondido — mesma tradição de `confiavel` em `demand_service` e
+`so_humano` em `maintenance_service`.
 
 ## App mobile (`/api/v1/app/*`)
 
@@ -777,11 +782,14 @@ O multiplicador dinâmico é aplicado pelo motor de tarifação e registrado no 
 o preço cobrado continua explicável, que é o requisito para cobrança dinâmica em varejo.
 
 A previsão de energia é o único pilar com **modelo treinado de verdade** hoje, e o resultado
-honesto é que ele **não supera a régua**: 9,05% de erro contra 7,61% de uma média móvel de 28
-dias, com a faixa p10–p90 cobrindo 62,3% onde promete 80%. Os dois números vão para o banco e a
-tela avisa o operador. As causas prováveis são estruturais — três estações treinadas onde o
-pipeline foi desenhado para oito — e perseguir acurácia contra dado gerado por seed não
-significaria nada. `apps/forecast/README.md` detalha o caminho de retreino.
+honesto é que ele ganha no diário (29,4% contra 34,3%) e perde no mensal (12,0% contra 9,6%) —
+que é a granularidade que a tela mostra. Somando 30 dias, o padrão semanal que ele aprende
+quase se cancela e sobra a variância que ele adiciona; combinar os dois não resolve, porque os
+erros mensais têm correlação de 0,944.
+
+Por isso `site_forecasts.fonte` existe: o job grava o preditor que **mede melhor**, e a coluna
+diz qual foi. Quando o modelo passar a ganhar, o backtest inverte a escolha sozinho.
+`apps/forecast/README.md` detalha.
 
 ---
 

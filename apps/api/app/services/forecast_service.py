@@ -4,17 +4,24 @@ Quem calcula e' `apps/forecast`, um job que roda fora deste processo. Aqui so' s
 le a linha mais recente e se traduz para a tela - incluindo as guardas de
 honestidade, que sao a parte que nao pode ser esquecida.
 
-TRES AVISOS, e cada um responde a uma pergunta diferente:
+DE ONDE VEIO O NUMERO. `kwh_previsto` tem duas origens possiveis, e `fonte` diz
+qual. O job so' usa o modelo quando ele MEDE melhor que a media movel de 28 dias
+no backtest; caso contrario grava a propria media movel. Nao e' desistir do
+modelo - quando ele passar a ganhar, o backtest inverte a escolha sozinho.
 
-- `modelo_aplicavel = false` -> o modelo nao conhece este local, ou o historico e'
-  curto demais. O numero e' media movel de 28 dias, e chamar isso de previsao
-  seria mentira.
-- a faixa p10-p90 cobre menos do que promete -> ela e' mais estreita do que
-  anuncia, e tratar os extremos como piores casos e' otimismo.
-- o modelo nao supera a regua -> uma media movel de tres linhas erra menos que
-  ele. A previsao vale como referencia, nao como base de decisao.
+Isso produz tres estados, e o aviso muda em cada um:
 
-Nenhum dos tres e' escondido. O projeto ja faz isso em `demand_service`
+  aplicavel=False, fonte=media_movel  -> historico curto demais para o modelo
+  aplicavel=True,  fonte=media_movel  -> o modelo conhece o local e perde da regua
+  aplicavel=True,  fonte=modelo       -> previsao de verdade, com banda
+
+Os dois primeiros entregam o MESMO numero por motivos diferentes, e juntar os
+dois faria o operador achar que falta dado quando o que falta e' modelo melhor.
+
+A faixa p10-p90 tem aviso proprio: ela cobre menos do que promete, e tratar os
+extremos como piores casos e' otimismo.
+
+Nada disso e' escondido. O projeto ja faz isso em `demand_service`
 (`confiavel`) e em `maintenance_service` (`so_humano`), e pela mesma razao: um
 numero sem a sua incerteza e' pior que numero nenhum, porque parece confiavel.
 """
@@ -45,6 +52,9 @@ def _avisos(linha: SiteForecast) -> list[dict]:
     """O que o operador precisa saber antes de usar este numero."""
     avisos: list[dict] = []
 
+    # Tres casos, tres textos. O numero pode ser o mesmo - a media movel - por
+    # dois motivos completamente diferentes, e juntar os dois faria o operador
+    # achar que falta dado quando na verdade o modelo e' que nao entrega.
     if not linha.modelo_aplicavel:
         avisos.append(
             {
@@ -55,9 +65,27 @@ def _avisos(linha: SiteForecast) -> list[dict]:
                 ),
             }
         )
+    elif linha.fonte == "media_movel":
+        modelo, regua = linha.wape_modelo_pct, linha.wape_baseline_pct
+        detalhe = ""
+        if modelo is not None and regua is not None:
+            detalhe = f" — ele erra {float(modelo):.1f}% contra {float(regua):.1f}% dela"
+        avisos.append(
+            {
+                "nivel": "medio",
+                "texto": (
+                    "Este número é a média dos últimos 28 dias. O modelo existe e "
+                    f"conhece este ponto, mas não supera essa régua no teste{detalhe}. "
+                    "Ele volta sozinho quando passar a acertar mais."
+                ),
+            }
+        )
 
+    # So' quando ha faixa NA TELA. Com `fonte = media_movel` nao se desenha
+    # banda nenhuma, e avisar sobre a calibracao de algo que o operador nao esta
+    # vendo e' ruido - e ruido faz o aviso seguinte, que importa, ser ignorado.
     medida, declarada = linha.cobertura_medida_pct, linha.cobertura_declarada_pct
-    if medida is not None and declarada is not None:
+    if linha.fonte == "modelo" and medida is not None and declarada is not None:
         if Decimal(str(medida)) < Decimal(str(declarada)) - TOLERANCIA_DE_COBERTURA:
             avisos.append(
                 {
@@ -69,19 +97,6 @@ def _avisos(linha: SiteForecast) -> list[dict]:
                     ),
                 }
             )
-
-    modelo, regua = linha.wape_modelo_pct, linha.wape_baseline_pct
-    if modelo is not None and regua is not None and Decimal(str(modelo)) >= Decimal(str(regua)):
-        avisos.append(
-            {
-                "nivel": "alto",
-                "texto": (
-                    f"Este modelo não superou a régua: erra {float(modelo):.1f}% contra "
-                    f"{float(regua):.1f}% de uma média móvel de 28 dias. Use como "
-                    "referência, não como base para contratar demanda."
-                ),
-            }
-        )
 
     return avisos
 
@@ -125,6 +140,9 @@ async def previsao_do_site(db: AsyncSession, site_id: uuid.UUID) -> dict:
         "fat_p90_brl": _float(linha.fat_p90_brl),
         "media_diaria_28d": _float(linha.media_diaria_28d),
         "modelo_aplicavel": linha.modelo_aplicavel,
+        # De onde veio o numero que esta em `kwh_previsto`. A tela desenha a
+        # banda so' quando e' "modelo".
+        "fonte": linha.fonte,
         "modelo_versao": linha.modelo_versao,
         "dias_de_historico": linha.dias_de_historico,
         "cobertura_declarada_pct": _float(linha.cobertura_declarada_pct),

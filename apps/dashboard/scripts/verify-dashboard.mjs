@@ -347,28 +347,35 @@ check('sem metrica a comparacao nao existe', superaARegua(null, 10) === null)
 // 23. Banda em volta de uma média móvel daria ares de previsão a uma conta de
 //     padaria — e meia banda mente sobre a incerteza declarada.
 check(
-  'fallback nao desenha banda',
-  temBanda({ modelo_aplicavel: false, kwh_p10: 10, kwh_p90: 20 }) === false
+  'sem historico nao desenha banda',
+  temBanda({ fonte: 'media_movel', modelo_aplicavel: false, kwh_p10: 10, kwh_p90: 20 }) === false
+)
+// O caso que a coluna `fonte` existe para cobrir: o modelo CONHECE o ponto e
+// mesmo assim não é usado, porque perde da régua. O número é média móvel, e
+// desenhar incerteza em volta dele daria ares de previsão a uma conta.
+check(
+  'modelo que perde da regua nao desenha banda',
+  temBanda({ fonte: 'media_movel', modelo_aplicavel: true, kwh_p10: 10, kwh_p90: 20 }) === false
 )
 check(
   'banda pela metade nao e desenhada',
-  temBanda({ modelo_aplicavel: true, kwh_p10: 10, kwh_p90: null }) === false
+  temBanda({ fonte: 'modelo', kwh_p10: 10, kwh_p90: null }) === false
 )
 check(
-  'modelo aplicavel com os dois extremos desenha',
-  temBanda({ modelo_aplicavel: true, kwh_p10: 10, kwh_p90: 20 }) === true
+  'previsao do modelo com os dois extremos desenha',
+  temBanda({ fonte: 'modelo', kwh_p10: 10, kwh_p90: 20 }) === true
 )
 
 // 24. A escala da barra.
-const comBanda = { modelo_aplicavel: true, kwh_p10: 5215, kwh_p90: 10005, kwh_previsto: 8283 }
+const comBanda = { fonte: 'modelo', kwh_p10: 5215, kwh_p90: 10005, kwh_previsto: 8283 }
 const escala = escalaDaBanda(comBanda)
 check('previsto cai dentro da banda desenhada', escala.previsto > escala.inicio && escala.previsto < escala.fim)
 check('a banda sobra dos dois lados', escala.inicio > 0 && escala.fim < 100)
-check('sem banda nao ha escala', escalaDaBanda({ modelo_aplicavel: false }) === null)
+check('sem banda nao ha escala', escalaDaBanda({ fonte: 'media_movel' }) === null)
 // p10 == p90 seria divisão por zero e a barra sairia com NaN de largura.
 check(
   'banda degenerada nao produz escala',
-  escalaDaBanda({ modelo_aplicavel: true, kwh_p10: 100, kwh_p90: 100, kwh_previsto: 100 }) === null
+  escalaDaBanda({ fonte: 'modelo', kwh_p10: 100, kwh_p90: 100, kwh_previsto: 100 }) === null
 )
 
 // ---- contrato com a plataforma ----

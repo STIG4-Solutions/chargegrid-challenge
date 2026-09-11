@@ -421,7 +421,7 @@ function PrevisaoDeEnergia({ d }) {
       <div className="grid grid-3" style={{ marginTop: 16 }}>
         <div className="stat">
           <div className="label">
-            {d.modelo_aplicavel ? 'Energia prevista' : 'Média dos últimos 28 dias'}
+            {d.fonte === 'modelo' ? 'Energia prevista' : 'Média dos últimos 28 dias'}
           </div>
           <div className="value">
             {num(d.kwh_previsto, 0)} <small>kWh</small>
@@ -447,7 +447,11 @@ function PrevisaoDeEnergia({ d }) {
             {num(d.dias_de_historico ?? 0, 0)} <small>dias</small>
           </div>
           <div className="trend muted">
-            {d.modelo_aplicavel ? `modelo ${d.modelo_versao ?? '—'}` : 'sem modelo aplicável'}
+            {d.fonte === 'modelo'
+              ? `modelo ${d.modelo_versao ?? '—'}`
+              : d.modelo_aplicavel
+                ? 'média móvel — o modelo não supera esta régua'
+                : 'média móvel — sem histórico para o modelo'}
           </div>
         </div>
       </div>

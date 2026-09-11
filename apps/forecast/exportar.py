@@ -45,7 +45,7 @@ _UPSERT = text(
         id, site_id, competencia, gerado_em,
         kwh_previsto, kwh_p10, kwh_p90,
         faturamento_previsto_brl, fat_p10_brl, fat_p90_brl,
-        media_diaria_28d, modelo_aplicavel, modelo_versao, dias_de_historico,
+        media_diaria_28d, modelo_aplicavel, fonte, modelo_versao, dias_de_historico,
         cobertura_declarada_pct, cobertura_medida_pct,
         wape_modelo_pct, wape_baseline_pct,
         created_at, updated_at
@@ -53,7 +53,7 @@ _UPSERT = text(
     SELECT :id, s.id, :competencia, :gerado_em,
            :kwh_previsto, :kwh_p10, :kwh_p90,
            :fat_prev, :fat_p10, :fat_p90,
-           :media_28d, :aplicavel, :versao, :dias,
+           :media_28d, :aplicavel, :fonte, :versao, :dias,
            :declarada, :medida,
            :wape_modelo, :wape_regua,
            now(), now()
@@ -68,6 +68,7 @@ _UPSERT = text(
         fat_p90_brl = EXCLUDED.fat_p90_brl,
         media_diaria_28d = EXCLUDED.media_diaria_28d,
         modelo_aplicavel = EXCLUDED.modelo_aplicavel,
+        fonte = EXCLUDED.fonte,
         modelo_versao = EXCLUDED.modelo_versao,
         dias_de_historico = EXCLUDED.dias_de_historico,
         cobertura_declarada_pct = EXCLUDED.cobertura_declarada_pct,
@@ -89,6 +90,21 @@ def _ou_nulo(valor):
     except (TypeError, ValueError):
         return None
     return float(valor)
+
+
+def _pela_regua(linha) -> float:
+    """O numero da media movel de 28 dias para esta estacao, no mes alvo.
+
+    Duas origens, porque o pipeline preenche coisas diferentes em cada caso:
+    quando ele previu a estacao, `media_diaria_28d` tem a media e basta
+    multiplicar pelos dias; quando ela caiu no fallback dele, `kwh_prev` JA e' a
+    media movel e `media_diaria_28d` vem NaN - ler dela gravaria zero num site
+    que tem movimento.
+    """
+    media = _ou_nulo(linha.get("media_diaria_28d"))
+    if media is not None:
+        return media * int(linha["dias"])
+    return _ou_nulo(linha.get("kwh_prev")) or 0.0
 
 
 def _avisar_se_velho(artefato: dict) -> None:
@@ -129,16 +145,30 @@ def main() -> int:
     medida = metricas.get("cobertura_p10_p90_diaria")
     wape_modelo = metricas.get("wape_mensal")
     wape_regua = metricas.get("wape_mensal_baseline_m28")
-    if wape_modelo is not None and wape_regua is not None and wape_modelo >= wape_regua:
-        # Nao aborta: a previsao ainda tem valor como referencia, e esconde-la
-        # nao a torna melhor. O que nao pode acontecer e' a tela apresentar
-        # como decisao um numero que perde de uma media movel - por isso os
-        # dois erros vao para o banco, lado a lado.
+
+    # A ESCOLHA. O modelo so' e' usado quando MEDE melhor que a regua no
+    # backtest; caso contrario grava-se a propria media movel.
+    #
+    # Nao e' desistir dele: quando passar a ganhar - com operacao real, com mais
+    # estacoes -, o proprio backtest inverte isto sem ninguem mexer em codigo.
+    #
+    # Combinar os dois foi testado e nao resolve: a correlacao entre os erros
+    # mensais e' 0,944 - eles erram junto, porque no agregado os dois sao
+    # essencialmente "nivel x dias". Qualquer peso dado ao modelo piora o WAPE
+    # mensal monotonicamente.
+    #
+    # Sem metrica nenhuma no artefato, o modelo NAO e' usado: e' o valor
+    # conservador, e um artefato sem backtest nao provou nada.
+    modelo_vence = (
+        wape_modelo is not None and wape_regua is not None and wape_modelo < wape_regua
+    )
+
+    if not modelo_vence and wape_modelo is not None and wape_regua is not None:
         print(
             f"\n[ATENCAO] este artefato NAO supera a regua: erro de {wape_modelo}%\n"
             f"          contra {wape_regua}% da media movel de 28 dias.\n"
-            "          A previsao continua sendo gravada - esconde-la nao a torna\n"
-            "          melhor -, mas a tela vai dizer isso ao operador."
+            "          O numero gravado sera a MEDIA MOVEL, e `fonte` dira isso.\n"
+            "          O modelo continua treinado e volta sozinho quando ganhar."
         )
     conhecidas = set(artefato.get("estacoes_treinadas", []))
     desconhecidas = sorted(set(estacoes["location_id"].astype(str)) - conhecidas)
@@ -164,6 +194,26 @@ def main() -> int:
     with engine.begin() as conexao:
         for _, linha in previsao.iterrows():
             aplicavel = bool(linha["modelo_aplicavel"])
+            # Usa o modelo so' quando ele CONHECE o local E MEDE melhor que a
+            # regua. Os dois casos em que nao usa produzem o mesmo numero - a
+            # media movel - mas por motivos diferentes, e a tela precisa dizer
+            # qual foi.
+            usa_modelo = aplicavel and modelo_vence
+            media = _ou_nulo(linha.get("media_diaria_28d"))
+
+            if usa_modelo:
+                kwh = _ou_nulo(linha["kwh_prev"]) or 0.0
+                faturamento = _ou_nulo(linha.get("fat_prev"))
+            else:
+                # `kwh_prev` ja E' a media movel quando a estacao caiu no
+                # fallback do pipeline - e nesse caso `media_diaria_28d` vem
+                # NaN, porque nao houve janela de 28 dias para calcular.
+                # Recalcular a partir dela gravaria zero num site que tem
+                # movimento; e' preciso pegar o numero de onde ele existe.
+                kwh = _pela_regua(linha)
+                preco = _ou_nulo(linha.get("price_per_kwh"))
+                faturamento = kwh * preco if preco is not None else None
+
             conexao.execute(
                 _UPSERT,
                 {
@@ -171,17 +221,18 @@ def main() -> int:
                     "slug": str(linha["location_id"]),
                     "competencia": competencia,
                     "gerado_em": agora,
-                    "kwh_previsto": _ou_nulo(linha["kwh_prev"]) or 0.0,
-                    # Sem banda quando o modelo nao se aplica: desenhar incerteza
+                    "kwh_previsto": kwh,
+                    # Banda so' quando o numero vem do modelo: desenhar incerteza
                     # em volta de uma media movel daria ares de previsao a uma
                     # conta de padaria. O CHECK do banco tambem recusa.
-                    "kwh_p10": _ou_nulo(linha.get("kwh_p10")) if aplicavel else None,
-                    "kwh_p90": _ou_nulo(linha.get("kwh_p90")) if aplicavel else None,
-                    "fat_prev": _ou_nulo(linha.get("fat_prev")),
-                    "fat_p10": _ou_nulo(linha.get("fat_p10")) if aplicavel else None,
-                    "fat_p90": _ou_nulo(linha.get("fat_p90")) if aplicavel else None,
-                    "media_28d": _ou_nulo(linha.get("media_diaria_28d")),
+                    "kwh_p10": _ou_nulo(linha.get("kwh_p10")) if usa_modelo else None,
+                    "kwh_p90": _ou_nulo(linha.get("kwh_p90")) if usa_modelo else None,
+                    "fat_prev": faturamento,
+                    "fat_p10": _ou_nulo(linha.get("fat_p10")) if usa_modelo else None,
+                    "fat_p90": _ou_nulo(linha.get("fat_p90")) if usa_modelo else None,
+                    "media_28d": media,
                     "aplicavel": aplicavel,
+                    "fonte": "modelo" if usa_modelo else "media_movel",
                     "versao": artefato.get("versao_pipeline"),
                     "dias": int(dias_por_local.get(str(linha["location_id"]), 0)),
                     "declarada": COBERTURA_DECLARADA,
@@ -194,8 +245,15 @@ def main() -> int:
 
     print(f"\nCompetencia {competencia}: {gravadas} site(s) gravado(s).")
     for _, linha in previsao.iterrows():
-        marca = "" if linha["modelo_aplicavel"] else "  (fallback: media de 28 dias)"
-        print(f"  {str(linha['location_id']):<28} {linha['kwh_prev']:>10.1f} kWh{marca}")
+        aplicavel = bool(linha["modelo_aplicavel"])
+        if not aplicavel:
+            marca = "  (media de 28 dias: historico curto demais)"
+        elif not modelo_vence:
+            marca = "  (media de 28 dias: o modelo perde da regua)"
+        else:
+            marca = ""
+        valor = float(linha["kwh_prev"]) if aplicavel and modelo_vence else _pela_regua(linha)
+        print(f"  {str(linha['location_id']):<28} {valor:>10.1f} kWh{marca}")
     return 0
 
 

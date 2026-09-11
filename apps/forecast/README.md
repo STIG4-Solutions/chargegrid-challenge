@@ -50,7 +50,8 @@ de CSV e escrevem na tabela em vez de um arquivo.
 
 ## Estado atual do modelo — leia antes de confiar no número
 
-O retreino com os dados deste banco produziu, no backtest de três meses:
+O backtest que o artefato carrega — três meses, e é de onde saem os números que
+o painel mostra:
 
 | métrica | valor |
 |---|---|
@@ -58,13 +59,37 @@ O retreino com os dados deste banco produziu, no backtest de três meses:
 | WAPE mensal da média móvel de 28 dias | **7,61%** |
 | Cobertura da faixa p10–p90 | **62,3%** (deveria ser ~80%) |
 
-**O modelo não supera a régua.** Uma média móvel de três linhas erra menos que
-ele. Os dois números vão para o banco em `wape_modelo_pct` e
-`wape_baseline_pct`, e o painel avisa o operador — a previsão vale como
-referência, não como base para contratar demanda.
+Três meses são doze estação-meses, e a diferença caberia no ruído de amostragem —
+por isso a derrota foi remedida em 3, 6 e 12 meses. Ela se repete nos três
+(8,31/7,61 · 8,11/7,75 · 11,95/9,61), e nas três estações. Não é azar de recorte.
 
-Duas causas prováveis, nenhuma investigada a fundo porque perseguir acurácia
-contra dado gerado não significa nada:
+**O modelo não supera a régua no MENSAL — mas ganha no DIÁRIO**, e a diferença
+explica tudo:
+
+| granularidade | modelo | régua |
+|---|---|---|
+| diário | **29,4%** | 34,3% |
+| mensal | 12,0% | **9,6%** |
+
+Medido sobre 36 estação-meses fora da amostra — a janela de doze meses, que é por
+que estes números não são os da tabela acima. O modelo aprende o dia a dia — no
+`lab-fiap-eco-station`, onde o fim de semana é 4× mais fraco, ele erra 33,6%
+contra 52,8% da régua. Mas no total do mês essa vantagem se dissolve: somando 30
+dias, o padrão semanal quase se cancela, e sobra a variância que o modelo
+adiciona.
+
+**Combinar os dois não resolve**, e isso foi testado: a correlação entre os erros
+mensais é **0,944** — eles erram junto, porque no agregado ambos são
+essencialmente "nível × dias". Qualquer peso dado ao modelo piora o WAPE mensal
+monotonicamente, em todas as três estações.
+
+Por isso `exportar.py` grava o preditor que **mede melhor**, e a coluna `fonte`
+diz qual foi. Não é desistir do modelo: quando ele passar a ganhar — com operação
+real, com mais estações —, o próprio backtest inverte a escolha sem ninguém
+mexer em código.
+
+Duas causas prováveis para a derrota no mensal, nenhuma investigada a fundo
+porque perseguir acurácia contra dado gerado não significa nada:
 
 1. **Três estações treinadas.** O pipeline foi desenhado para oito, e
    `location_id`, `archetype` e `power_type` são features categóricas — com três

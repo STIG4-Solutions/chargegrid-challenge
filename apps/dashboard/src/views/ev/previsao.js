@@ -14,7 +14,7 @@
 /**
  * A faixa p10–p90 contém o valor real com a frequência que anuncia?
  *
- * O backtest do modelo mediu 56%; a faixa promete 80%. Isso não é detalhe de
+ * O backtest do modelo mediu 62,3%; a faixa promete 80%. Isso não é detalhe de
  * calibração: significa que o "pior caso" desenhado na tela é otimista, e quem
  * dimensiona contrato pelo extremo inferior vai errar mais do que espera.
  *
@@ -47,7 +47,11 @@ export function superaARegua(wapeModelo, wapeRegua) {
  * previsão a uma conta de padaria.
  */
 export function temBanda(previsao) {
-  if (!previsao?.modelo_aplicavel) return false
+  // Depende da FONTE, não de `modelo_aplicavel`: existe o caso em que o modelo
+  // conhece o ponto e mesmo assim não é usado, porque perde da régua. Aí o
+  // número é média móvel, e desenhar incerteza em volta dele daria ares de
+  // previsão a uma conta de padaria.
+  if (previsao?.fonte !== 'modelo') return false
   return previsao.kwh_p10 != null && previsao.kwh_p90 != null
 }
 
