@@ -46,7 +46,13 @@ Os nomes de diretorios e pacotes seguem a convencao em ingles. A documentacao e 
   `alembic check` e reprova quando os dois lados divergem.
 - Nomes de constraint vao **sem** o prefixo `ck_<tabela>_`: a `NAMING_CONVENTION` o acrescenta.
   Escrever o nome completo o duplica, e passando de 63 caracteres o Postgres trunca com hash —
-  o nome no banco deixa de bater com o do metadata. Ver a migration `0018`.
+  o nome no banco deixa de bater com o do metadata. Ver as migrations `0018` e `0022`.
+  `alembic check` **não** pega isso: com o modelo e a migration usando o mesmo nome completo,
+  os dois concordam e o check fica verde com o prefixo dobrado nos dois lados. Quem pega é
+  `test_nenhum_nome_de_constraint_tem_prefixo_dobrado`.
+- Mexeu numa migration? O banco de teste **persiste** entre execuções e o `conftest` só roda
+  `alembic upgrade head`, que não faz nada num banco já no head — a suíte passa sem exercitar
+  a mudança. Derrube `chargegrid_test` antes de acreditar no verde.
 - Nao edite migration ja aplicada. O schema passa a depender de *quando* cada banco rodou, e
   quem clonou antes fica com colunas a menos. Corrija numa migration nova, com
   `ADD COLUMN IF NOT EXISTS` quando houver bancos dos dois lados.

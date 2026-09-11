@@ -59,7 +59,7 @@ class SiteForecast(UUIDMixin, TimestampMixin, Base):
         CheckConstraint(
             "(kwh_p10 IS NULL AND kwh_p90 IS NULL)"
             " OR (kwh_p10 IS NOT NULL AND kwh_p90 IS NOT NULL)",
-            name="ck_site_forecasts_banda_completa",
+            name="banda_completa",
         ),
         # A banda depende da FONTE, nao de `modelo_aplicavel`: ha um caso em
         # que o modelo se aplica e mesmo assim nao e' usado, porque perde da
@@ -67,7 +67,7 @@ class SiteForecast(UUIDMixin, TimestampMixin, Base):
         # previsao a uma conta de padaria.
         CheckConstraint("fonte = 'modelo' OR kwh_p10 IS NULL", name="banda_so_do_modelo"),
         CheckConstraint("fonte IN ('modelo', 'media_movel')", name="fonte_conhecida"),
-        CheckConstraint("kwh_previsto >= 0", name="ck_site_forecasts_kwh_nao_negativo"),
+        CheckConstraint("kwh_previsto >= 0", name="kwh_nao_negativo"),
         Index("ix_site_forecasts_competencia", "competencia"),
     )
 

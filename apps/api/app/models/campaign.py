@@ -94,15 +94,15 @@ class Campaign(UUIDMixin, TimestampMixin, Base):
             "(patrocinador = 'site' AND site_id IS NOT NULL AND fleet_id IS NULL)"
             " OR (patrocinador = 'frota' AND fleet_id IS NOT NULL AND site_id IS NULL)"
             " OR (patrocinador = 'rede' AND site_id IS NULL AND fleet_id IS NULL)",
-            name="ck_campaigns_escopo_coerente",
+            name="escopo_coerente",
         ),
         CheckConstraint(
-            f"patrocinador IN ({_em(PATROCINADORES)})", name="ck_campaigns_patrocinador"
+            f"patrocinador IN ({_em(PATROCINADORES)})", name="patrocinador"
         ),
-        CheckConstraint(f"beneficio_tipo IN ({_em(BENEFICIOS)})", name="ck_campaigns_beneficio"),
-        CheckConstraint("beneficio_valor > 0", name="ck_campaigns_beneficio_valor"),
-        CheckConstraint("ends_at > starts_at", name="ck_campaigns_periodo_valido"),
-        CheckConstraint("consumido_brl >= 0", name="ck_campaigns_consumido_nao_negativo"),
+        CheckConstraint(f"beneficio_tipo IN ({_em(BENEFICIOS)})", name="beneficio"),
+        CheckConstraint("beneficio_valor > 0", name="beneficio_valor"),
+        CheckConstraint("ends_at > starts_at", name="periodo_valido"),
+        CheckConstraint("consumido_brl >= 0", name="consumido_nao_negativo"),
         # A consulta quente e' "quais valem agora". A maioria das linhas envelhece
         # para inativa e nunca mais e' lida.
         Index(
@@ -154,9 +154,9 @@ class Mission(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "missions"
     __table_args__ = (
         UniqueConstraint("campaign_id", "codigo", name="uq_missions_campaign_id_codigo"),
-        CheckConstraint(f"metrica IN ({_em(METRICAS)})", name="ck_missions_metrica"),
-        CheckConstraint(f"janela IN ({_em(JANELAS)})", name="ck_missions_janela"),
-        CheckConstraint("alvo > 0", name="ck_missions_alvo"),
+        CheckConstraint(f"metrica IN ({_em(METRICAS)})", name="metrica"),
+        CheckConstraint(f"janela IN ({_em(JANELAS)})", name="janela"),
+        CheckConstraint("alvo > 0", name="alvo"),
     )
 
     campaign_id: Mapped[uuid.UUID] = mapped_column(
@@ -256,11 +256,11 @@ class Reward(UUIDMixin, TimestampMixin, Base):
         # paga sem que exista credito nenhum na carteira do motorista.
         CheckConstraint(
             "estado <> 'creditada' OR wallet_entry_id IS NOT NULL",
-            name="ck_rewards_credito_completo",
+            name="credito_completo",
         ),
-        CheckConstraint(f"estado IN ({_em(ESTADOS_DA_RECOMPENSA)})", name="ck_rewards_estado"),
-        CheckConstraint(f"tipo IN ({_em(BENEFICIOS)})", name="ck_rewards_tipo"),
-        CheckConstraint("valor_brl >= 0", name="ck_rewards_valor_nao_negativo"),
+        CheckConstraint(f"estado IN ({_em(ESTADOS_DA_RECOMPENSA)})", name="estado"),
+        CheckConstraint(f"tipo IN ({_em(BENEFICIOS)})", name="tipo"),
+        CheckConstraint("valor_brl >= 0", name="valor_nao_negativo"),
         # Outbox proprio: a fila do push de recompensa.
         Index("ix_rewards_a_notificar", "user_id", postgresql_where=text("notified_at IS NULL")),
     )

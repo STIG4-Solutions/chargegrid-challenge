@@ -44,16 +44,16 @@ class DriverPlan(UUIDMixin, TimestampMixin, Base):
     __table_args__ = (
         UniqueConstraint("codigo", name="uq_driver_plans_codigo"),
         CheckConstraint(
-            "desconto_pct >= 0 AND desconto_pct <= 100", name="ck_driver_plans_desconto"
+            "desconto_pct >= 0 AND desconto_pct <= 100", name="desconto"
         ),
-        CheckConstraint("kwh_inclusos >= 0", name="ck_driver_plans_kwh"),
-        CheckConstraint("preco_mensal_brl >= 0", name="ck_driver_plans_preco"),
+        CheckConstraint("kwh_inclusos >= 0", name="kwh"),
+        CheckConstraint("preco_mensal_brl >= 0", name="preco"),
         # Plano que nao entrega nada e' mensalidade sem contrapartida. Barrar
         # aqui evita que ele exista; descobrir depois exigiria estornar quem
         # ja assinou.
         CheckConstraint(
             "desconto_pct > 0 OR kwh_inclusos > 0 OR isenta_taxa_de_conexao",
-            name="ck_driver_plans_entrega_algo",
+            name="entrega_algo",
         ),
     )
 
@@ -74,10 +74,10 @@ class DriverSubscription(UUIDMixin, TimestampMixin, Base):
     __table_args__ = (
         CheckConstraint(
             "estado IN ('ativa', 'cancelada', 'inadimplente')",
-            name="ck_driver_subscriptions_estado",
+            name="estado",
         ),
         CheckConstraint(
-            "current_period_end > current_period_start", name="ck_driver_subscriptions_periodo"
+            "current_period_end > current_period_start", name="periodo"
         ),
         # Cancelar exige dizer QUANDO. Sem a marca, a pergunta "esta recarga
         # tinha desconto?" fica sem resposta depois do fato.
