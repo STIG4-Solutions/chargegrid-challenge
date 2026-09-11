@@ -196,9 +196,9 @@ dashboard e app:
 ```json
 {
   "protocolo": "https",
-  "api": "api.stig4-solutions.com",
-  "dashboard": "dashboard.stig4-solutions.com",
-  "site": "stig4-solutions.com"
+  "api": "api.stig4.com",
+  "dashboard": "dashboard.stig4.com",
+  "site": "stig4.com"
 }
 ```
 
