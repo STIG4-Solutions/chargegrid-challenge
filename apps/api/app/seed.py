@@ -168,6 +168,14 @@ MOTORISTAS_DA_FROTA = {
     "maria.souza@email.com": "CC-COMERCIAL",
     "carlos.lima@email.com": "CC-OPERACOES",
 }
+# Um dos dois e' GESTOR, e o outro nao. `require_fleet_manager` exige as duas
+# coisas - `fleet_manager` E `fleet_id` -, entao pertencer a frota nao basta
+# para ver o relatorio consolidado.
+#
+# Marcar so' um deixa a diferenca demonstravel: o gestor abre a aba Frota, o
+# colega da mesma empresa toma 403. Com os dois marcados, o recorte de leitura
+# que `deps.py` descreve nao apareceria em lugar nenhum.
+GESTOR_DA_FROTA = "maria.souza@email.com"
 
 # ---------------------------------------------------------------------------
 # Historico
@@ -1010,6 +1018,7 @@ async def seed() -> None:
             )
             if email in MOTORISTAS_DA_FROTA:
                 driver.fleet_id = frota.id
+                driver.fleet_manager = email == GESTOR_DA_FROTA
             db.add(driver)
             await db.flush()
             # O saldo inicial precisa da propria linha no razao. Creditar

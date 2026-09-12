@@ -536,6 +536,11 @@ existindo desde a `0013`. A aba do app abria vazia para todos. O seed agora cria
 diferença entre campanha dirigida e campanha para todos. Conferido na API: o motorista da frota
 vê 4 missões, o de fora vê 3.
 
+E **um dos dois é gestor**. `require_fleet_manager` exige as duas coisas — `fleet_manager` *e*
+`fleet_id` —, então pertencer à frota não basta para ver o consolidado: `maria.souza` abre o
+relatório, `carlos.lima` toma 403 na mesma empresa. Com os dois marcados, o recorte de leitura
+que `deps.py` descreve não apareceria em lugar nenhum.
+
 ### 8. Assinatura do motorista
 
 O plano entrega desconto percentual, kWh inclusos e isenção da taxa de conexão, tudo pelo mesmo
