@@ -31,6 +31,7 @@ jobs:
       ENV: test
       DEBUG: "false"
       DATABASE_URL_OVERRIDE: ${{ secrets.STAGING_DATABASE_URL }}
+      PGSSLROOTCERT: /etc/ssl/certs/ca-certificates.crt
       POSTGRES_PASSWORD: unused-during-migrations
       SECRET_KEY: unused-during-migrations
       PAYMENT_WEBHOOK_SECRET: unused-during-migrations
