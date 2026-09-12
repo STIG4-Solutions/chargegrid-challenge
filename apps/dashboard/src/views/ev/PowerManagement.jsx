@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import {
   chargePointStatus,
   dateTime,
@@ -11,6 +11,7 @@ import {
   useSiteStream
 } from '@chargegrid/sdk'
 import { Async, ErrorState, Spinner } from '../../components/Async.jsx'
+import { idadeEmPalavras, problemaNaResolucao, rotuloDaCategoria } from './manutencao.js'
 import { alteracoesDoOrcamento, mudouPorBaixo } from './orcamento.js'
 
 // Espelha ACTIVE_SESSION_STATES do backend: são os estados que ocupam o ponto.
@@ -24,6 +25,15 @@ export default function PowerManagement() {
   const overview = useApi(() => power.overview(), [], { pollMs: 10000 })
   const recent = useApi(() => sessionsApi.list({ limit: 50 }), [], { pollMs: 15000 })
   const manutencao = useApi(() => power.maintenanceAttention(30), [], { pollMs: 120000 })
+  const reportes = useApi(() => power.maintenanceReports(true, 100), [], { pollMs: 60000 })
+  const resolver = useAction((id, resolucao) => power.resolveReport(id, resolucao), {
+    onSuccess: () => {
+      void reportes.refetch({ silent: true })
+      // A contagem de `abertos` por categoria muda junto: sem isto, o card de
+      // cima continuaria dizendo "3 abertos" com a fila já em 2.
+      void manutencao.refetch({ silent: true })
+    }
+  })
   const stream = useSiteStream()
 
   // O evento do WebSocket chega antes do próximo poll: aplica na hora.
@@ -127,6 +137,20 @@ export default function PowerManagement() {
       >
         {manutencao.data && <Manutencao d={manutencao.data} />}
       </Async>
+
+      {/*
+        Sem `<Async>` de propósito: uma fila que não carregou não pode esconder
+        o resto da aba. Falhando, o card não aparece — e o erro de uma ação
+        aparece dentro dele, onde quem clicou está olhando.
+      */}
+      {reportes.data && (
+        <FilaDeReportes
+          reportes={reportes.data}
+          aoResolver={(id, texto) => resolver.run(id, texto)}
+          pendente={resolver.pending}
+          erro={resolver.error}
+        />
+      )}
     </div>
   )
 }
@@ -643,6 +667,134 @@ function BudgetEditor({ settings, onSaved }) {
  * não vai continuar funcionando. No instante em que se olha o painel de estado,
  * ele está normal — por isso o problema só aparece quando para.
  */
+/**
+ * A fila de problemas reportados por quem esteve no ponto.
+ *
+ * `Manutencao`, acima, agrupa por categoria e diz QUANTOS estão abertos — e
+ * dizia isso desde sempre sem que nada pudesse fechá-los. Esta lista diz QUAIS,
+ * e é dela que sai o trabalho de quem vai até o ponto.
+ *
+ * Exportada para o teste montá-la com props, sem subir a aba inteira.
+ */
+export function FilaDeReportes({ reportes, aoResolver, pendente, erro }) {
+  const [aberto, setAberto] = useState(null)
+  const [texto, setTexto] = useState('')
+
+  const fila = reportes ?? []
+  if (!fila.length) {
+    return (
+      <div className="card" style={{ marginTop: 16 }}>
+        <h3 style={{ margin: '0 0 4px', fontSize: 15 }}>Problemas reportados</h3>
+        <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+          Nenhum reporte em aberto. O que as pessoas relatam aparece aqui antes de o sensor
+          perceber — cabo cortado e vaga ocupada não têm registrador.
+        </p>
+      </div>
+    )
+  }
+
+  const problema = problemaNaResolucao(texto)
+
+  const fechar = (id) => {
+    if (problema) return
+    aoResolver(id, texto.trim())
+    setAberto(null)
+    setTexto('')
+  }
+
+  return (
+    <div className="card" style={{ marginTop: 16 }}>
+      <h3 style={{ margin: '0 0 4px', fontSize: 15 }}>
+        Problemas reportados <span className="badge badge-red">{fila.length}</span>
+      </h3>
+      <p className="muted" style={{ margin: '0 0 12px', fontSize: 13 }}>
+        O que as pessoas relatam, e o sensor não vê. Fechar exige dizer o que foi feito: o
+        próximo que reportar o mesmo problema precisa saber que alguém já olhou.
+      </p>
+
+      {erro && <ErrorState error={erro} compact />}
+
+      <div style={{ overflowX: 'auto' }}>
+        <table className="table" style={{ minWidth: 720 }}>
+          <thead>
+            <tr>
+              <th>Ponto</th>
+              <th>Problema</th>
+              <th>Quem reportou</th>
+              <th>Aberto</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {fila.map((r) => (
+              <Fragment key={r.id}>
+                <tr>
+                  <td>{r.ponto}</td>
+                  <td>
+                    {rotuloDaCategoria(r.categoria)}
+                    {r.descricao && (
+                      <div className="muted" style={{ fontSize: 12 }}>
+                        {r.descricao}
+                      </div>
+                    )}
+                  </td>
+                  <td className="muted">{r.reportado_por ?? '—'}</td>
+                  <td className="muted">{idadeEmPalavras(r.reportado_em)}</td>
+                  <td className="text-right">
+                    <button
+                      className="btn btn-sm"
+                      onClick={() => {
+                        setAberto(aberto === r.id ? null : r.id)
+                        setTexto('')
+                      }}
+                    >
+                      {aberto === r.id ? 'Cancelar' : 'Resolver'}
+                    </button>
+                  </td>
+                </tr>
+                {aberto === r.id && (
+                  <tr>
+                    <td colSpan={5}>
+                      <div className="form-row">
+                        <label htmlFor={`resolucao-${r.id}`}>O que foi feito</label>
+                        <input
+                          id={`resolucao-${r.id}`}
+                          className="input"
+                          value={texto}
+                          onChange={(e) => setTexto(e.target.value)}
+                          placeholder="Cabo trocado na manutenção de terça"
+                        />
+                        {/*
+                          O aviso aparece enquanto se digita, e o botão fica
+                          desabilitado: descobrir o piso de tamanho no 422 do
+                          servidor é a mesma informação chegando tarde.
+                        */}
+                        {problema && (
+                          <div className="muted" style={{ fontSize: 12 }}>
+                            {problema}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        className="btn btn-primary btn-sm"
+                        disabled={Boolean(problema) || pendente}
+                        onClick={() => fechar(r.id)}
+                      >
+                        {pendente ? 'Fechando…' : 'Fechar reporte'}
+                      </button>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+
 function Manutencao({ d }) {
   if (d.sem_ocorrencias) {
     return (

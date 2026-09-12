@@ -22,6 +22,7 @@ const saida = join(cache, 'painel.mjs')
 const saidaCampanha = join(cache, 'campanha.mjs')
 const saidaPrevisao = join(cache, 'previsao.mjs')
 const saidaContrato = join(cache, 'contrato.mjs')
+const saidaManutencao = join(cache, 'manutencao.mjs')
 
 // Só os módulos puros entram. Importar um `.jsx` puxaria React e o SDK inteiro
 // para dentro do Node — e o que se quer verificar não depende de nenhum deles.
@@ -33,7 +34,8 @@ for (const [entrada, destino] of [
   ['src/views/ev/orcamento.js', saida],
   ['src/views/ev/campanha.js', saidaCampanha],
   ['src/views/ev/previsao.js', saidaPrevisao],
-  ['src/views/ev/contrato.js', saidaContrato]
+  ['src/views/ev/contrato.js', saidaContrato],
+  ['src/views/ev/manutencao.js', saidaManutencao]
 ]) {
   await build({
     entryPoints: [join(raiz, entrada)],
@@ -45,6 +47,13 @@ for (const [entrada, destino] of [
 }
 
 const { alteracoesDoOrcamento, mudouPorBaixo } = await import(pathToFileURL(saida).href)
+const {
+  rotuloDaCategoria,
+  problemaNaResolucao,
+  idadeEmPalavras,
+  diasEmAberto,
+  RESOLUCAO_MINIMA
+} = await import(pathToFileURL(saidaManutencao).href)
 const {
   problemasDaCampanha,
   consumoDoOrcamento,
@@ -493,8 +502,59 @@ const semMovimento = proximaCobranca(plano, 2, 0)
 check('sem faturamento a taxa e zero', semMovimento.transacao === 0)
 check('sem faturamento resta a mensalidade', semMovimento.total === 149)
 
+// ---- fila de reportes ----
+//
+// O que estas regras protegem é o tempo de quem vai até o ponto: uma categoria
+// impressa como nome de coluna, ou um fechamento vazio, transformam a fila num
+// botão de sumir com a reclamação.
+
+// 20. Categoria traduzida. `cabo_danificado` na tela é nome de coluna, e o
+//     recibo já cometeu esse erro uma vez.
+check(
+  'categoria conhecida sai em portugues',
+  rotuloDaCategoria('cabo_danificado') === 'Cabo danificado',
+  rotuloDaCategoria('cabo_danificado')
+)
+
+// 21. Categoria nova na API não pode apagar a linha - é justamente a que
+//     ninguém viu ainda que mais interessa aparecer.
+check(
+  'categoria desconhecida cai no valor cru',
+  rotuloDaCategoria('cabo_derretido') === 'cabo_derretido'
+)
+check('categoria ausente nao quebra', rotuloDaCategoria(undefined) === '—')
+
+// 22. Fechar exige dizer o que foi feito.
+check('resolucao vazia e recusada', problemaNaResolucao('   ') !== null)
+check('resolucao curta e recusada', problemaNaResolucao('ok') !== null)
+check('resolucao descritiva passa', problemaNaResolucao('Cabo trocado') === null)
+
+// 23. O piso espelha o do servidor: descobrir no 422 é a mesma informação
+//     chegando tarde.
+check(
+  'o piso e o mesmo do servidor',
+  RESOLUCAO_MINIMA === 3,
+  `min_length do ResolucaoIn = ${RESOLUCAO_MINIMA}`
+)
+
+// 24. Idade em palavras: a data crua obriga cada um a fazer a conta de cabeça.
+const AGORA = new Date('2026-09-12T12:00:00Z')
+check('hoje', idadeEmPalavras('2026-09-12T08:00:00Z', AGORA) === 'hoje')
+check('ontem', idadeEmPalavras('2026-09-11T08:00:00Z', AGORA) === 'ontem')
+check(
+  'ha N dias',
+  idadeEmPalavras('2026-09-01T12:00:00Z', AGORA) === 'há 11 dias',
+  idadeEmPalavras('2026-09-01T12:00:00Z', AGORA)
+)
+
+// 25. Data futura não vira idade negativa: relógio de cliente adiantado
+//     produziria "há -1 dias" na tela.
+check('data futura nao fica negativa', diasEmAberto('2026-09-13T12:00:00Z', AGORA) === 0)
+check('data invalida nao quebra', diasEmAberto('nao-e-data', AGORA) === null)
+
 rmSync(saida, { force: true })
 rmSync(saidaCampanha, { force: true })
+rmSync(saidaManutencao, { force: true })
 rmSync(saidaPrevisao, { force: true })
 rmSync(saidaContrato, { force: true })
 console.log(falhas === 0 ? '\nTodos os cenarios passaram.' : `\n${falhas} falha(s).`)

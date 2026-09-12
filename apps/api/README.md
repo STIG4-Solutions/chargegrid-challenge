@@ -881,6 +881,13 @@ devolveria a reclamação do vizinho. Reporte de outra praça responde **404**, 
 A lista traz o e-mail de quem reportou **e nada além dele**. O reporte já é uma reclamação;
 enriquecer a linha com o resto do cadastro exporia o motorista a quem ele reclamou.
 
+No painel, a fila fica na aba **Gerenciamento de potência**, abaixo da manutenção preditiva —
+aquele card agrupa por categoria e diz *quantos* estão abertos, este diz *quais*. Fechar abre um
+campo na própria linha, e o botão só habilita com descrição: o piso de 3 caracteres espelha o
+`min_length` do `ResolucaoIn`, porque descobrir no 422 é a mesma informação chegando tarde. Ao
+fechar, os dois cards são recarregados — sem isso o de cima continuaria dizendo "3 abertos" com
+a fila já em 2.
+
 ### Missões e recompensas
 
 `GET /app/missions` devolve as missões vigentes com o progresso **deste** motorista, filtrado
