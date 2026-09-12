@@ -741,6 +741,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Audit Trail
+         * @description A trilha de auditoria. So' admin.
+         *
+         *     Existe porque trilha que ninguem consegue ler e' meio caminho do defeito que
+         *     ela veio consertar: o dado estaria no banco e a pergunta continuaria
+         *     dependendo de alguem com acesso a producao.
+         *
+         *     Admin porque a propria trilha e' informacao sensivel - ela diz quem mexeu em
+         *     que e de qual IP, e isso nao e' assunto de operador de praca.
+         */
+        get: operations["audit_trail_api_v1_audit_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/invoices": {
         parameters: {
             query?: never;
@@ -4820,6 +4847,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaymentMethodOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    audit_trail_api_v1_audit_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                action?: string | null;
+                entity?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
                 };
             };
             /** @description Validation Error */

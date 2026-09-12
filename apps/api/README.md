@@ -673,6 +673,46 @@ decisão deliberada, e não algo que entre de carona.
 `em_aviso_previo` não vira `inadimplente`: quem já pediu rescisão está de saída, o desfecho não
 muda, e sobrescrever o estado apagaria a data em que o contrato acaba.
 
+### Trilha de auditoria
+
+`audit_logs` existia desde a migration `0001` — ator, ação, entidade, antes, depois, IP — e
+**nada nunca gravou uma linha**. Tabela de auditoria vazia é pior que nenhuma: dá a impressão de
+que há rastro, e a pergunta só aparece no dia em que alguém precisa dele.
+
+**O que entra:** ação de *pessoa* que move dinheiro ou muda quem pode o quê.
+
+| ação | rota |
+|---|---|
+| `carteira.ajustada` | `POST /wallets/{id}/adjust` |
+| `fatura.estornada` | `POST /invoices/{id}/refund` |
+| `cobranca_da_plataforma.baixada` | `POST /platform/invoices/{id}/settle` |
+| `contrato.criado` · `contrato.rescindido` | `POST /platform/contract` · `/terminate` |
+| `campanha.criada` · `campanha.encerrada` | `POST /campaigns` · `DELETE /campaigns/{id}` |
+| `metodo_de_pagamento.alterado` | `PUT /payment-methods` |
+
+**O que não entra, de propósito:** o que o worker faz sozinho — cashback concedido, mensalidade
+cobrada, cobrança vencida. São consequências de regra, não decisões de alguém; auditá-las
+encheria a tabela de linhas sem ator, que é exatamente o que ela não serve para guardar (o rastro
+delas já existe: log estruturado e linha própria no razão). Leitura também não: auditar consulta
+transforma a tabela num log de acesso e afoga o que importa.
+
+**Na rota, não no serviço.** Ator e IP só existem na borda HTTP, e o mesmo serviço é chamado pelo
+worker — `_creditar` roda nos dois. Auditar por dentro gravaria linha sem responsável toda vez que
+o worker passasse.
+
+**Não vaza segredo.** `provider_config` carrega `client_secret` e `webhook_secret`; a máscara
+desce recursivamente por dicionários e listas. Auditoria que vaza credencial trocaria um defeito
+por outro pior — e é o caso que o `PUT /payment-methods` exercita, porque o segredo aparece no
+*antes* ao alterar um método já configurado.
+
+**Mesma transação do que auditou.** `registrar` não commita: ou a operação e o registro acontecem,
+ou nenhum dos dois. Uma trilha que registra o que foi desfeito por rollback mente tanto quanto uma
+que perde o registro do que aconteceu.
+
+`GET /audit` lê a trilha — **admin**, porque ela diz quem mexeu em quê e de qual IP, e isso não é
+assunto de operador de praça. Sem essa rota, o dado existiria no banco e a pergunta continuaria
+dependendo de alguém com acesso a produção.
+
 ### 10. Previsão de demanda
 
 A API apenas **lê** `site_forecasts`. Quem escreve é `apps/forecast`, fora deste processo: um

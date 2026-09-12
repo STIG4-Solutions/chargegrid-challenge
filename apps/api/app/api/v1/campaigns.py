@@ -12,7 +12,7 @@ from fastapi import APIRouter, HTTPException, Response
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.core.deps import DbSession, OperatorUser, ScopedSiteId
+from app.core.deps import Auditor, DbSession, OperatorUser, ScopedSiteId
 from app.models.campaign import Campaign, Mission
 from app.models.fleet import Fleet
 from app.schemas.campanha import CampanhaIn, CampanhaOut, DesempenhoOut, FrotaOut
@@ -80,7 +80,9 @@ async def listar(db: DbSession, _: OperatorUser, site_id: ScopedSiteId):
 
 
 @router.post("", response_model=CampanhaOut, status_code=201)
-async def criar(payload: CampanhaIn, db: DbSession, _: OperatorUser, site_id: ScopedSiteId):
+async def criar(
+    payload: CampanhaIn, db: DbSession, _: OperatorUser, site_id: ScopedSiteId, aud: Auditor
+):
     # O site vem do escopo, nunca do corpo: aceitar `site_id` do payload deixaria
     # um operador criar campanha paga pelo vizinho.
     if payload.patrocinador == "site":
@@ -111,6 +113,21 @@ async def criar(payload: CampanhaIn, db: DbSession, _: OperatorUser, site_id: Sc
 
     for missao in payload.missoes:
         db.add(Mission(campaign_id=campanha.id, **missao.model_dump()))
+
+    # Campanha e' orcamento comprometido: quem a criou, quando, e com que teto.
+    await aud.registrar(
+        db,
+        "campanha.criada",
+        "campaign",
+        entidade_id=campanha.id,
+        depois={
+            "nome": campanha.nome,
+            "patrocinador": campanha.patrocinador,
+            "beneficio": f"{campanha.beneficio_tipo} {campanha.beneficio_valor}",
+            "orcamento_brl": float(campanha.orcamento_brl),
+            "fleet_id": str(campanha.fleet_id) if campanha.fleet_id else None,
+        },
+    )
     await db.commit()
 
     return (
@@ -190,7 +207,7 @@ async def desempenho(
     "/{campanha_id}", status_code=204, response_model=None, response_class=Response
 )
 async def encerrar(
-    campanha_id: uuid.UUID, db: DbSession, _: OperatorUser, site_id: ScopedSiteId
+    campanha_id: uuid.UUID, db: DbSession, _: OperatorUser, site_id: ScopedSiteId, aud: Auditor
 ):
     """Encerra a campanha. NAO apaga.
 
@@ -201,5 +218,13 @@ async def encerrar(
     """
     campanha = await _da_praca(db, campanha_id, site_id)
     campanha.ativa = False
+    await aud.registrar(
+        db,
+        "campanha.encerrada",
+        "campaign",
+        entidade_id=campanha.id,
+        antes={"ativa": True},
+        depois={"ativa": False, "consumido_brl": float(campanha.consumido_brl)},
+    )
     await db.commit()
     return Response(status_code=204)
