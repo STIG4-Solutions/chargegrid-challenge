@@ -365,12 +365,124 @@ async def emitir_competencia(db: AsyncSession, competencia: date | None = None) 
     return emitidas
 
 
+async def marcar_vencidas(db: AsyncSession) -> dict:
+    """Faz o prazo ter efeito: cobranca vence, contrato fica inadimplente.
+
+    Ate aqui `vence_em` era escrita e nunca lida, e `inadimplente` existia no
+    CHECK e no badge do painel sem que nada jamais o atribuisse. Uma divida de
+    tres meses era indistinguivel de uma cobranca emitida ontem.
+
+    UM LIMIAR SO'. A cobranca vence no dia seguinte a `vence_em`, e o contrato
+    fica inadimplente por ter QUALQUER cobranca vencida - nao ha segunda
+    carencia. Os dez dias de `DIAS_PARA_VENCER` ja sao a carencia; empilhar
+    outra em cima daria ao lojista trinta dias para descobrir que devia dez.
+
+    `em_aviso_previo` NAO vira `inadimplente`, e nao e' descuido: quem ja pediu
+    rescisao esta de saida, o desfecho nao muda, e sobrescrever o estado
+    apagaria a informacao que importa - a data em que o contrato acaba. A divida
+    continua registrada na propria cobranca.
+
+    O QUE NAO ACONTECE: ninguem fica sem recarregar. Quem deixou de pagar foi o
+    estabelecimento; cortar o servico puniria o motorista, que nao tem nada com
+    isso. A consequencia e' parar de renovar - `renovar_vencidos` so' olha
+    contratos `ativa` - e aparecer em vermelho para quem pode resolver.
+    """
+    hoje = date.today()
+
+    vencidas = (
+        (
+            await db.execute(
+                select(PlatformInvoice).where(
+                    PlatformInvoice.estado == "aberta",
+                    PlatformInvoice.vence_em < hoje,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for cobranca in vencidas:
+        cobranca.estado = "vencida"
+
+    # NAO ha flush explicito aqui, e a ausencia e' deliberada: `SessionLocal` usa
+    # o autoflush padrao do SQLAlchemy, entao o SELECT abaixo ja descarrega as
+    # mudancas pendentes antes de consultar. Um flush a mais seria decorativo -
+    # foi o que o teste de mutacao mostrou ao remove-lo sem quebrar nada.
+    #
+    # O que NAO seria decorativo: desligar `autoflush` em `SessionLocal`. Ai as
+    # cobrancas recem-vencidas ficariam so' na sessao, a consulta abaixo nao as
+    # enxergaria, e o contrato so' cairia em inadimplencia no ciclo seguinte -
+    # com a tela mostrando cobranca vencida num contrato "ativa" nesse meio
+    # tempo. `test_inadimplencia_acontece_na_mesma_passada` e' quem acusa.
+    inadimplentes = (
+        (
+            await db.execute(
+                select(SiteSubscription)
+                .where(
+                    SiteSubscription.estado == "ativa",
+                    SiteSubscription.id.in_(
+                        select(PlatformInvoice.site_subscription_id).where(
+                            PlatformInvoice.estado == "vencida"
+                        )
+                    ),
+                )
+                .execution_options(populate_existing=True)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for contrato in inadimplentes:
+        contrato.estado = "inadimplente"
+        log.info("contrato.inadimplente", site=str(contrato.site_id))
+
+    if vencidas or inadimplentes:
+        await db.commit()
+    return {"cobrancas_vencidas": len(vencidas), "contratos_inadimplentes": len(inadimplentes)}
+
+
+async def _reavaliar_inadimplencia(db: AsyncSession, contrato_id: uuid.UUID) -> None:
+    """Contrato sem cobranca vencida volta a ser `ativa`.
+
+    So' sai de `inadimplente`, e so' para `ativa`. Um contrato `encerrada` ou
+    `em_aviso_previo` nao pode ser ressuscitado por uma baixa de cobranca - o
+    pagamento quita a divida, nao desfaz a rescisao.
+    """
+    contrato = (
+        await db.execute(
+            select(SiteSubscription)
+            .where(SiteSubscription.id == contrato_id)
+            .execution_options(populate_existing=True)
+        )
+    ).scalar_one_or_none()
+    if contrato is None or contrato.estado != "inadimplente":
+        return
+
+    ainda_deve = (
+        await db.execute(
+            select(PlatformInvoice.id).where(
+                PlatformInvoice.site_subscription_id == contrato_id,
+                PlatformInvoice.estado == "vencida",
+            )
+        )
+    ).first()
+    if ainda_deve is None:
+        contrato.estado = "ativa"
+        log.info("contrato.regularizado", site=str(contrato.site_id))
+
+
 async def marcar_como_paga(db: AsyncSession, cobranca_id: uuid.UUID) -> PlatformInvoice:
     """Baixa manual.
 
-    Existe porque a liquidacao B2B nao existe - ver o docstring do modulo. Nao e'
-    um atalho: e' o reconhecimento de que nao ha integracao bancaria, e um botao
-    honesto e' melhor que um fluxo que finge liquidar.
+    Existe porque a liquidacao bancaria B2B nao existe, e essa e' uma DECISAO,
+    nao uma lacuna: cobrar o estabelecimento por Pix exigiria credencial de PSP
+    da PLATAFORMA - a chave da GoodWe, nao a do lojista, que e' o que
+    `SitePaymentMethod` guarda. Nao ha essa conta, e `liquidacao_automatica:
+    false` na resposta continua dizendo a verdade.
+
+    O que foi construido em vez dela e' o CICLO: a cobranca vence, o contrato
+    fica inadimplente e para de renovar, e esta baixa desfaz os dois. E' o que
+    nao depende de banco nenhum.
     """
     cobranca = (
         await db.execute(select(PlatformInvoice).where(PlatformInvoice.id == cobranca_id))
@@ -382,6 +494,11 @@ async def marcar_como_paga(db: AsyncSession, cobranca_id: uuid.UUID) -> Platform
 
     cobranca.estado = "paga"
     cobranca.paga_em = date.today()
+    # Quitar a ultima divida tira o contrato da inadimplencia. Sem isto o
+    # lojista pagaria e continuaria em vermelho ate alguem mexer no banco - e
+    # `renovar_vencidos`, que so' olha `ativa`, nunca mais avancaria o ciclo.
+    await db.flush()
+    await _reavaliar_inadimplencia(db, cobranca.site_subscription_id)
     await db.commit()
     return cobranca
 
@@ -411,6 +528,25 @@ async def contrato_do_site(db: AsyncSession, site_id: uuid.UUID) -> dict:
         .all()
     )
 
+    # Consulta PROPRIA, e nao um filtro sobre `cobrancas`: aquela lista vem
+    # limitada as 12 competencias mais recentes, e a divida nao pode depender
+    # disso. Um contrato parado ha' mais de um ano teria a cobranca mais antiga
+    # fora da janela, e o total em atraso sairia menor do que e' - justamente no
+    # caso em que ele e' maior.
+    atraso = (
+        await db.execute(
+            select(
+                func.count(PlatformInvoice.id),
+                func.coalesce(func.sum(PlatformInvoice.total_brl), 0),
+                func.min(PlatformInvoice.vence_em),
+            ).where(
+                PlatformInvoice.site_subscription_id == contrato.id,
+                PlatformInvoice.estado == "vencida",
+            )
+        )
+    ).one()
+    atrasadas, total_atrasado, desde = atraso
+
     return {
         "contratado": True,
         "estado": contrato.estado,
@@ -436,6 +572,15 @@ async def contrato_do_site(db: AsyncSession, site_id: uuid.UUID) -> dict:
         # Declarado na resposta, e nao so' na tela: quem consumir esta API por
         # outro caminho precisa saber que "aberta" nunca vira "paga" sozinha.
         "liquidacao_automatica": False,
+        # A divida em atraso, somada e contada. Vem pronta porque a pergunta e'
+        # sempre a mesma - "quanto esta vencido?" - e deixar a tela reduzir a
+        # lista faria cada consumidor da API repetir a mesma soma, com a chance
+        # de um deles esquecer de filtrar por estado.
+        "em_atraso": {
+            "cobrancas": int(atrasadas),
+            "total_brl": float(total_atrasado),
+            "desde": desde.isoformat() if desde else None,
+        },
         "cobrancas": [
             {
                 "id": str(c.id),

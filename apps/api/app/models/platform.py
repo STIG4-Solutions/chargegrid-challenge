@@ -47,7 +47,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin, UUIDMixin
 
 ESTADOS_DO_CONTRATO = ("ativa", "em_aviso_previo", "encerrada", "inadimplente")
-ESTADOS_DA_COBRANCA = ("aberta", "paga", "cancelada")
+ESTADOS_DA_COBRANCA = ("aberta", "vencida", "paga", "cancelada")
 
 # Os nomes de constraint aqui vao SEM o prefixo `ck_<tabela>_`: a
 # NAMING_CONVENTION o acrescenta sozinha. Escrever o nome completo o duplica, e
@@ -157,7 +157,7 @@ class PlatformInvoice(UUIDMixin, TimestampMixin, Base):
             "site_subscription_id", "competencia", name="uq_platform_invoices_competencia"
         ),
         CheckConstraint(
-            "estado IN ('aberta', 'paga', 'cancelada')", name="estado_conhecido"
+            "estado IN ('aberta', 'vencida', 'paga', 'cancelada')", name="estado_conhecido"
         ),
         CheckConstraint("total_brl >= 0", name="total_nao_negativo"),
         # Declarar-se paga exige dizer quando. Sem a data nao ha como conciliar.
@@ -173,6 +173,9 @@ class PlatformInvoice(UUIDMixin, TimestampMixin, Base):
     )
     competencia: Mapped[date] = mapped_column(Date, nullable=False)
     emitida_em: Mapped[date] = mapped_column(Date, nullable=False)
+    # Lido por `marcar_vencidas`. Passou daqui, a cobranca vira `vencida` e o
+    # contrato vira `inadimplente` - ate a 0023 esta coluna era escrita e nunca
+    # consultada, e uma divida de tres meses era indistinguivel de uma de ontem.
     vence_em: Mapped[date] = mapped_column(Date, nullable=False)
     paga_em: Mapped[date | None] = mapped_column(Date)
 

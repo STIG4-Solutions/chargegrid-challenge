@@ -13,8 +13,47 @@ const ESTADOS = {
 
 const COBRANCAS = {
   aberta: { rotulo: 'Em aberto', classe: 'badge-yellow' },
+  // Vencida é vermelho, e não amarelo como "em aberto": a diferença entre uma
+  // cobrança de ontem e uma de três meses atrás é a informação toda.
+  vencida: { rotulo: 'Vencida', classe: 'badge-red' },
   paga: { rotulo: 'Paga', classe: 'badge-green' },
   cancelada: { rotulo: 'Cancelada', classe: 'badge-gray' }
+}
+
+/**
+ * A dívida em atraso, no topo da tela.
+ *
+ * Vai no topo e não no rodapé da lista de cobranças: é a única informação desta
+ * aba que pede ação hoje. E diz a CONSEQUÊNCIA — parar de renovar — porque um
+ * aviso vermelho que não explica o efeito vira enfeite que ninguém lê duas
+ * vezes.
+ *
+ * Diz também o que NÃO acontece, de propósito: ninguém fica sem recarregar.
+ * Quem deixou de pagar foi o estabelecimento, e cortar o serviço puniria o
+ * motorista. Sem essa frase a primeira reação do operador é achar que os pontos
+ * pararam.
+ *
+ * Exportado para o teste montá-lo com props, sem subir a aba inteira.
+ */
+export function AvisoDeAtraso({ atraso }) {
+  if (!(atraso?.cobrancas > 0)) return null
+  const quantas =
+    atraso.cobrancas === 1 ? '1 cobrança vencida' : `${atraso.cobrancas} cobranças vencidas`
+  return (
+    <div className="async-error" role="alert" style={{ marginTop: 16 }}>
+      <div>
+        <strong>
+          {quantas} — {brl(atraso.total_brl)}
+        </strong>
+        <p className="muted">
+          A mais antiga venceu em{' '}
+          {new Date(`${atraso.desde}T12:00:00`).toLocaleDateString('pt-BR')}. Enquanto houver
+          cobrança vencida o contrato não renova sozinho. As recargas continuam funcionando
+          normalmente.
+        </p>
+      </div>
+    </div>
+  )
 }
 
 function Stat({ rotulo, valor, nota, destaque }) {
@@ -80,7 +119,15 @@ function Planos({ aoContratar }) {
   )
 }
 
-function Cobrancas({ linhas, aoDarBaixa }) {
+/**
+ * A lista de cobranças. Exportada pelo mesmo motivo de `AvisoDeAtraso`.
+ *
+ * O `?? COBRANCAS.aberta` da linha abaixo é um fallback gracioso — não quebra a
+ * tela com um estado que o painel ainda não conhece. O preço é que ele MENTE em
+ * silêncio: uma cobrança vencida há três meses apareceria em amarelo, idêntica
+ * à emitida ontem. `contrato-card.test.jsx` trava isso.
+ */
+export function Cobrancas({ linhas, aoDarBaixa }) {
   const baixar = useAction((id) => platform.settle(id), { onSuccess: aoDarBaixa })
 
   if (!linhas.length) {
@@ -191,6 +238,8 @@ function Contrato({ d, aoMudar }) {
             </div>
           </div>
         </div>
+
+        <AvisoDeAtraso atraso={d.em_atraso} />
 
         <div className="grid grid-4" style={{ marginTop: 16 }}>
           <Stat

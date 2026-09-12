@@ -351,3 +351,308 @@ async def test_a_leitura_declara_que_nao_ha_liquidacao_automatica(db, site):
 async def test_site_sem_contrato_responde_que_nao_ha(db, site):
     saida = await platform_service.contrato_do_site(db, site.id)
     assert saida["contratado"] is False
+
+
+# --------------------------------------------------------------- vencimento
+#
+# A decisao de escopo por tras destes testes: NAO ha liquidacao bancaria B2B -
+# cobrar o estabelecimento por Pix exigiria credencial de PSP da plataforma, que
+# nao existe. O que existe e' o CICLO, que nao depende de banco nenhum: a
+# cobranca vence, o contrato fica inadimplente, para de renovar, e a baixa
+# manual desfaz os dois.
+#
+# Antes disto `vence_em` era escrita e nunca lida, e `inadimplente` estava no
+# CHECK e no badge do painel sem que nada jamais o atribuisse.
+
+
+async def _cobranca_vencida(db, contrato, dias=1, total="149.00", mes=0) -> PlatformInvoice:
+    """Uma cobranca com `dias` de atraso.
+
+    `mes` desloca a competencia para tras: a UNIQUE (contrato, competencia)
+    recusa duas cobrancas do mesmo mes, e `rescindir` ja emite uma no mes
+    corrente - entao quem precisa de duas dividas tem de dizer de que meses sao.
+    """
+    competencia = platform_service.primeiro_do_mes(HOJE)
+    for _ in range(mes):
+        competencia = platform_service.primeiro_do_mes(competencia - timedelta(days=1))
+    cobranca = PlatformInvoice(
+        site_subscription_id=contrato.id,
+        competencia=competencia,
+        emitida_em=HOJE - timedelta(days=dias + 10),
+        vence_em=HOJE - timedelta(days=dias),
+        total_brl=Decimal(total),
+        estado="aberta",
+    )
+    db.add(cobranca)
+    await db.flush()
+    return cobranca
+
+
+async def test_cobranca_passada_do_prazo_vence(db, site):
+    plano = await _plano(db)
+    contrato = await platform_service.contratar(db, site.id, plano.codigo)
+    cobranca = await _cobranca_vencida(db, contrato)
+
+    resultado = await platform_service.marcar_vencidas(db)
+
+    assert resultado["cobrancas_vencidas"] == 1
+    await db.refresh(cobranca)
+    assert cobranca.estado == "vencida"
+
+
+async def test_cobranca_dentro_do_prazo_nao_vence(db, site):
+    """O prazo e' de dez dias, e vencer no dia da emissao seria cobrar juros do nada."""
+    plano = await _plano(db)
+    contrato = await platform_service.contratar(db, site.id, plano.codigo)
+    cobranca = PlatformInvoice(
+        site_subscription_id=contrato.id,
+        competencia=platform_service.primeiro_do_mes(HOJE),
+        emitida_em=HOJE,
+        vence_em=HOJE + timedelta(days=platform_service.DIAS_PARA_VENCER),
+        total_brl=Decimal("149.00"),
+        estado="aberta",
+    )
+    db.add(cobranca)
+    await db.flush()
+
+    await platform_service.marcar_vencidas(db)
+
+    await db.refresh(cobranca)
+    assert cobranca.estado == "aberta"
+
+
+async def test_cobranca_que_vence_hoje_ainda_nao_venceu(db, site):
+    """O dia do vencimento e' do devedor. Vencer as 00h01 de `vence_em` tiraria
+    um dia inteiro de quem tem ate o fim dele para pagar."""
+    plano = await _plano(db)
+    contrato = await platform_service.contratar(db, site.id, plano.codigo)
+    cobranca = await _cobranca_vencida(db, contrato, dias=0)
+
+    await platform_service.marcar_vencidas(db)
+
+    await db.refresh(cobranca)
+    assert cobranca.estado == "aberta"
+
+
+async def test_contrato_com_cobranca_vencida_fica_inadimplente(db, site):
+    plano = await _plano(db)
+    contrato = await platform_service.contratar(db, site.id, plano.codigo)
+    await _cobranca_vencida(db, contrato)
+
+    resultado = await platform_service.marcar_vencidas(db)
+
+    assert resultado["contratos_inadimplentes"] == 1
+    await db.refresh(contrato)
+    assert contrato.estado == "inadimplente"
+
+
+async def test_inadimplencia_acontece_na_mesma_passada(db, site):
+    """A cobranca vence e o contrato cai juntos, nao em ciclos diferentes.
+
+    Sem o flush entre os dois passos, a consulta que procura contrato com divida
+    nao enxergaria as cobrancas recem-vencidas - elas ainda estariam so' na
+    sessao -, e a tela mostraria cobranca vencida num contrato "ativa" ate o
+    worker rodar de novo.
+    """
+    plano = await _plano(db)
+    contrato = await platform_service.contratar(db, site.id, plano.codigo)
+    await _cobranca_vencida(db, contrato)
+
+    resultado = await platform_service.marcar_vencidas(db)
+
+    assert resultado == {"cobrancas_vencidas": 1, "contratos_inadimplentes": 1}
+
+
+async def test_passar_de_novo_nao_muda_nada(db, site):
+    """O worker chama isto a cada ciclo. Idempotencia nao e' opcional."""
+    plano = await _plano(db)
+    contrato = await platform_service.contratar(db, site.id, plano.codigo)
+    await _cobranca_vencida(db, contrato)
+
+    await platform_service.marcar_vencidas(db)
+    segunda = await platform_service.marcar_vencidas(db)
+
+    assert segunda == {"cobrancas_vencidas": 0, "contratos_inadimplentes": 0}
+
+
+async def test_contrato_em_aviso_previo_nao_vira_inadimplente(db, site):
+    """Quem ja pediu rescisao esta de saida: o desfecho nao muda, e sobrescrever
+    o estado apagaria a data em que o contrato acaba."""
+    plano = await _plano(db)
+    contrato = await platform_service.contratar(db, site.id, plano.codigo)
+    await platform_service.rescindir(db, site.id)
+    await _cobranca_vencida(db, contrato, mes=1)
+
+    await platform_service.marcar_vencidas(db)
+
+    await db.refresh(contrato)
+    assert contrato.estado == "em_aviso_previo"
+    assert contrato.encerra_em is not None
+
+
+async def test_o_servico_nao_e_cortado(db, site):
+    """A consequencia da inadimplencia NAO e' desligar o eletroposto.
+
+    Quem deixou de pagar foi o estabelecimento; quem ficaria sem recarregar
+    seria o motorista, que nao tem nada com isso. Este teste existe para que
+    ligar o corte seja uma decisao deliberada, e nao algo que entre de carona.
+    """
+    plano = await _plano(db)
+    contrato = await platform_service.contratar(db, site.id, plano.codigo)
+    await _cobranca_vencida(db, contrato)
+
+    await platform_service.marcar_vencidas(db)
+
+    from app.models.charge_point import ChargePoint
+
+    pontos = (
+        (await db.execute(select(ChargePoint).where(ChargePoint.site_id == site.id)))
+        .scalars()
+        .all()
+    )
+    assert all(p.enabled for p in pontos), "inadimplencia desligou ponto de recarga"
+
+
+# ------------------------------------------------------- voltar ao normal
+
+
+async def test_pagar_a_ultima_divida_regulariza_o_contrato(db, site):
+    plano = await _plano(db)
+    contrato = await platform_service.contratar(db, site.id, plano.codigo)
+    cobranca = await _cobranca_vencida(db, contrato)
+    await platform_service.marcar_vencidas(db)
+
+    await platform_service.marcar_como_paga(db, cobranca.id)
+
+    await db.refresh(contrato)
+    assert contrato.estado == "ativa"
+
+
+async def test_pagar_uma_de_duas_nao_regulariza(db, site):
+    """Quitar parte da divida nao tira ninguem da inadimplencia."""
+    plano = await _plano(db)
+    contrato = await platform_service.contratar(db, site.id, plano.codigo)
+    primeira = await _cobranca_vencida(db, contrato, dias=40, mes=1)
+    await _cobranca_vencida(db, contrato, dias=10)
+    await platform_service.marcar_vencidas(db)
+
+    await platform_service.marcar_como_paga(db, primeira.id)
+
+    await db.refresh(contrato)
+    assert contrato.estado == "inadimplente"
+
+
+async def test_baixa_nao_ressuscita_contrato_encerrado(db, site):
+    """O pagamento quita a divida, nao desfaz a rescisao."""
+    plano = await _plano(db)
+    contrato = await platform_service.contratar(db, site.id, plano.codigo)
+    cobranca = await _cobranca_vencida(db, contrato)
+    await platform_service.marcar_vencidas(db)
+    # `encerrada` exige `encerra_em`: o CHECK `encerramento_completo` recusa um
+    # contrato que se declara encerrado sem dizer quando.
+    contrato.estado = "encerrada"
+    contrato.encerra_em = HOJE
+    await db.flush()
+
+    await platform_service.marcar_como_paga(db, cobranca.id)
+
+    await db.refresh(contrato)
+    assert contrato.estado == "encerrada"
+
+
+async def test_inadimplente_nao_renova_sozinho(db, site):
+    """A consequencia pratica da inadimplencia.
+
+    `renovar_vencidos` so' olha contratos `ativa`. Nao e' coincidencia: estender
+    por mais um ciclo um contrato que nao esta sendo pago e' aumentar a divida
+    em vez de cobra-la.
+    """
+    plano = await _plano(db)
+    contrato = await platform_service.contratar(db, site.id, plano.codigo)
+    await _cobranca_vencida(db, contrato)
+    await platform_service.marcar_vencidas(db)
+
+    contrato.renova_em = HOJE - timedelta(days=1)
+    await db.flush()
+    renovados = await platform_service.renovar_vencidos(db)
+
+    assert renovados == 0
+    await db.refresh(contrato)
+    assert contrato.renova_em == HOJE - timedelta(days=1)
+
+
+# ------------------------------------------------------------- o que a tela ve
+
+
+async def test_o_contrato_publica_a_divida(db, site):
+    plano = await _plano(db)
+    contrato = await platform_service.contratar(db, site.id, plano.codigo)
+    await _cobranca_vencida(db, contrato, dias=40, total="149.00", mes=1)
+    await _cobranca_vencida(db, contrato, dias=10, total="200.00")
+    await platform_service.marcar_vencidas(db)
+
+    visao = await platform_service.contrato_do_site(db, site.id)
+
+    assert visao["estado"] == "inadimplente"
+    assert visao["em_atraso"]["cobrancas"] == 2
+    assert visao["em_atraso"]["total_brl"] == 349.0
+    assert visao["em_atraso"]["desde"] == (HOJE - timedelta(days=40)).isoformat()
+
+
+async def test_contrato_em_dia_nao_tem_atraso(db, site):
+    plano = await _plano(db)
+    await platform_service.contratar(db, site.id, plano.codigo)
+
+    visao = await platform_service.contrato_do_site(db, site.id)
+
+    assert visao["em_atraso"] == {"cobrancas": 0, "total_brl": 0.0, "desde": None}
+
+
+async def test_a_divida_nao_depende_da_janela_de_doze_meses(db, site):
+    """`cobrancas` vem limitada as 12 competencias mais recentes.
+
+    Um contrato parado ha' mais de um ano teria a cobranca mais antiga fora da
+    janela, e somar a lista daria um total menor que o real - justamente no caso
+    em que ele e' maior. Dai a consulta propria.
+    """
+    plano = await _plano(db)
+    contrato = await platform_service.contratar(db, site.id, plano.codigo)
+    competencia = platform_service.primeiro_do_mes(HOJE)
+    for _ in range(15):
+        db.add(
+            PlatformInvoice(
+                site_subscription_id=contrato.id,
+                competencia=competencia,
+                emitida_em=HOJE - timedelta(days=400),
+                vence_em=HOJE - timedelta(days=390),
+                total_brl=Decimal("100.00"),
+                estado="aberta",
+            )
+        )
+        competencia = platform_service.mes_seguinte(competencia)
+    await db.flush()
+    await platform_service.marcar_vencidas(db)
+
+    visao = await platform_service.contrato_do_site(db, site.id)
+
+    assert len(visao["cobrancas"]) == 12, "a lista continua paginada"
+    assert visao["em_atraso"]["cobrancas"] == 15
+    assert visao["em_atraso"]["total_brl"] == 1500.0
+
+
+async def test_banco_recusa_estado_de_cobranca_desconhecido(db, site):
+    plano = await _plano(db)
+    contrato = await platform_service.contratar(db, site.id, plano.codigo)
+    db.add(
+        PlatformInvoice(
+            site_subscription_id=contrato.id,
+            competencia=platform_service.primeiro_do_mes(HOJE),
+            emitida_em=HOJE,
+            vence_em=HOJE,
+            total_brl=Decimal("10.00"),
+            estado="atrasada",
+        )
+    )
+    with pytest.raises(IntegrityError):
+        await db.flush()
+    await db.rollback()

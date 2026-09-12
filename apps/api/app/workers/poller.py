@@ -159,6 +159,10 @@ async def _enviar_push() -> dict:
         # UNIQUE (contrato, competencia) barra a segunda emissao.
         await platform_service.renovar_vencidos(db)
         await platform_service.emitir_competencia(db)
+        # Depois de emitir, e nao antes: a cobranca do mes nasce com dez dias de
+        # prazo, entao nunca vence no mesmo ciclo em que e' criada. A ordem so'
+        # importa para quem for ler - o resultado e' o mesmo.
+        await platform_service.marcar_vencidas(db)
         concedidas = await campaign_service.conceder_pendentes(db)
         sessoes = await notification_service.enviar_pendentes(db)
         recompensas = await notification_service.enviar_recompensas_pendentes(db)

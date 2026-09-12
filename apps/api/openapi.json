@@ -5382,7 +5382,6 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "additionalProperties": true,
                   "title": "Response Contrato Api V1 Platform Contract Get"
                 }
               }
@@ -5438,7 +5437,6 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "additionalProperties": true,
                 "title": "Payload"
               }
             }
@@ -5451,7 +5449,6 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "additionalProperties": true,
                   "title": "Response Contratar Api V1 Platform Contract Post"
                 }
               }

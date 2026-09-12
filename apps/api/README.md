@@ -144,6 +144,7 @@ ruff check app     # lint
 | `test_http_app_motorista.py` | fluxos do app por HTTP: escopo por usuário, validação e serialização |
 | `test_http_carteira.py` | crédito na carteira: idempotência, razão e recusa de valor inválido |
 | `test_razao_da_carteira.py` | que o razão **feche com o saldo** depois de crédito e débito |
+| `test_assinatura_plataforma.py` | prazo mínimo, multa, e o ciclo da inadimplência do contrato |
 | `test_http_consultas.py` | custo de consulta do mapa de estações — trava o N+1 |
 | `test_http_paginacao.py` | teto e paginação das listas |
 | `test_http_telemetria.py` | reamostragem da série — cobre a janela sem truncar |
@@ -520,9 +521,34 @@ pagou.
 `minimo_ate` **não avança na renovação automática**. A rescisão antecipada gera multa
 proporcional às mensalidades que faltavam; passado o prazo, sair é livre.
 
-**Escopo honesto:** o serviço emite cobranças, não as liquida. Não há integração bancária nem
-relógio de competência, e a baixa é manual — de admin, porque deixar o próprio devedor declarar
-que pagou não seria baixa manual.
+**A decisão de escopo, resolvida.** Não há liquidação bancária B2B, e isso é escolha declarada,
+não lacuna: cobrar o estabelecimento por Pix exigiria credencial de PSP **da plataforma** — a
+chave da GoodWe, não a do lojista, que é o que `SitePaymentMethod` guarda. Essa conta não
+existe, e `liquidacao_automatica: false` na resposta continua dizendo a verdade. A baixa é
+manual e de **admin**, porque deixar o próprio devedor declarar que pagou não seria baixa
+manual.
+
+O que foi construído no lugar é o **ciclo**, que não depende de banco nenhum:
+
+| passo | o que acontece |
+|---|---|
+| passou de `vence_em` | a cobrança vira `vencida` — o dia do vencimento é do devedor, vence no seguinte |
+| há cobrança vencida | o contrato vira `inadimplente` na mesma passada do worker |
+| contrato inadimplente | **para de renovar sozinho** — `renovar_vencidos` só olha `ativa` |
+| última dívida quitada | a baixa devolve o contrato para `ativa` |
+
+Isso existe porque as duas pontas eram decorativas: `vence_em` era escrita desde a migration
+`0019` e **nunca lida**, e `inadimplente` estava no CHECK e no badge vermelho do painel sem que
+nada no sistema jamais o atribuísse. Uma dívida de três meses era indistinguível de uma cobrança
+emitida ontem.
+
+**O que deliberadamente não acontece: o serviço não é cortado.** Quem deixou de pagar foi o
+estabelecimento; quem ficaria sem recarregar seria o motorista, que não tem nada com isso. Há um
+teste (`test_o_servico_nao_e_cortado`) cuja única função é garantir que ligar o corte seja uma
+decisão deliberada, e não algo que entre de carona.
+
+`em_aviso_previo` não vira `inadimplente`: quem já pediu rescisão está de saída, o desfecho não
+muda, e sobrescrever o estado apagaria a data em que o contrato acaba.
 
 ### 10. Previsão de demanda
 
