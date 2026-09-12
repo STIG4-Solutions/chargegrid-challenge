@@ -656,3 +656,170 @@ async def test_banco_recusa_estado_de_cobranca_desconhecido(db, site):
     with pytest.raises(IntegrityError):
         await db.flush()
     await db.rollback()
+
+
+# ----------------------------------------------------------- encerramento
+#
+# `rescindir` punha o contrato em `em_aviso_previo` e gravava `encerra_em` - e
+# NADA nunca o levava a `encerrada`. O estado estava no CHECK e no badge do
+# painel desde a 0019, alcancavel so' por teste que montava a linha a mao.
+#
+# Nao era cosmetico: `vigente_do_site` filtra `estado <> 'encerrada'` e
+# `contratar` recusa quem ja tem vigente, entao quem rescindia ficava SEM SAIDA
+# - sem ser faturado, marcado como "em aviso previo" para sempre, e sem poder
+# assinar outro plano.
+
+
+async def _em_aviso(db, site, dias_ate_encerrar=-1):
+    """Contrato rescindido cujo aviso previo termina em `dias_ate_encerrar`."""
+    plano = await _plano(db)
+    contrato = await platform_service.contratar(db, site.id, plano.codigo)
+    await platform_service.rescindir(db, site.id)
+    contrato.encerra_em = HOJE + timedelta(days=dias_ate_encerrar)
+    await db.flush()
+    return contrato
+
+
+async def test_aviso_previo_vencido_encerra(db, site):
+    contrato = await _em_aviso(db, site)
+
+    assert await platform_service.encerrar_vencidos(db) == 1
+
+    await db.refresh(contrato)
+    assert contrato.estado == "encerrada"
+
+
+async def test_aviso_previo_que_termina_hoje_ja_encerra(db, site):
+    """`encerra_em` e' o primeiro dia SEM servico - o ciclo pago acabou ontem."""
+    contrato = await _em_aviso(db, site, dias_ate_encerrar=0)
+
+    await platform_service.encerrar_vencidos(db)
+
+    await db.refresh(contrato)
+    assert contrato.estado == "encerrada"
+
+
+async def test_aviso_previo_em_curso_nao_encerra(db, site):
+    """O mes ja pago vale ate o fim: cortar antes entrega menos do que se cobrou."""
+    contrato = await _em_aviso(db, site, dias_ate_encerrar=15)
+
+    assert await platform_service.encerrar_vencidos(db) == 0
+
+    await db.refresh(contrato)
+    assert contrato.estado == "em_aviso_previo"
+
+
+async def test_contrato_ativo_nao_e_encerrado(db, site):
+    """Sem rescisao pedida nao ha o que encerrar, por mais velho que seja."""
+    plano = await _plano(db)
+    contrato = await platform_service.contratar(db, site.id, plano.codigo)
+
+    await platform_service.encerrar_vencidos(db)
+
+    await db.refresh(contrato)
+    assert contrato.estado == "ativa"
+
+
+async def test_so_encerra_quem_pediu_rescisao(db, site):
+    """`encerra_em` no passado nao basta: o contrato precisa estar EM AVISO.
+
+    Hoje as duas condicoes andam juntas, porque so' `rescindir` grava a data -
+    e o teste de mutacao mostrou isso: trocar o filtro de estado por
+    `("ativa", "em_aviso_previo")` nao quebrava nada. Este teste e' o que separa
+    as duas, montando o estado que o codigo atual nao produz mas o schema
+    aceita.
+
+    A regra que ele fixa: encerrar fecha quem PEDIU para sair. Um contrato ativo
+    com data antiga em `encerra_em` e' um dado inconsistente - o certo e'
+    ignora-lo, nao desligar o cliente por causa dele.
+    """
+    plano = await _plano(db)
+    contrato = await platform_service.contratar(db, site.id, plano.codigo)
+    contrato.encerra_em = HOJE - timedelta(days=30)
+    await db.flush()
+
+    assert await platform_service.encerrar_vencidos(db) == 0
+
+    await db.refresh(contrato)
+    assert contrato.estado == "ativa"
+
+
+async def test_passar_de_novo_nao_encerra_nada(db, site):
+    """O worker chama a cada ciclo."""
+    await _em_aviso(db, site)
+
+    await platform_service.encerrar_vencidos(db)
+
+    assert await platform_service.encerrar_vencidos(db) == 0
+
+
+async def test_encerrado_libera_o_site_para_contratar_de_novo(db, site):
+    """A razao de tudo isto. Sem o encerramento, `contratar` recusa para sempre."""
+    contrato = await _em_aviso(db, site)
+    codigo = contrato.plan.codigo  # o mesmo plano: `codigo` e' UNIQUE
+
+    with pytest.raises(Conflict):
+        await platform_service.contratar(db, site.id, codigo)
+
+    await platform_service.encerrar_vencidos(db)
+
+    novo = await platform_service.contratar(db, site.id, codigo)
+    assert novo.estado == "ativa"
+    assert novo.id != contrato.id
+
+
+async def test_encerrado_deixa_de_ser_faturado(db, site):
+    plano = await _plano(db)
+    contrato = await platform_service.contratar(db, site.id, plano.codigo)
+    await platform_service.rescindir(db, site.id)
+    contrato.encerra_em = HOJE - timedelta(days=1)
+    await db.flush()
+    await platform_service.encerrar_vencidos(db)
+
+    emitidas = await platform_service.emitir_competencia(
+        db, platform_service.mes_seguinte(platform_service.primeiro_do_mes(HOJE))
+    )
+
+    assert emitidas == 0
+
+
+# ------------------------------------------------- encerrar nao some com a divida
+
+
+async def test_divida_continua_na_tela_depois_de_encerrar(db, site):
+    """Encerrar nao pode virar um jeito de sumir com o que ficou devendo.
+
+    `contrato_do_site` lia so' o VIGENTE. Com o contrato encerrado, devolveria
+    `contratado: false` e as cobrancas em aberto sairiam da tela junto - quem
+    deve deixaria de ver o que deve.
+    """
+    contrato = await _em_aviso(db, site)
+    await _cobranca_vencida(db, contrato, dias=40, total="149.00", mes=1)
+    await platform_service.marcar_vencidas(db)
+    await platform_service.encerrar_vencidos(db)
+
+    visao = await platform_service.contrato_do_site(db, site.id)
+
+    assert visao["contratado"] is True
+    assert visao["estado"] == "encerrada"
+    assert visao["em_atraso"]["cobrancas"] == 1
+    assert visao["em_atraso"]["total_brl"] == 149.0
+
+
+async def test_site_que_nunca_contratou_continua_sem_contrato(db, site):
+    visao = await platform_service.contrato_do_site(db, site.id)
+    assert visao == {"contratado": False}
+
+
+async def test_a_tela_ve_o_encerrado_mas_contratar_nao(db, site):
+    """As duas leituras respondem perguntas diferentes, e misturar volta o bug.
+
+    `ultimo_do_site` serve a tela; `vigente_do_site` decide se cabe contratar.
+    Se `contratar` passasse a usar o primeiro, um contrato encerrado voltaria a
+    bloquear o proximo - exatamente o defeito que este trabalho desfez.
+    """
+    await _em_aviso(db, site)
+    await platform_service.encerrar_vencidos(db)
+
+    assert await platform_service.ultimo_do_site(db, site.id) is not None
+    assert await platform_service.vigente_do_site(db, site.id) is None

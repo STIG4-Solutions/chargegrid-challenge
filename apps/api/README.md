@@ -616,6 +616,34 @@ pagou.
 `minimo_ate` **não avança na renovação automática**. A rescisão antecipada gera multa
 proporcional às mensalidades que faltavam; passado o prazo, sair é livre.
 
+O ciclo fecha: **`encerrar_vencidos`** leva a `encerrada` o contrato cujo aviso prévio terminou.
+Antes, nada fazia essa transição — `rescindir` gravava `encerra_em` e o contrato ficava em
+`em_aviso_previo` para sempre. O efeito não era cosmético: `vigente_do_site` filtra
+`estado <> 'encerrada'` e `contratar` recusa quem já tem vigente, então **quem rescindia ficava
+sem saída** — sem ser faturado, marcado como "Em aviso prévio" para sempre, e sem poder assinar
+outro plano.
+
+**Dívida não segura o encerramento.** O período de serviço acabou na data combinada, e prender o
+cadastro aberto para cobrar seria usar o contrato como instrumento de cobrança. As cobranças
+continuam existindo — a FK é `RESTRICT` justamente para o histórico não sumir junto.
+
+E é por isso que `contrato_do_site` lê **`ultimo_do_site`**, não `vigente_do_site`: sem isso,
+encerrar viraria um jeito de sumir com dívida da tela — o contrato encerrado devolveria
+`contratado: false` e o que ficou em aberto sairia junto. As duas leituras respondem perguntas
+diferentes e **não podem ser trocadas uma pela outra**: `ultimo_do_site` serve a tela,
+`vigente_do_site` decide se cabe contratar. Trocar a segunda pela primeira faria um contrato
+encerrado bloquear o próximo — de volta ao defeito.
+
+O que **não** existe, e vale dizer: nenhuma regra impede um devedor de assinar de novo. Isso é
+política comercial, e inventá-la aqui seria decidir sozinho uma coisa que não é técnica.
+
+**Um limite conhecido**, verificado na stack e registrado em vez de descoberto depois: quando a
+praça contrata um plano novo, `ultimo_do_site` passa a devolver o contrato vigente, e as
+cobranças do contrato anterior saem da tela — inclusive as em aberto. Mostrá-las misturadas com
+as do contrato novo seria pior (são contratos diferentes, com competências próprias); o certo é
+uma visão de histórico de contratos, que não existe. Enquanto não existir, o dado continua no
+banco e acessível por `platform_invoices`, só não tem tela.
+
 **A decisão de escopo, resolvida.** Não há liquidação bancária B2B, e isso é escolha declarada,
 não lacuna: cobrar o estabelecimento por Pix exigiria credencial de PSP **da plataforma** — a
 chave da GoodWe, não a do lojista, que é o que `SitePaymentMethod` guarda. Essa conta não

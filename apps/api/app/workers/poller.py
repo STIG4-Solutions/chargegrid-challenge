@@ -163,6 +163,10 @@ async def _enviar_push() -> dict:
         # prazo, entao nunca vence no mesmo ciclo em que e' criada. A ordem so'
         # importa para quem for ler - o resultado e' o mesmo.
         await platform_service.marcar_vencidas(db)
+        # Fecha quem chegou ao fim do aviso previo. Depois de emitir, pelo
+        # mesmo motivo da linha acima: a competencia do mes de encerramento
+        # ainda e' devida, e `emitir_competencia` ja para em `encerra_em`.
+        await platform_service.encerrar_vencidos(db)
         concedidas = await campaign_service.conceder_pendentes(db)
         sessoes = await notification_service.enviar_pendentes(db)
         recompensas = await notification_service.enviar_recompensas_pendentes(db)

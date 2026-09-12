@@ -365,6 +365,78 @@ async def emitir_competencia(db: AsyncSession, competencia: date | None = None) 
     return emitidas
 
 
+async def encerrar_vencidos(db: AsyncSession) -> int:
+    """Fecha o contrato que chegou ao fim do aviso previo.
+
+    `rescindir` punha o contrato em `em_aviso_previo` e gravava `encerra_em` - e
+    nada nunca o levava a `encerrada`. O estado existia no CHECK e no badge do
+    painel desde a 0019, inalcancavel: so' aparecia em teste que montava a linha
+    a mao.
+
+    O efeito nao era cosmetico. `vigente_do_site` filtra `estado <> 'encerrada'`,
+    e `contratar` recusa quem ja tem contrato vigente - entao o estabelecimento
+    que rescindia ficava SEM SAIDA: nao era mais faturado (`emitir_competencia`
+    respeita `encerra_em`), continuava marcado como "Em aviso previo" para
+    sempre, e nunca mais conseguia assinar outro plano.
+
+    DIVIDA NAO SEGURA O ENCERRAMENTO. O periodo de servico acabou na data
+    combinada, e prender o contrato aberto para cobrar seria usar o cadastro
+    como instrumento de cobranca. As cobrancas continuam existindo - a FK e'
+    RESTRICT justamente para o historico nao sumir com o contrato - e
+    `contrato_do_site` continua mostrando o que ficou em aberto.
+
+    O que NAO existe, e vale dizer em vez de deixar implicito: nenhuma regra
+    impede um devedor de assinar de novo. Isso e' politica comercial, e
+    inventa-la aqui seria decidir sozinho uma coisa que nao e' tecnica.
+    """
+    hoje = date.today()
+    vencidos = (
+        (
+            await db.execute(
+                select(SiteSubscription).where(
+                    SiteSubscription.estado == "em_aviso_previo",
+                    SiteSubscription.encerra_em.isnot(None),
+                    SiteSubscription.encerra_em <= hoje,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for contrato in vencidos:
+        contrato.estado = "encerrada"
+        log.info(
+            "contrato.encerrado", site=str(contrato.site_id), em=contrato.encerra_em.isoformat()
+        )
+    if vencidos:
+        await db.commit()
+    return len(vencidos)
+
+
+async def ultimo_do_site(db: AsyncSession, site_id: uuid.UUID) -> SiteSubscription | None:
+    """O contrato vigente ou, na falta dele, o ultimo que existiu.
+
+    Serve a tela, e nao as regras. `vigente_do_site` continua sendo quem decide
+    se cabe contratar - misturar os dois faria um contrato encerrado bloquear o
+    proximo, que e' exatamente o defeito que `encerrar_vencidos` desfaz.
+
+    Existe porque encerrar nao pode virar um jeito de sumir com divida: sem
+    isto, o contrato encerrado com cobranca em aberto devolveria
+    `{"contratado": false}` e o que ficou devendo sairia da tela junto.
+    """
+    vigente = await vigente_do_site(db, site_id)
+    if vigente is not None:
+        return vigente
+    return (
+        await db.execute(
+            select(SiteSubscription)
+            .where(SiteSubscription.site_id == site_id)
+            .order_by(SiteSubscription.starts_on.desc())
+            .limit(1)
+        )
+    ).scalars().first()
+
+
 async def marcar_vencidas(db: AsyncSession) -> dict:
     """Faz o prazo ter efeito: cobranca vence, contrato fica inadimplente.
 
@@ -507,7 +579,10 @@ async def marcar_como_paga(db: AsyncSession, cobranca_id: uuid.UUID) -> Platform
 
 
 async def contrato_do_site(db: AsyncSession, site_id: uuid.UUID) -> dict:
-    contrato = await vigente_do_site(db, site_id)
+    # `ultimo_do_site`, e nao `vigente_do_site`: um contrato encerrado com
+    # cobranca em aberto continua tendo o que mostrar. Ler so' o vigente faria
+    # encerrar virar um jeito de sumir com divida da tela.
+    contrato = await ultimo_do_site(db, site_id)
     if contrato is None:
         return {"contratado": False}
 
