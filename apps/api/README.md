@@ -467,8 +467,9 @@ errado devolveria 200 vazio, indistinguível de uma praça sem movimento.
 
 ### 7. Campanhas e recompensas
 
-Duas tabelas para duas perguntas diferentes: `campaigns` diz **quem paga**, `missions` diz **o
-que precisa acontecer**.
+Duas tabelas para duas perguntas diferentes: `campaigns` diz **onde vale e quem administra**,
+`missions` diz **o que precisa acontecer**. Quem paga é outra coisa — segue o tipo de benefício,
+como o parágrafo abaixo explica.
 
 Uma campanha declara **um único** `beneficio_tipo`, garantido por check constraint. Nunca "20%
 de desconto E 5% de cashback" — é o caminho para ninguém conseguir dizer quanto a campanha
@@ -495,6 +496,45 @@ Afrouxar `session_events.session_id` para nulável seria o caminho curto e destr
 guarda: `enviar_pendentes` trata `session is None` como evento órfão a descartar. E
 `IDADE_MAXIMA_MIN` **não se aplica** aqui — "venha buscar o carro" perde valor em 30 minutos,
 "você ganhou R$ 12" não perde nunca.
+
+
+#### Frota: elegibilidade, não patrocínio
+
+**A decisão de escopo que faltava, resolvida.** `patrocinador = 'frota'` **saiu**; `fleet_id`
+virou **elegibilidade**.
+
+O motivo estava no próprio modelo, e a pergunta original o ignorava: **`patrocinador` nunca foi
+quem paga.** O bolso é determinado pelo *tipo de benefício* — desconto sai do estabelecimento
+(é a margem dele naquela sessão), cashback sai da rede (crédito só vale dentro da plataforma).
+Não há um terceiro. `patrocinador` responde **onde** a campanha vale e quem a administra.
+
+Então `'frota'` como patrocinador era um valor sem mecanismo atrás: o schema aceitava, a
+validação recusava com 422 e a consulta de elegibilidade filtrava fora — inalcançável pelos três
+lados. Mesma classe de defeito que `inadimplente` era antes da `0023`.
+
+Fazer dele verdade exigiria dar bolso à frota: `fleet_invoices` com ciclo, cobrança e
+inadimplência, como a plataforma tem. Seria inventar um modelo comercial que ninguém pediu, a
+partir de um `billing_email` que é a única pista de que alguém pensou nisso.
+
+O que sobrou é a parte que **não precisa de bolso nenhum**: campanha restrita aos motoristas de
+uma frota, paga por quem sempre pagou. A coluna já existia; mudou o papel dela — de "quem
+financia" para "para quem vale". Isso a torna combinável com os dois patrocinadores:
+
+| combinação | quem paga | para quem vale |
+|---|---|---|
+| `rede` + `fleet_id` | a rede | só os motoristas daquela frota |
+| `site` + `fleet_id` | o estabelecimento | só os da frota, só naquele site |
+| `rede` sem `fleet_id` | a rede | todos |
+
+A segunda linha era **proibida** pelo CHECK antigo: `patrocinador='frota'` exigia
+`site_id IS NULL`, então uma praça não tinha como dirigir campanha à frota da empresa vizinha.
+
+**A feature não tinha dado nenhum por trás.** Zero frotas, zero motoristas com frota, zero
+veículos com centro de custo — com modelo, rotas (`/app/fleet/report`) e tela (`FleetScreen`)
+existindo desde a `0013`. A aba do app abria vazia para todos. O seed agora cria uma frota com
+**dois dos cinco** motoristas: dois e não cinco de propósito, porque é o que torna visível a
+diferença entre campanha dirigida e campanha para todos. Conferido na API: o motorista da frota
+vê 4 missões, o de fora vê 3.
 
 ### 8. Assinatura do motorista
 

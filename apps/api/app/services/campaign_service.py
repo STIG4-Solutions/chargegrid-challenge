@@ -83,11 +83,20 @@ async def _vigentes(
             # Campanha de site vale so' no site dela; a de rede (site_id nulo)
             # vale em qualquer lugar. Quem paga nao banca recarga do vizinho.
             or_(Campaign.site_id.is_(None), Campaign.site_id == sessao.site_id),
-            # Frota fica de fora, e nao por esforco: nenhuma fatura aponta para
-            # `fleet_id` - `Invoice.user_id` e' pessoa fisica. Campanha
-            # corporativa faria a empresa pagar e o funcionario embolsar. A
-            # coluna existe para nao exigir migration depois; o caminho, nao.
-            Campaign.patrocinador != "frota",
+            # Campanha dirigida a uma frota vale so' para os motoristas dela;
+            # `fleet_id` nulo vale para todos. E' ELEGIBILIDADE, nao patrocinio -
+            # quem paga continua sendo o estabelecimento ou a rede, pelo tipo de
+            # beneficio. Ate a 0024 esta clausula era `patrocinador != 'frota'`,
+            # que jogava fora uma campanha que nunca conseguiu existir.
+            #
+            # Subconsulta em vez de carregar o usuario: o escopo inteiro e'
+            # decidido nesta consulta, e trazer o motorista so' para ler uma
+            # coluna espalharia a regra por dois lugares.
+            or_(
+                Campaign.fleet_id.is_(None),
+                Campaign.fleet_id
+                == select(User.fleet_id).where(User.id == sessao.user_id).scalar_subquery(),
+            ),
         )
         .options(selectinload(Campaign.missions))
     )
@@ -545,7 +554,17 @@ async def missoes_do_motorista(
                     Campaign.ativa.is_(True),
                     Campaign.starts_at <= momento,
                     Campaign.ends_at >= momento,
-                    Campaign.patrocinador != "frota",
+                    # Mesma regra de elegibilidade de `campanhas_vigentes`, e
+                    # ela precisa ser a mesma: uma missao listada na tela que
+                    # nao pontua ao recarregar seria pior que nao lista-la.
+                    #
+                    # Aqui `user` esta em maos, entao le-se a coluna direto - a
+                    # subconsulta de la' existe so' porque aquela funcao recebe a
+                    # sessao, e nao o motorista.
+                    or_(
+                        Campaign.fleet_id.is_(None),
+                        Campaign.fleet_id == user.fleet_id,
+                    ),
                 )
                 .options(selectinload(Campaign.missions))
             )

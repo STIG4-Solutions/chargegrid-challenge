@@ -13,9 +13,11 @@ from decimal import Decimal
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from app.models.campaign import Campaign, Mission, MissionProgress
 from app.models.enums import AuthMethod, SessionState, StopReason
+from app.models.fleet import Fleet
 from app.models.session import ChargingSession
 from app.services import billing_service, campaign_service, session_service
 
@@ -304,3 +306,151 @@ async def test_entre_duas_campanhas_vence_a_melhor_para_o_motorista(
 
     linha = next(x for x in fatura.lines if x.kind == "desconto")
     assert "Forte" in linha.description
+
+
+# ------------------------------------------------------------------- frota
+#
+# A decisao de escopo resolvida na migration 0024: `patrocinador = 'frota'`
+# SAIU, e `fleet_id` virou ELEGIBILIDADE.
+#
+# O motivo estava no proprio modelo: `patrocinador` nunca foi quem paga. O bolso
+# e' determinado pelo TIPO DE BENEFICIO - desconto sai do estabelecimento,
+# cashback sai da rede - e nao ha um terceiro. `frota` como patrocinador era um
+# valor sem mecanismo atras: o schema aceitava, a validacao recusava com 422 e a
+# consulta de elegibilidade filtrava fora. Inalcancavel pelos tres lados.
+#
+# Sobrou o que nao precisa de bolso nenhum: campanha que vale so' para os
+# motoristas de uma frota, paga por quem sempre pagou.
+
+
+async def _frota(db, nome="Logistica Teste") -> Fleet:
+    frota = Fleet(name=nome, document="12345678000190", billing_email="fin@teste.com")
+    db.add(frota)
+    await db.flush()
+    return frota
+
+
+async def test_banco_recusa_patrocinador_frota(db):
+    """O valor saiu do CHECK, e nao so' da validacao em Python.
+
+    Dois CHECKs barram, e o teste de mutacao mostrou isso: reverter so' o
+    `patrocinador` nao basta, porque `escopo_coerente` tambem nao tem ramo para
+    `frota`. Defesa em profundidade de graca - as duas regras precisam voltar
+    juntas para o valor existir de novo, e ai este teste quebra.
+    """
+    db.add(
+        Campaign(
+            patrocinador="frota",
+            nome="Corporativa",
+            starts_at=AGORA,
+            ends_at=AGORA + timedelta(days=10),
+            beneficio_tipo="cashback_fixo",
+            beneficio_valor=Decimal("5"),
+        )
+    )
+    with pytest.raises(IntegrityError):
+        await db.flush()
+    await db.rollback()
+
+
+async def test_campanha_de_frota_conta_para_quem_e_da_frota(db, ponto, motorista, tarifa):
+    frota = await _frota(db)
+    motorista.fleet_id = frota.id
+    await db.flush()
+    campanha = await _campanha(db, fleet_id=frota.id)
+    missao = await _missao(db, campanha)
+
+    await _sessao_faturada(db, ponto, motorista)
+
+    assert await _progresso(db, missao, motorista) is not None
+
+
+async def test_campanha_de_frota_nao_conta_para_quem_nao_e(db, ponto, motorista, tarifa):
+    """O ponto todo da elegibilidade. Sem isto seria campanha de rede."""
+    frota = await _frota(db)
+    campanha = await _campanha(db, fleet_id=frota.id)
+    missao = await _missao(db, campanha)
+
+    await _sessao_faturada(db, ponto, motorista)
+
+    assert await _progresso(db, missao, motorista) is None
+
+
+async def test_campanha_de_frota_nao_conta_para_outra_frota(db, ponto, motorista, tarifa):
+    dona = await _frota(db, "Dona")
+    outra = await _frota(db, "Outra")
+    motorista.fleet_id = outra.id
+    await db.flush()
+    campanha = await _campanha(db, fleet_id=dona.id)
+    missao = await _missao(db, campanha)
+
+    await _sessao_faturada(db, ponto, motorista)
+
+    assert await _progresso(db, missao, motorista) is None
+
+
+async def test_campanha_sem_frota_conta_para_quem_tem_frota(db, ponto, motorista, tarifa):
+    """`fleet_id` nulo nao exclui ninguem - inclusive quem pertence a uma frota."""
+    frota = await _frota(db)
+    motorista.fleet_id = frota.id
+    await db.flush()
+    campanha = await _campanha(db, fleet_id=None)
+    missao = await _missao(db, campanha)
+
+    await _sessao_faturada(db, ponto, motorista)
+
+    assert await _progresso(db, missao, motorista) is not None
+
+
+async def test_frota_combina_com_patrocinio_de_site(db, ponto, motorista, tarifa, site):
+    """Um posto pode dirigir campanha a frota da empresa vizinha.
+
+    E' o caso que o CHECK antigo proibia: `patrocinador='frota'` exigia
+    `site_id IS NULL`, entao uma praca nao tinha como dirigir campanha a uma
+    frota. Separar patrocinio de elegibilidade libera a combinacao.
+    """
+    frota = await _frota(db)
+    motorista.fleet_id = frota.id
+    await db.flush()
+    campanha = await _campanha(
+        db, patrocinador="site", site_id=site.id, fleet_id=frota.id
+    )
+    missao = await _missao(db, campanha)
+
+    await _sessao_faturada(db, ponto, motorista)
+
+    assert await _progresso(db, missao, motorista) is not None
+
+
+async def test_a_tela_do_app_segue_a_mesma_regra(db, motorista):
+    """A lista e a pontuacao nao podem discordar.
+
+    Uma missao listada no app que nao pontua ao recarregar e' pior que nao
+    lista-la: o motorista cumpre e nao ganha. Sao duas consultas diferentes, em
+    funcoes diferentes, e e' por isso que este teste existe.
+    """
+    frota = await _frota(db)
+    campanha = await _campanha(db, fleet_id=frota.id)
+    await _missao(db, campanha)
+
+    assert await campaign_service.missoes_do_motorista(db, motorista) == []
+
+    motorista.fleet_id = frota.id
+    await db.flush()
+    assert len(await campaign_service.missoes_do_motorista(db, motorista)) == 1
+
+
+async def test_apagar_a_frota_leva_a_campanha_junto(db):
+    """CASCADE, e nao SET NULL: deixar a campanha viva sem frota a
+    transformaria, em silencio, numa campanha para todo mundo - o oposto do que
+    quem a criou pediu."""
+    frota = await _frota(db)
+    campanha = await _campanha(db, fleet_id=frota.id)
+
+    await db.delete(frota)
+    await db.flush()
+
+    sobrou = (
+        await db.execute(select(Campaign).where(Campaign.id == campanha.id))
+    ).scalar_one_or_none()
+    assert sobrou is None

@@ -25,6 +25,11 @@ produz um modelo que ninguem consegue sustentar:
 Uma campanha declara UM tipo de beneficio, garantido por check constraint.
 "20% de desconto E 5% de cashback" e' o caminho para ninguem conseguir dizer
 quanto a campanha custou.
+
+NAO HA TERCEIRO BOLSO, e por isso `patrocinador` so' aceita `rede` e `site`: ele
+responde ONDE a campanha vale e quem a administra, nao quem paga. A frota chegou
+a existir como patrocinador e saiu na 0024 - era um valor sem mecanismo atras.
+`fleet_id` ficou, com outro papel: elegibilidade.
 """
 
 from __future__ import annotations
@@ -54,7 +59,11 @@ from app.db.base import Base, TimestampMixin, UUIDMixin
 
 # Quem banca. Nao e' o mesmo que "para quem vale": uma campanha de rede pode
 # valer so' para quem carrega num site, mas quem paga continua sendo a rede.
-PATROCINADORES = ("rede", "site", "frota")
+# Quem ADMINISTRA e onde vale - nao quem paga. O bolso e' determinado pelo tipo
+# de beneficio (ver o docstring do modulo), e nunca houve um terceiro: `frota`
+# saiu na 0024 por ser um valor sem mecanismo atras, que a validacao recusava e a
+# consulta de elegibilidade filtrava fora.
+PATROCINADORES = ("rede", "site")
 
 # O que o motorista leva. Desconto abate na hora, na propria fatura; cashback
 # vira credito na carteira e so' se realiza na proxima recarga.
@@ -91,9 +100,8 @@ class Campaign(UUIDMixin, TimestampMixin, Base):
         # rede com site_id" no banco, e ninguem consegue dizer de qual bolso
         # saiu o dinheiro depois que ela acabou.
         CheckConstraint(
-            "(patrocinador = 'site' AND site_id IS NOT NULL AND fleet_id IS NULL)"
-            " OR (patrocinador = 'frota' AND fleet_id IS NOT NULL AND site_id IS NULL)"
-            " OR (patrocinador = 'rede' AND site_id IS NULL AND fleet_id IS NULL)",
+            "(patrocinador = 'site' AND site_id IS NOT NULL)"
+            " OR (patrocinador = 'rede' AND site_id IS NULL)",
             name="escopo_coerente",
         ),
         CheckConstraint(
@@ -118,8 +126,17 @@ class Campaign(UUIDMixin, TimestampMixin, Base):
     site_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("sites.id", ondelete="CASCADE")
     )
-    # CASCADE nos dois: a campanha nao sobrevive a quem a financiava. Apagado o
-    # patrocinador, nao ha mais orcamento nem a quem cobrar.
+    # ELEGIBILIDADE, nao patrocinio: preenchido, a campanha so' vale para os
+    # motoristas daquela frota; nulo, vale para todos. Combina com os dois
+    # patrocinadores - a rede pode dar cashback so' para a frota X, e um posto
+    # pode dar desconto so' para a frota da empresa vizinha.
+    #
+    # Quem paga continua sendo determinado pelo TIPO DE BENEFICIO, e nao por
+    # esta coluna. Ate a 0024 ela era lida como "quem financia", e isso exigia um
+    # bolso que a frota nunca teve.
+    #
+    # CASCADE: apagada a frota, a campanha dirigida a ela perde o proposito -
+    # deixa-la viva a transformaria, em silencio, numa campanha para todo mundo.
     fleet_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("fleets.id", ondelete="CASCADE")
     )

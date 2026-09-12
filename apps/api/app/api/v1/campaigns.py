@@ -64,6 +64,10 @@ async def criar(payload: CampanhaIn, db: DbSession, _: OperatorUser, site_id: Sc
         descricao=payload.descricao,
         patrocinador=payload.patrocinador,
         site_id=dono,
+        # Vem do corpo, ao contrario de `site_id`: dizer PARA QUEM a campanha
+        # vale nao move dinheiro de ninguem - quem paga e' determinado pelo tipo
+        # de beneficio. Escolher o site, sim, cederia a margem do vizinho.
+        fleet_id=payload.fleet_id,
         starts_at=payload.starts_at,
         ends_at=payload.ends_at,
         ativa=payload.ativa,

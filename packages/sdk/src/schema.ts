@@ -807,6 +807,11 @@ export interface paths {
         /**
          * Payment Webhook
          * @description Liquidacao assincrona do PSP. Assinatura HMAC obrigatoria.
+         *
+         *     Um POST pode trazer MAIS DE UM pagamento: o Pix notifica em lote, com uma
+         *     lista de recebimentos no mesmo corpo. Quem sabe desmontar isso e' o
+         *     provedor - a rota nao supoe a forma do corpo, e por isso a resposta e'
+         *     sempre `{"eventos": [...]}`, com um elemento no caso comum.
          */
         post: operations["payment_webhook_api_v1_payments_webhook_post"];
         delete?: never;
@@ -1099,6 +1104,33 @@ export interface paths {
          *     ela, dois toques no botao viram dois creditos.
          */
         post: operations["topup_api_v1_app_wallet_topup_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/wallet/statement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Wallet Statement
+         * @description O extrato da carteira: credito e debito, do mais novo ao mais antigo.
+         *
+         *     O motorista so' via um saldo. Com cashback de campanha ele passou a mudar
+         *     sozinho, e um numero que muda sem explicacao e' o tipo de coisa que vira
+         *     chamado de suporte - ou desconfianca, que e' pior.
+         *
+         *     Sempre o proprio: o `user_id` vem do token, nunca da URL. Nao ha parametro
+         *     que permita pedir o extrato de outro motorista.
+         */
+        get: operations["wallet_statement_api_v1_app_wallet_statement_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2970,6 +3002,8 @@ export interface components {
              * @default rede
              */
             patrocinador: string;
+            /** Fleet Id */
+            fleet_id?: string | null;
             /**
              * Starts At
              * Format: date-time
@@ -5360,6 +5394,37 @@ export interface operations {
             };
         };
     };
+    wallet_statement_api_v1_app_wallet_statement_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     when_to_start_api_v1_app_charge_points__charge_point_id__when_to_start_get: {
         parameters: {
             query?: {
@@ -6056,9 +6121,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Validation Error */
@@ -6084,9 +6147,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -6096,9 +6157,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description Validation Error */

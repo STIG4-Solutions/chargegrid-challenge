@@ -88,6 +88,11 @@ comparação responde sozinha: hash igual aponta para o ambiente, hash diferente
 aponta para o banco. É instrumentação nascida de uma pergunta que não soube
 responder.
 
+**E já serviu.** No reseed que trouxe a frota para o seed, a métrica mudou de
+novo (9,94% → 9,26%, com a régua indo a 9,07%) — e o hash mudou junto. Pergunta
+respondida em dois segundos: o banco é outro, porque o histórico do seed é
+ancorado em `now()` e ganhou uma campanha nova. Não há mistério a investigar.
+
 Sobre `deterministic=True` e `force_row_wise=True`, que acompanham o
 `num_threads`: são **preventivos, não demonstrados**. A documentação do LightGBM
 é explícita quanto ao contrato, mas a divergência por número de threads não foi
@@ -115,9 +120,9 @@ e traz dentro o comando que o refaz:
 
 | métrica | valor |
 |---|---|
-| WAPE mensal do modelo | **9,94%** |
-| WAPE mensal da média móvel de 28 dias | **7,61%** |
-| WAPE diário do modelo | 25,66% |
+| WAPE mensal do modelo | **9,26%** |
+| WAPE mensal da média móvel de 28 dias | **9,07%** |
+| WAPE diário do modelo | 25,94% |
 | Cobertura da faixa p10–p90 | **62,3%** (deveria ser ~80%) |
 
 Estes números mudam quando o banco muda — e é para isso que a evidência é

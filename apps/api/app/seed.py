@@ -50,6 +50,7 @@ from app.models.enums import (
     TariffType,
     UserRole,
 )
+from app.models.fleet import Fleet
 from app.models.platform import PlatformPlan
 from app.models.session import ChargingSession
 from app.models.site import Site, SiteMeterReading
@@ -149,6 +150,24 @@ DRIVERS = [
     ("ana.costa@email.com", "Ana Costa", "Tesla Model 3", "60 kWh", 57.5, 11.0),
     ("pedro.alves@email.com", "Pedro Alves", "GWM Ora 03", "48 kWh", 48.0, 6.6),
 ]
+
+# A frota existia como modelo, rota (`/app/fleet/report`) e tela (`FleetScreen`)
+# desde a 0013 - e o seed nao criava nenhuma. Zero frotas, zero motoristas com
+# frota, zero veiculos com centro de custo: a aba do app abria vazia para todo
+# mundo, e o relatorio corporativo nao tinha o que relatar.
+#
+# Dois dos cinco motoristas entram nela. Dois e nao cinco de proposito: e' o que
+# torna VISIVEL a diferenca entre campanha dirigida a frota e campanha para
+# todos - com todo mundo dentro, os dois casos pareceriam iguais na tela.
+FROTA = {
+    "nome": "Logistica Sao Paulo LTDA",
+    "documento": "12.345.678/0001-90",
+    "email_de_cobranca": "financeiro@logisticasp.com.br",
+}
+MOTORISTAS_DA_FROTA = {
+    "maria.souza@email.com": "CC-COMERCIAL",
+    "carlos.lima@email.com": "CC-OPERACOES",
+}
 
 # ---------------------------------------------------------------------------
 # Historico
@@ -774,7 +793,9 @@ async def _gravar_historico(db, sessoes: list[dict], agora: datetime) -> int:
     return len(linhas_sessao)
 
 
-async def _montar_gamificacao(db, montados: list[dict], motoristas: list[User], agora) -> None:
+async def _montar_gamificacao(
+    db, montados: list[dict], motoristas: list[User], agora, frota: Fleet
+) -> None:
     """Campanha, contrato e o progresso que o historico ja produziu.
 
     Sem isto, reseedar deixa as telas novas vazias mesmo com dois anos de
@@ -854,6 +875,41 @@ async def _montar_gamificacao(db, montados: list[dict], motoristas: list[User], 
                 orcamento_brl=1500.00,
             )
         )
+
+    # Campanha dirigida a FROTA: patrocinada pela rede (cashback sai da rede,
+    # como sempre) e restrita aos motoristas da empresa. `fleet_id` e'
+    # elegibilidade, nao patrocinio - a frota nao paga nada.
+    #
+    # Existe no seed porque ela e' a unica forma de ver a regra funcionando: o
+    # motorista da frota enxerga quatro missoes, o de fora enxerga tres. Sem
+    # isso, a clausula de elegibilidade seria codigo que ninguem exercita.
+    corporativa = Campaign(
+        patrocinador="rede",
+        fleet_id=frota.id,
+        nome="Frota Logistica SP",
+        descricao="Acordo corporativo: cashback para os motoristas da empresa.",
+        starts_at=agora - timedelta(days=30),
+        ends_at=agora + timedelta(days=60),
+        ativa=True,
+        beneficio_tipo="cashback_pct",
+        beneficio_valor=5.00,
+        teto_por_recompensa=15.00,
+        orcamento_brl=3000.00,
+    )
+    db.add(corporativa)
+    await db.flush()
+    db.add(
+        Mission(
+            campaign_id=corporativa.id,
+            codigo="dez-recargas-corporativas",
+            titulo="10 recargas no mes",
+            descricao="Dez recargas da frota dentro do mes.",
+            metrica="sessoes",
+            alvo=10,
+            janela="mensal",
+            ordem=0,
+        )
+    )
     await db.flush()
 
     # Contrato da praca principal com a plataforma, com seis meses de vida - o
@@ -934,6 +990,14 @@ async def seed() -> None:
             )
         )
 
+        frota = Fleet(
+            name=FROTA["nome"],
+            document=FROTA["documento"],
+            billing_email=FROTA["email_de_cobranca"],
+        )
+        db.add(frota)
+        await db.flush()
+
         motoristas: list[User] = []
         veiculos: dict[uuid.UUID, Vehicle] = {}
         for index, (email, full_name, model, _label, battery, max_ac) in enumerate(DRIVERS):
@@ -944,6 +1008,8 @@ async def seed() -> None:
                 role=UserRole.DRIVER,
                 wallet_balance=100.0,
             )
+            if email in MOTORISTAS_DA_FROTA:
+                driver.fleet_id = frota.id
             db.add(driver)
             await db.flush()
             # O saldo inicial precisa da propria linha no razao. Creditar
@@ -961,7 +1027,13 @@ async def seed() -> None:
                 )
             )
             veiculo = Vehicle(
-                user_id=driver.id, model=model, battery_kwh=battery, max_ac_kw=max_ac
+                user_id=driver.id,
+                model=model,
+                battery_kwh=battery,
+                max_ac_kw=max_ac,
+                # Sem centro de custo o relatorio da frota soma tudo num balde
+                # so' - que e' o relatorio que a empresa NAO quer.
+                cost_center=MOTORISTAS_DA_FROTA.get(email),
             )
             db.add(veiculo)
             await db.flush()
@@ -1022,7 +1094,7 @@ async def seed() -> None:
         #
         # Depois do historico, e nao antes: o progresso das missoes e' calculado
         # a partir das sessoes ja gravadas.
-        await _montar_gamificacao(db, montados, motoristas, agora)
+        await _montar_gamificacao(db, montados, motoristas, agora, frota)
 
         # ---- leitura inicial do medidor: sem ela o orcamento so ve a rede ----
         for montado in montados:

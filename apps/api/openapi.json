@@ -9135,6 +9135,18 @@
             "title": "Patrocinador",
             "default": "rede"
           },
+          "fleet_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fleet Id"
+          },
           "starts_at": {
             "type": "string",
             "format": "date-time",

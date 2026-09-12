@@ -60,6 +60,10 @@ class CampanhaIn(BaseModel):
     nome: str = Field(max_length=120)
     descricao: str | None = None
     patrocinador: str = "rede"
+    # Para QUEM vale, e nao quem paga. Diferente de `site_id`, este campo pode
+    # vir do corpo: restringir a quem a campanha se aplica nao custa nada a
+    # frota, enquanto escolher o site custaria a margem do vizinho.
+    fleet_id: uuid.UUID | None = None
     # Nao ha `site_id` aqui de proposito. Quem paga vem do ESCOPO do token, nunca
     # do corpo: um campo aceito no payload deixaria um operador criar campanha
     # bancada pelo vizinho. A rota preenche a partir de `ScopedSiteId`, e pedir o
@@ -83,10 +87,6 @@ class CampanhaIn(BaseModel):
             raise ValueError(f"beneficio_tipo deve ser um de: {', '.join(BENEFICIOS)}")
         if self.ends_at <= self.starts_at:
             raise ValueError("o fim da campanha precisa ser depois do inicio")
-        if self.patrocinador == "frota":
-            # Recusa explicita, e nao silencio. Nenhuma fatura aponta para
-            # `fleet_id`: a empresa pagaria e o funcionario embolsaria.
-            raise ValueError("campanha de frota ainda nao tem faturamento corporativo")
 
         # Missao so' faz sentido com cashback: desconto age na propria fatura, na
         # hora, sem nada a acumular. Aceitar as duas coisas juntas criaria uma
