@@ -1228,6 +1228,169 @@
         }
       }
     },
+    "/api/v1/power/maintenance/reports": {
+      "get": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "Maintenance Reports",
+        "description": "Os problemas que as pessoas reportaram nesta praca.\n\n`/maintenance/attention` agrupa por categoria e diz QUANTOS estao abertos;\nesta lista diz QUAIS - e' dela que sai o trabalho de quem vai ate o ponto.\n\nEscopo pelo site do PONTO: `charge_point_reports` nao tem `site_id`, e ler\nsem o JOIN devolveria a reclamacao do vizinho.",
+        "operationId": "maintenance_reports_api_v1_power_maintenance_reports_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "abertos",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Abertos"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  },
+                  "title": "Response Maintenance Reports Api V1 Power Maintenance Reports Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/power/maintenance/reports/{reporte_id}/resolve": {
+      "post": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "Resolve Report",
+        "description": "Fecha o reporte, dizendo o que foi feito.\n\nAte aqui nao existia: o motorista reportava, `resolved_at` era LIDO pelo app\ne pelo indice de abertos, e nenhuma rota o escrevia. A fila nunca drenava.\n\nA descricao do que foi feito e' obrigatoria - fechar sem dizer transforma a\nfila num botao de sumir com a reclamacao.\n\nQUEM BARRA O MOTORISTA E' `ScopedSiteId`, que ja depende de `OperatorUser` -\nnao a anotacao abaixo. Ela esta aqui pelo VALOR: `resolved_by` precisa de\nquem fechou. O teste de mutacao mostrou isso ao trocar `OperatorUser` por\n`CurrentUser` sem quebrar nada, e a distincao vale escrita: quem ler pode\nachar que removendo a anotacao abre a rota, e nao abre.",
+        "operationId": "resolve_report_api_v1_power_maintenance_reports__reporte_id__resolve_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "reporte_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Reporte Id"
+            }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolucaoIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Resolve Report Api V1 Power Maintenance Reports  Reporte Id  Resolve Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/power/utilization/by-point": {
       "get": {
         "tags": [
@@ -9948,6 +10111,22 @@
         ],
         "title": "AjusteDeCarteiraIn",
         "description": "Correcao manual de saldo.\n\n`valor` sem piso nem teto de sinal: correcao existe nos dois sentidos, e um\ncredito lancado por engano precisa poder ser desfeito. O que o servico\nrecusa e' zero - ajuste de nada nao corrige nada - e deixar o saldo\nnegativo.\n\n`motivo` e' obrigatorio AQUI e no banco. Duas guardas para a mesma coisa\nporque as duas respondem perguntas diferentes: esta devolve 422 legivel a\nquem chamou, e o CHECK garante que nenhum caminho futuro escape dela."
+      },
+      "ResolucaoIn": {
+        "properties": {
+          "resolucao": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Resolucao"
+          }
+        },
+        "type": "object",
+        "required": [
+          "resolucao"
+        ],
+        "title": "ResolucaoIn",
+        "description": "O que foi feito para fechar o reporte.\n\nObrigatorio, com piso de tamanho: \"ok\" nao explica nada ao proximo\nmotorista que reportar o mesmo cabo, nem ao relatorio de manutencao."
       }
     },
     "securitySchemes": {

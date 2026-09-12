@@ -405,6 +405,16 @@ class AjusteDeCarteiraIn(BaseModel):
     idempotency_key: str | None = Field(default=None, max_length=80)
 
 
+class ResolucaoIn(BaseModel):
+    """O que foi feito para fechar o reporte.
+
+    Obrigatorio, com piso de tamanho: "ok" nao explica nada ao proximo
+    motorista que reportar o mesmo cabo, nem ao relatorio de manutencao.
+    """
+
+    resolucao: str = Field(min_length=3, max_length=2000)
+
+
 class RevenueSummary(BaseModel):
     gross: float
     net: float

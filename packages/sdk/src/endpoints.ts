@@ -53,6 +53,19 @@ export const power = {
   /** Pontos que vem falhando com frequencia. */
   maintenanceAttention: (dias = 30) =>
     api.get<Record<string, unknown>>('/power/maintenance/attention', { dias }),
+  /**
+   * A fila de problemas reportados por quem esteve no ponto.
+   *
+   * `maintenanceAttention` agrupa e diz QUANTOS estao abertos; esta diz QUAIS.
+   */
+  maintenanceReports: (abertos = true, limit = 100) =>
+    api.get<T.ReporteDoPonto[]>('/power/maintenance/reports', { abertos, limit }),
+  /** Fecha um reporte. A descricao do que foi feito e' obrigatoria. */
+  resolveReport: (id: string, resolucao: string) =>
+    api.post<{ id: string; resolvido: boolean; resolvido_em: string; resolucao: string }>(
+      `/power/maintenance/reports/${id}/resolve`,
+      { resolucao }
+    ),
   /** Sites que o usuario pode escolher no seletor (operador ve so o proprio). */
   visibleSites: () => api.get<Record<string, unknown>[]>('/power/sites'),
   /** As pracas lado a lado. So admin. */

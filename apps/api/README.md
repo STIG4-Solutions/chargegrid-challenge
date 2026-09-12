@@ -852,6 +852,35 @@ problemas num relatório que deveria mostrar um.
 
 A lista de reportes de um ponto é informação do operador — o motorista só recupera os próprios.
 
+**A fila agora drena.** O motorista reportava e **ninguém conseguia resolver**: `resolved_at`
+era *lido* — a resposta do app expõe `resolvido`, e `ix_charge_point_reports_abertos` é a fila de
+abertos — e nenhuma rota o escrevia. O CHECK `resolucao_completa` mantinha `resolved_by`
+inalcançável junto.
+
+| rota | o que faz |
+|---|---|
+| `GET /power/maintenance/reports` | os reportes da praça; `abertos=true` por padrão |
+| `POST /power/maintenance/reports/{id}/resolve` | fecha, dizendo o que foi feito |
+
+`/maintenance/attention` agrupa por categoria e diz **quantos** estão abertos; esta lista diz
+**quais** — é dela que sai o trabalho de quem vai até o ponto.
+
+**A descrição do que foi feito é obrigatória.** Fechar sem dizer transforma a fila num botão de
+sumir com a reclamação: o próximo motorista que reportar o mesmo cabo não tem como saber que já
+olharam, e o relatório de manutenção perde a única informação que o distingue de uma contagem de
+reclamações.
+
+**Fechar duas vezes não reescreve o primeiro fechamento.** Quem resolveu e quando são fato
+consumado; a segunda chamada devolve o que já estava lá em vez de trocar o responsável pelo
+último que clicou.
+
+O escopo vem do **JOIN com o ponto**: `charge_point_reports` não tem `site_id`, e ler sem ele
+devolveria a reclamação do vizinho. Reporte de outra praça responde **404**, e não 403 — dizer
+"existe, mas não é seu" já entrega que ele existe.
+
+A lista traz o e-mail de quem reportou **e nada além dele**. O reporte já é uma reclamação;
+enriquecer a linha com o resto do cadastro exporia o motorista a quem ele reclamou.
+
 ### Missões e recompensas
 
 `GET /app/missions` devolve as missões vigentes com o progresso **deste** motorista, filtrado

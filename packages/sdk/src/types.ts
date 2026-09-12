@@ -88,6 +88,29 @@ export interface ExtratoDaCarteira {
   movimentos: MovimentoDaCarteira[]
 }
 
+/**
+ * Um problema reportado por quem esteve no ponto.
+ *
+ * Escrito à mão: a rota devolve `list[dict]`, sem `response_model`, então o
+ * OpenAPI não descreve o item. Mesma razão de `MovimentoDaCarteira`.
+ */
+export interface ReporteDoPonto {
+  id: string
+  charge_point_id: string
+  /** Código do ponto, para a tela não ter de resolver o id. */
+  ponto: string
+  categoria: string
+  descricao: string | null
+  reportado_em: string
+  /** E-mail de quem reportou — e nada além dele. */
+  reportado_por: string | null
+  resolvido: boolean
+  resolvido_em: string | null
+  resolvido_por: string | null
+  /** O que foi feito. Obrigatório ao fechar. */
+  resolucao: string | null
+}
+
 /** Página genérica devolvida pelas listagens. */
 export interface Pagina<T> {
   items: T[]

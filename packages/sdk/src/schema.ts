@@ -363,6 +363,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/power/maintenance/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Maintenance Reports
+         * @description Os problemas que as pessoas reportaram nesta praca.
+         *
+         *     `/maintenance/attention` agrupa por categoria e diz QUANTOS estao abertos;
+         *     esta lista diz QUAIS - e' dela que sai o trabalho de quem vai ate o ponto.
+         *
+         *     Escopo pelo site do PONTO: `charge_point_reports` nao tem `site_id`, e ler
+         *     sem o JOIN devolveria a reclamacao do vizinho.
+         */
+        get: operations["maintenance_reports_api_v1_power_maintenance_reports_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/power/maintenance/reports/{reporte_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve Report
+         * @description Fecha o reporte, dizendo o que foi feito.
+         *
+         *     Ate aqui nao existia: o motorista reportava, `resolved_at` era LIDO pelo app
+         *     e pelo indice de abertos, e nenhuma rota o escrevia. A fila nunca drenava.
+         *
+         *     A descricao do que foi feito e' obrigatoria - fechar sem dizer transforma a
+         *     fila num botao de sumir com a reclamacao.
+         *
+         *     QUEM BARRA O MOTORISTA E' `ScopedSiteId`, que ja depende de `OperatorUser` -
+         *     nao a anotacao abaixo. Ela esta aqui pelo VALOR: `resolved_by` precisa de
+         *     quem fechou. O teste de mutacao mostrou isso ao trocar `OperatorUser` por
+         *     `CurrentUser` sem quebrar nada, e a distincao vale escrita: quem ler pode
+         *     achar que removendo a anotacao abre a rota, e nao abre.
+         */
+        post: operations["resolve_report_api_v1_power_maintenance_reports__reporte_id__resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/power/utilization/by-point": {
         parameters: {
             query?: never;
@@ -3380,6 +3438,17 @@ export interface components {
             /** Idempotency Key */
             idempotency_key?: string | null;
         };
+        /**
+         * ResolucaoIn
+         * @description O que foi feito para fechar o reporte.
+         *
+         *     Obrigatorio, com piso de tamanho: "ok" nao explica nada ao proximo
+         *     motorista que reportar o mesmo cabo, nem ao relatorio de manutencao.
+         */
+        ResolucaoIn: {
+            /** Resolucao */
+            resolucao: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -4022,6 +4091,78 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    maintenance_reports_api_v1_power_maintenance_reports_get: {
+        parameters: {
+            query?: {
+                abertos?: boolean;
+                limit?: number;
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_report_api_v1_power_maintenance_reports__reporte_id__resolve_post: {
+        parameters: {
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path: {
+                reporte_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolucaoIn"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
