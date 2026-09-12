@@ -140,6 +140,14 @@ export const payments = {
 export const campaigns = {
   /** Campanhas desta praca, mais as de rede que agem sobre ela. */
   list: () => api.get<T.Campanha[]>('/campaigns'),
+  /**
+   * Frotas as quais uma campanha pode ser dirigida - so' id e nome.
+   *
+   * Sob `/campaigns` porque e' o que ela serve: preencher o seletor do
+   * formulario. Uma `/fleets` de proposito geral prometeria administracao de
+   * frota, que este painel nao faz.
+   */
+  fleets: () => api.get<T.FrotaParaCampanha[]>('/campaigns/fleets'),
   /** Cria a campanha junto com as missoes, numa transacao so'. */
   create: (corpo: T.CampanhaNova) => api.post<T.Campanha>('/campaigns', corpo),
   /** Edicao parcial: so' os campos tocados viajam. */

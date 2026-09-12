@@ -17,6 +17,45 @@ export function ehCashback(tipo) {
 }
 
 /**
+ * O rascunho do formulário virado corpo de requisição.
+ *
+ * Vive aqui, e não dentro do componente, pelo mesmo motivo das validações: é a
+ * parte que decide **o que vai para o servidor**, e é onde os erros silenciosos
+ * moram. Dois exemplos que este módulo existe para travar:
+ *
+ * - `fleet_id` vazio precisa virar `null`. O `<select>` guarda `''` porque um
+ *   valor nulo o tornaria não-controlado; mandar `''` daria 422 num campo que o
+ *   operador deixou em branco de propósito — o pior tipo de erro de validação,
+ *   porque acusa quem não fez nada de errado.
+ * - números chegam como string dos `<input type="number">`, e o servidor os
+ *   quer como número.
+ *
+ * `site_id` NÃO entra: quem paga vem do escopo do token. Mandá-lo daqui só
+ * criaria a impressão de que a tela escolhe.
+ */
+export function corpoDaCampanha(rascunho) {
+  const opcional = (v) => (v === '' || v == null ? null : Number(v))
+  return {
+    nome: (rascunho.nome ?? '').trim(),
+    descricao: rascunho.descricao || null,
+    patrocinador: rascunho.patrocinador,
+    fleet_id: rascunho.fleet_id || null,
+    starts_at: new Date(rascunho.starts_at).toISOString(),
+    ends_at: new Date(rascunho.ends_at).toISOString(),
+    beneficio_tipo: rascunho.beneficio_tipo,
+    beneficio_valor: Number(rascunho.beneficio_valor),
+    teto_por_recompensa: opcional(rascunho.teto_por_recompensa),
+    orcamento_brl: Number(rascunho.orcamento_brl ?? 0),
+    missoes: (rascunho.missoes ?? []).map((m) => ({
+      ...m,
+      alvo: Number(m.alvo),
+      ordem: 0,
+      repetivel: false
+    }))
+  }
+}
+
+/**
  * O que impede esta campanha de ser salva.
  *
  * Devolve uma lista de mensagens em português, vazia quando está tudo certo.

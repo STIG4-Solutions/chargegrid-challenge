@@ -536,6 +536,17 @@ existindo desde a `0013`. A aba do app abria vazia para todos. O seed agora cria
 diferença entre campanha dirigida e campanha para todos. Conferido na API: o motorista da frota
 vê 4 missões, o de fora vê 3.
 
+No painel, o formulário de campanha tem o seletor **"Para quem vale"** — "Todos os motoristas"
+ou uma frota. A lista vem de `GET /campaigns/fleets`, que devolve **só id e nome**: CNPJ e
+e-mail de cobrança são dados comerciais de uma empresa que não é cliente do operador, e
+preencher um `<option>` não precisa deles. A rota fica sob `/campaigns` porque é isso que ela
+serve; uma `/fleets` de propósito geral prometeria administração de frota, que este painel não
+faz.
+
+`fleet_id` **não** entra na lista de campos editáveis do `PATCH`, pelo mesmo motivo que
+`patrocinador` não entra: mudar a quem a campanha se aplica depois de alguém ter acumulado
+progresso reescreveria a história.
+
 E **um dos dois é gestor**. `require_fleet_manager` exige as duas coisas — `fleet_manager` *e*
 `fleet_id` —, então pertencer à frota não basta para ver o consolidado: `maria.souza` abre o
 relatório, `carlos.lima` toma 403 na mesma empresa. Com os dois marcados, o recorte de leitura

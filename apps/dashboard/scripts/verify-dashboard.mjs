@@ -45,7 +45,13 @@ for (const [entrada, destino] of [
 }
 
 const { alteracoesDoOrcamento, mudouPorBaixo } = await import(pathToFileURL(saida).href)
-const { problemasDaCampanha, consumoDoOrcamento, situacaoDaCampanha, alteracoesDaCampanha } =
+const {
+  problemasDaCampanha,
+  consumoDoOrcamento,
+  situacaoDaCampanha,
+  alteracoesDaCampanha,
+  corpoDaCampanha
+} =
   await import(pathToFileURL(saidaCampanha).href)
 const { bandaConfiavel, superaARegua, temBanda, escalaDaBanda } =
   await import(pathToFileURL(saidaPrevisao).href)
@@ -193,6 +199,60 @@ check(
   'campanha bem formada nao acusa problema',
   problemasDaCampanha(cashbackValida).length === 0,
   JSON.stringify(problemasDaCampanha(cashbackValida))
+)
+
+// ---- o corpo que vai para o servidor ----
+//
+// A tela guarda tudo como string, e o servidor não aceita string em campo
+// numérico nem `''` em campo opcional. É aqui que a tradução acontece, e é aqui
+// que ela pode errar em silêncio.
+
+const rascunhoCompleto = {
+  ...cashbackValida,
+  descricao: '',
+  patrocinador: 'site',
+  fleet_id: '',
+  teto_por_recompensa: '',
+  beneficio_valor: '5',
+  orcamento_brl: '1000',
+  missoes: [{ codigo: 'tres', titulo: 'Tres', metrica: 'sessoes', alvo: '3' }]
+}
+
+// 10a. Frota vazia é "todos", e a API espera `null`. Mandar `''` daria 422 num
+//      campo que o operador deixou em branco de propósito.
+check(
+  'frota em branco vira null',
+  corpoDaCampanha(rascunhoCompleto).fleet_id === null,
+  JSON.stringify(corpoDaCampanha(rascunhoCompleto).fleet_id)
+)
+
+// 10b. E a frota escolhida viaja como está.
+check(
+  'frota escolhida viaja no corpo',
+  corpoDaCampanha({ ...rascunhoCompleto, fleet_id: 'abc-123' }).fleet_id === 'abc-123'
+)
+
+// 10c. `site_id` nunca sai daqui: quem paga vem do escopo do token. Um campo
+//      aceito no corpo deixaria a tela parecer que escolhe.
+check(
+  'site_id nao viaja no corpo',
+  !('site_id' in corpoDaCampanha({ ...rascunhoCompleto, site_id: 'nao-deveria-ir' }))
+)
+
+// 10d. Os `<input type="number">` entregam string, e o servidor recusa string
+//      em campo numérico.
+check(
+  'numeros saem como numero',
+  typeof corpoDaCampanha(rascunhoCompleto).beneficio_valor === 'number' &&
+    typeof corpoDaCampanha(rascunhoCompleto).orcamento_brl === 'number' &&
+    typeof corpoDaCampanha(rascunhoCompleto).missoes[0].alvo === 'number'
+)
+
+// 10e. Teto em branco é ausência de teto, não zero. Zero seria um teto que
+//      impede qualquer recompensa - o oposto de deixar em branco.
+check(
+  'teto em branco vira null, nao zero',
+  corpoDaCampanha(rascunhoCompleto).teto_por_recompensa === null
 )
 
 // 11. Cashback sem missão não premia ninguém: não há o que cumprir.

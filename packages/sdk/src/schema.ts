@@ -1353,6 +1353,39 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/campaigns/fleets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Frotas
+         * @description As frotas as quais uma campanha pode ser dirigida.
+         *
+         *     Fica sob `/campaigns` porque e' isto que ela serve: preencher o seletor do
+         *     formulario. Uma rota `/fleets` de proposito geral prometeria administracao
+         *     de frota, que nao existe neste painel.
+         *
+         *     ID E NOME, e mais nada. `Fleet` tem CNPJ e e-mail de cobranca, e o operador
+         *     de uma praca nao precisa de nenhum dos dois para dirigir uma campanha - sao
+         *     dados comerciais de uma empresa que nao e' cliente dele.
+         *
+         *     Sem escopo por site, e isso e' deliberado: frota nao pertence a praca
+         *     nenhuma. Dirigir uma campanha a uma frota nao custa nada a ela - quem paga
+         *     continua sendo o estabelecimento ou a rede, pelo tipo de beneficio -, entao
+         *     nao ha o que proteger aqui alem do dado pessoal, que ja ficou de fora.
+         */
+        get: operations["frotas_api_v1_campaigns_fleets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/campaigns": {
         parameters: {
             query?: never;
@@ -3225,6 +3258,24 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+        };
+        /**
+         * FrotaOut
+         * @description So' o que o seletor de campanha precisa.
+         *
+         *     `Fleet` tem `document` (CNPJ) e `billing_email`; nenhum dos dois entra aqui.
+         *     Um operador de praca dirige campanha a uma frota sem nunca precisar do
+         *     cadastro dela, e um campo exposto "porque estava no modelo" e' dado pessoal
+         *     de terceiro viajando de graca.
+         */
+        FrotaOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Nome */
+            nome: string;
         };
     };
     responses: never;
@@ -5730,6 +5781,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    frotas_api_v1_campaigns_fleets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FrotaOut"][];
                 };
             };
         };

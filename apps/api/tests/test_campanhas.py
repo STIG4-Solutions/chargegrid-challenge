@@ -454,3 +454,76 @@ async def test_apagar_a_frota_leva_a_campanha_junto(db):
         await db.execute(select(Campaign).where(Campaign.id == campanha.id))
     ).scalar_one_or_none()
     assert sobrou is None
+
+
+# ------------------------------------------------ o seletor do formulario
+
+
+async def test_rota_de_frotas_devolve_id_e_nome(api, como_operador, db):
+    frota = await _frota(db, "Logistica ABC")
+
+    r = await api.get("/api/v1/campaigns/fleets", headers=como_operador)
+
+    assert r.status_code == 200, r.text
+    linha = next(f for f in r.json() if f["id"] == str(frota.id))
+    assert linha == {"id": str(frota.id), "nome": "Logistica ABC"}
+
+
+async def test_rota_de_frotas_nao_vaza_cnpj_nem_email(api, como_operador, db):
+    """`Fleet` tem CNPJ e e-mail de cobranca, e o operador nao precisa de
+    nenhum dos dois para dirigir uma campanha - sao dados comerciais de uma
+    empresa que nao e' cliente dele."""
+    await _frota(db, "Logistica ABC")
+
+    corpo = (await api.get("/api/v1/campaigns/fleets", headers=como_operador)).text
+
+    assert "12345678000190" not in corpo
+    assert "fin@teste.com" not in corpo
+
+
+async def test_frota_inativa_nao_aparece_no_seletor(api, como_operador, db):
+    """Oferecer frota desativada e' oferecer campanha que nasce sem publico."""
+    ativa = await _frota(db, "Ativa")
+    inativa = await _frota(db, "Inativa")
+    inativa.active = False
+    await db.flush()
+
+    r = await api.get("/api/v1/campaigns/fleets", headers=como_operador)
+    ids = {f["id"] for f in r.json()}
+
+    assert str(ativa.id) in ids
+    assert str(inativa.id) not in ids
+
+
+async def test_frotas_saem_em_ordem_alfabetica(api, como_operador, db):
+    """A lista vira `<option>` numa ordem que o operador tem de varrer com o
+    olho. Ordem de insercao no banco nao ajuda ninguem."""
+    await _frota(db, "Zeta Transportes")
+    await _frota(db, "Alfa Logistica")
+
+    r = await api.get("/api/v1/campaigns/fleets", headers=como_operador)
+    nomes = [f["nome"] for f in r.json()]
+
+    assert nomes == sorted(nomes)
+
+
+async def test_motorista_nao_lista_frotas(api, como_motorista):
+    r = await api.get("/api/v1/campaigns/fleets", headers=como_motorista)
+    assert r.status_code == 403
+
+
+async def test_a_rota_de_frotas_nao_engoliu_a_de_campanhas(api, como_operador_do_site):
+    """`/campaigns/fleets` e `/campaigns/{id}/...` convivem no mesmo prefixo.
+
+    Hoje nao ha `GET /campaigns/{id}`, entao nao ha colisao - mas o dia em que
+    houver, `fleets` precisa continuar sendo tratada como rota, e nao como um
+    id malformado. Declarar antes e' o que garante isso.
+
+    Usa o operador COM site: `GET /campaigns` depende de `ScopedSiteId`, e o
+    operador sem praca toma 404 por falta de escopo - o que nao tem nada a ver
+    com a pergunta deste teste.
+    """
+    r = await api.get("/api/v1/campaigns", headers=como_operador_do_site)
+    assert r.status_code == 200, r.text
+    r = await api.get("/api/v1/campaigns/fleets", headers=como_operador_do_site)
+    assert r.status_code == 200, r.text

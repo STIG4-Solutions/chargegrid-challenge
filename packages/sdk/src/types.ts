@@ -58,6 +58,7 @@ export type Recompensa = S['RecompensaOut']
 export type Campanha = S['CampanhaOut']
 export type CampanhaNova = S['CampanhaIn']
 export type DesempenhoDaCampanha = S['DesempenhoOut']
+export type FrotaParaCampanha = S['FrotaOut']
 
 /**
  * Um movimento da carteira. Escrito à mão, e não gerado de `schema.ts`: a rota

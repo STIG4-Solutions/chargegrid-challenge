@@ -4728,6 +4728,37 @@
         }
       }
     },
+    "/api/v1/campaigns/fleets": {
+      "get": {
+        "tags": [
+          "campanhas"
+        ],
+        "summary": "Frotas",
+        "description": "As frotas as quais uma campanha pode ser dirigida.\n\nFica sob `/campaigns` porque e' isto que ela serve: preencher o seletor do\nformulario. Uma rota `/fleets` de proposito geral prometeria administracao\nde frota, que nao existe neste painel.\n\nID E NOME, e mais nada. `Fleet` tem CNPJ e e-mail de cobranca, e o operador\nde uma praca nao precisa de nenhum dos dois para dirigir uma campanha - sao\ndados comerciais de uma empresa que nao e' cliente dele.\n\nSem escopo por site, e isso e' deliberado: frota nao pertence a praca\nnenhuma. Dirigir uma campanha a uma frota nao custa nada a ela - quem paga\ncontinua sendo o estabelecimento ou a rede, pelo tipo de beneficio -, entao\nnao ha o que proteger aqui alem do dado pessoal, que ja ficou de fora.",
+        "operationId": "frotas_api_v1_campaigns_fleets_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FrotaOut"
+                  },
+                  "type": "array",
+                  "title": "Response Frotas Api V1 Campaigns Fleets Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/campaigns": {
       "get": {
         "tags": [
@@ -9661,6 +9692,26 @@
           "created_at"
         ],
         "title": "RecompensaOut"
+      },
+      "FrotaOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "nome": {
+            "type": "string",
+            "title": "Nome"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "nome"
+        ],
+        "title": "FrotaOut",
+        "description": "So' o que o seletor de campanha precisa.\n\n`Fleet` tem `document` (CNPJ) e `billing_email`; nenhum dos dois entra aqui.\nUm operador de praca dirige campanha a uma frota sem nunca precisar do\ncadastro dela, e um campo exposto \"porque estava no modelo\" e' dado pessoal\nde terceiro viajando de graca."
       }
     },
     "securitySchemes": {

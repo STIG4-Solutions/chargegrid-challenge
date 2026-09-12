@@ -5,6 +5,7 @@ import { Async, Empty } from '../../components/Async.jsx'
 import {
   alteracoesDaCampanha,
   consumoDoOrcamento,
+  corpoDaCampanha,
   ehCashback,
   problemasDaCampanha,
   situacaoDaCampanha
@@ -100,6 +101,10 @@ const VAZIA = {
   nome: '',
   descricao: '',
   patrocinador: 'site',
+  // String vazia, e nao `null`: um `<select>` controlado com valor nulo vira
+  // nao-controlado, e o React troca de modo no meio da edicao. A conversao para
+  // `null` acontece no envio, que e' o que a API espera.
+  fleet_id: '',
   starts_at: '',
   ends_at: '',
   beneficio_tipo: 'cashback_fixo',
@@ -109,9 +114,47 @@ const VAZIA = {
   missoes: [{ codigo: 'tres-recargas', titulo: 'Recarregue 3 vezes', metrica: 'sessoes', alvo: 3, janela: 'mensal' }]
 }
 
+/**
+ * A quem a campanha se dirige.
+ *
+ * ELEGIBILIDADE, não patrocínio: dirigir a campanha a uma frota não muda quem
+ * paga — isso segue o tipo de benefício. A nota abaixo do campo existe porque
+ * ele fica ao lado de "Benefício", e a leitura natural de quem vê os dois
+ * juntos é que um determina o outro.
+ *
+ * Lista vazia ou ausente degrada para "Todos os motoristas" e mais nada: uma
+ * consulta de frotas que falhou não pode impedir a criação de uma campanha sem
+ * frota, que é o caso comum.
+ *
+ * Exportado para o teste montá-lo com props, sem subir o formulário inteiro.
+ */
+export function SeletorDeFrota({ frotas, valor, aoMudar }) {
+  return (
+    <div className="form-row">
+      <label>Para quem vale</label>
+      <select className="input" value={valor} onChange={aoMudar}>
+        <option value="">Todos os motoristas</option>
+        {(frotas ?? []).map((f) => (
+          <option key={f.id} value={f.id}>
+            Frota {f.nome}
+          </option>
+        ))}
+      </select>
+      <div className="muted" style={{ fontSize: 12 }}>
+        {valor ? 'Só os motoristas desta frota. Quem paga não muda.' : 'Sem restrição de frota.'}
+      </div>
+    </div>
+  )
+}
+
 function Formulario({ aoCriar, aoFechar }) {
   const [rascunho, setRascunho] = useState(VAZIA)
   const criar = useAction(campaigns.create, { onSuccess: aoCriar })
+  // Sem `<Async>` de propósito: uma lista de frotas que não carrega não pode
+  // impedir a criação de uma campanha sem frota, que é o caso comum. Falhando,
+  // o seletor fica com "Todos os motoristas" e mais nada — degrada para o
+  // comportamento de antes deste campo existir.
+  const frotas = useApi(() => campaigns.fleets(), [])
 
   const problemas = useMemo(() => problemasDaCampanha(rascunho), [rascunho])
   const campo = (nome) => (evento) =>
@@ -136,15 +179,7 @@ function Formulario({ aoCriar, aoFechar }) {
 
   const enviar = () => {
     if (problemas.length) return
-    criar.run({
-      ...rascunho,
-      beneficio_valor: Number(rascunho.beneficio_valor),
-      orcamento_brl: Number(rascunho.orcamento_brl),
-      teto_por_recompensa: rascunho.teto_por_recompensa ? Number(rascunho.teto_por_recompensa) : null,
-      starts_at: new Date(rascunho.starts_at).toISOString(),
-      ends_at: new Date(rascunho.ends_at).toISOString(),
-      missoes: rascunho.missoes.map((m) => ({ ...m, alvo: Number(m.alvo), ordem: 0, repetivel: false }))
-    })
+    criar.run(corpoDaCampanha(rascunho))
   }
 
   return (
@@ -169,6 +204,7 @@ function Formulario({ aoCriar, aoFechar }) {
             ))}
           </select>
         </div>
+        <SeletorDeFrota frotas={frotas.data} valor={rascunho.fleet_id} aoMudar={campo('fleet_id')} />
         <div className="form-row">
           <label>Início</label>
           <input className="input" type="date" value={rascunho.starts_at} onChange={campo('starts_at')} />

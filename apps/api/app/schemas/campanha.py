@@ -105,6 +105,19 @@ class CampanhaIn(BaseModel):
         return self
 
 
+class FrotaOut(ORMModel):
+    """So' o que o seletor de campanha precisa.
+
+    `Fleet` tem `document` (CNPJ) e `billing_email`; nenhum dos dois entra aqui.
+    Um operador de praca dirige campanha a uma frota sem nunca precisar do
+    cadastro dela, e um campo exposto "porque estava no modelo" e' dado pessoal
+    de terceiro viajando de graca.
+    """
+
+    id: uuid.UUID
+    nome: str = Field(validation_alias="name")
+
+
 class CampanhaOut(ORMModel):
     """Visao do operador: inclui o dinheiro."""
 

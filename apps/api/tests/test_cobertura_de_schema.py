@@ -27,6 +27,7 @@ from sqlalchemy import inspect
 from app.models.billing import Invoice, InvoiceLine, Payment, SitePaymentMethod
 from app.models.campaign import Campaign, Mission, Reward
 from app.models.charge_point import ChargePoint
+from app.models.fleet import Fleet
 from app.models.reservation import Reservation
 from app.models.session import ChargingSession, SessionEvent
 from app.models.tariff import Tariff, TariffWindow
@@ -70,6 +71,16 @@ OMISSOES = {
         "updated_at": AUDITORIA,
     },
     (Campaign, C.CampanhaOut): {
+        "created_at": AUDITORIA,
+        "updated_at": AUDITORIA,
+    },
+    (Fleet, C.FrotaOut): {
+        # Preencher o seletor de campanha nao exige o cadastro da empresa. As
+        # tres colunas de fora sao dados comerciais de terceiro, e um operador
+        # de praca dirige campanha a uma frota sem precisar de nenhuma delas.
+        "document": "CNPJ nao serve para dirigir campanha - e' dado de quem nao e' cliente",
+        "billing_email": "cobranca da frota nao existe; expor o e-mail seria so' risco",
+        "active": "a rota ja filtra: frota inativa nem aparece na lista",
         "created_at": AUDITORIA,
         "updated_at": AUDITORIA,
     },
@@ -171,6 +182,24 @@ def _colunas(modelo) -> set[str]:
     return {c.key for c in inspect(modelo).columns}
 
 
+def _expostos(schema) -> set[str]:
+    """Os nomes de COLUNA que este schema publica.
+
+    Nao basta olhar `model_fields`: um campo pode se chamar diferente da coluna
+    e le-la por `validation_alias` - `FrotaOut.nome` expoe `Fleet.name`. Sem
+    resolver o alias, a coluna pareceria descartada, e a saida seria declara-la
+    em OMISSOES com um motivo falso. Uma tabela de omissoes deliberadas que
+    contem campos NAO omitidos deixa de valer como registro.
+    """
+    nomes = set()
+    for campo, info in schema.model_fields.items():
+        nomes.add(campo)
+        alias = getattr(info, "validation_alias", None)
+        if isinstance(alias, str):
+            nomes.add(alias)
+    return nomes
+
+
 def test_toda_coluna_esta_exposta_ou_justificada():
     """O teste que os tres defeitos teriam pego.
 
@@ -180,7 +209,7 @@ def test_toda_coluna_esta_exposta_ou_justificada():
     """
     faltando: list[str] = []
     for (modelo, schema), justificadas in OMISSOES.items():
-        ausentes = _colunas(modelo) - set(schema.model_fields) - set(justificadas)
+        ausentes = _colunas(modelo) - _expostos(schema) - set(justificadas)
         faltando += [
             f"{modelo.__name__}.{campo} nao esta em {schema.__name__} nem em OMISSOES"
             for campo in sorted(ausentes)

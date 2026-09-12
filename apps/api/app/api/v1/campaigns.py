@@ -14,7 +14,8 @@ from sqlalchemy.orm import selectinload
 
 from app.core.deps import DbSession, OperatorUser, ScopedSiteId
 from app.models.campaign import Campaign, Mission
-from app.schemas.campanha import CampanhaIn, CampanhaOut, DesempenhoOut
+from app.models.fleet import Fleet
+from app.schemas.campanha import CampanhaIn, CampanhaOut, DesempenhoOut, FrotaOut
 from app.services import campaign_service
 
 router = APIRouter(prefix="/campaigns", tags=["campanhas"])
@@ -43,6 +44,34 @@ async def _da_praca(db, campanha_id: uuid.UUID, site_id: uuid.UUID) -> Campaign:
             status_code=403, detail="esta campanha não pertence à sua praça"
         )
     return campanha
+
+
+@router.get("/fleets", response_model=list[FrotaOut])
+async def frotas(db: DbSession, _: OperatorUser):
+    """As frotas as quais uma campanha pode ser dirigida.
+
+    Fica sob `/campaigns` porque e' isto que ela serve: preencher o seletor do
+    formulario. Uma rota `/fleets` de proposito geral prometeria administracao
+    de frota, que nao existe neste painel.
+
+    ID E NOME, e mais nada. `Fleet` tem CNPJ e e-mail de cobranca, e o operador
+    de uma praca nao precisa de nenhum dos dois para dirigir uma campanha - sao
+    dados comerciais de uma empresa que nao e' cliente dele.
+
+    Sem escopo por site, e isso e' deliberado: frota nao pertence a praca
+    nenhuma. Dirigir uma campanha a uma frota nao custa nada a ela - quem paga
+    continua sendo o estabelecimento ou a rede, pelo tipo de beneficio -, entao
+    nao ha o que proteger aqui alem do dado pessoal, que ja ficou de fora.
+    """
+    return (
+        (
+            await db.execute(
+                select(Fleet).where(Fleet.active.is_(True)).order_by(Fleet.name)
+            )
+        )
+        .scalars()
+        .all()
+    )
 
 
 @router.get("", response_model=list[CampanhaOut])
