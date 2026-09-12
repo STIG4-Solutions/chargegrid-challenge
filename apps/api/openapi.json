@@ -3094,6 +3094,55 @@
         }
       }
     },
+    "/api/v1/invoices/{invoice_id}/refund": {
+      "post": {
+        "tags": [
+          "recarga ev · tarifação e pagamento"
+        ],
+        "summary": "Refund Invoice",
+        "description": "Estorna a fatura: devolve o que foi cobrado.\n\nADMIN, e nao operador nem motorista. Devolver dinheiro e' decisao da rede -\no motorista nao pode se auto-reembolsar, e o operador nao pode devolver do\ncaixa da plataforma. Mesmo criterio da baixa da cobranca da plataforma.\n\nPagamento por CARTEIRA volta como credito no razao, na hora. Por PSP, quem\ndevolve e' o provedor - marcar `REFUNDED` sem chama-lo seria dizer que\ndevolveu sem devolver.",
+        "operationId": "refund_invoice_api_v1_invoices__invoice_id__refund_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "invoice_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Invoice Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/payments/webhook": {
       "post": {
         "tags": [
@@ -3110,6 +3159,66 @@
                 "schema": {
                   "type": "object",
                   "title": "Response Payment Webhook Api V1 Payments Webhook Post"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/wallets/{user_id}/adjust": {
+      "post": {
+        "tags": [
+          "recarga ev · tarifação e pagamento"
+        ],
+        "summary": "Adjust Wallet",
+        "description": "Correcao manual de saldo, com motivo e responsavel.\n\nADMIN, e nao operador. E' o unico lancamento do razao em que alguem escolhe\no numero, sem fatura nem recarga por tras - e quem pode criar saldo do nada\nprecisa ser o menor grupo possivel.\n\nDevolve o extrato atualizado, e nao so' o saldo: quem acabou de mexer no\ndinheiro de alguem tem de ver a linha que criou.",
+        "operationId": "adjust_wallet_api_v1_wallets__user_id__adjust_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "User Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AjusteDeCarteiraIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Adjust Wallet Api V1 Wallets  User Id  Adjust Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -9712,6 +9821,46 @@
         ],
         "title": "FrotaOut",
         "description": "So' o que o seletor de campanha precisa.\n\n`Fleet` tem `document` (CNPJ) e `billing_email`; nenhum dos dois entra aqui.\nUm operador de praca dirige campanha a uma frota sem nunca precisar do\ncadastro dela, e um campo exposto \"porque estava no modelo\" e' dado pessoal\nde terceiro viajando de graca."
+      },
+      "AjusteDeCarteiraIn": {
+        "properties": {
+          "valor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Valor"
+          },
+          "motivo": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 3,
+            "title": "Motivo"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idempotency Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "valor",
+          "motivo"
+        ],
+        "title": "AjusteDeCarteiraIn",
+        "description": "Correcao manual de saldo.\n\n`valor` sem piso nem teto de sinal: correcao existe nos dois sentidos, e um\ncredito lancado por engano precisa poder ser desfeito. O que o servico\nrecusa e' zero - ajuste de nada nao corrige nada - e deixar o saldo\nnegativo.\n\n`motivo` e' obrigatorio AQUI e no banco. Duas guardas para a mesma coisa\nporque as duas respondem perguntas diferentes: esta devolve 422 legivel a\nquem chamou, e o CHECK garante que nenhum caminho futuro escape dela."
       }
     },
     "securitySchemes": {

@@ -236,6 +236,123 @@ async def handle_webhook(db: AsyncSession, event: dict) -> dict:
     return {"status": str(payment.status), "invoice": payment.invoice.code}
 
 
+async def estornar(db: AsyncSession, invoice: Invoice, *, autor: User) -> Payment:
+    """Devolve o que foi cobrado por uma fatura.
+
+    Nao havia caminho nenhum para isto. `handle_webhook` sabia marcar
+    `REFUNDED` quando o PSP avisava, mas pagamento por CARTEIRA nunca gera
+    webhook - ele e' capturado na hora -, entao uma recarga cobrada errado do
+    saldo do motorista era irreversivel pela API. So' mexendo no banco.
+
+    Dois caminhos, e a diferenca e' de onde o dinheiro volta:
+
+      - CARTEIRA: o credito nasce aqui, como lancamento `estorno` no razao. Nao
+        ha terceiro envolvido - o dinheiro nunca saiu da plataforma.
+      - PSP: quem devolve e' o provedor, e o razao nao tem o que registrar,
+        porque o dinheiro nunca esteve na carteira. Marcar `REFUNDED` sem
+        chamar o provedor seria dizer que devolveu sem devolver.
+
+    A chave de idempotencia e' deterministica pela fatura. Duas chamadas nao
+    creditam duas vezes: a segunda esbarra no UNIQUE, e o estado ja e'
+    `REFUNDED` de qualquer forma.
+    """
+    # CAPTURED **ou** REFUNDED na mesma consulta, e a ordem das checagens
+    # abaixo importa: filtrar so' por CAPTURED faria a segunda chamada nao achar
+    # nada e estourar "nao ha pagamento capturado" - uma mensagem errada para um
+    # estorno que ja aconteceu, e que transformaria repetir a operacao em erro
+    # em vez de no-op.
+    pagamento = (
+        await db.execute(
+            select(Payment)
+            .where(
+                Payment.invoice_id == invoice.id,
+                Payment.status.in_((PaymentStatus.CAPTURED, PaymentStatus.REFUNDED)),
+            )
+            .order_by(Payment.captured_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+    if pagamento is None:
+        raise PaymentError("não há pagamento capturado nesta fatura para estornar")
+    if pagamento.status == PaymentStatus.REFUNDED:
+        return pagamento
+
+    total = Decimal(str(pagamento.amount))
+
+    if pagamento.method == PaymentMethodKind.WALLET:
+        pagador = (
+            await db.execute(
+                select(User).where(User.id == invoice.user_id).with_for_update()
+            )
+        ).scalar_one_or_none()
+        if pagador is None:
+            raise PaymentError("fatura sem pagador: não há carteira para devolver")
+
+        saldo = money(Decimal(str(pagador.wallet_balance)) + total)
+        db.add(
+            WalletEntry(
+                user_id=pagador.id,
+                amount=total,
+                balance_after=saldo,
+                idempotency_key=f"estorno:{invoice.code}",
+                provider="wallet",
+                provider_ref=f"estorno_{invoice.code}",
+                origem="estorno",
+                invoice_id=invoice.id,
+                # Sem `motivo`: a fatura E' a justificativa, e repetir "estorno
+                # da INV-1042" numa coluna que ja tem `invoice_id` seria ruido.
+                criado_por=autor.id,
+            )
+        )
+        try:
+            await db.flush()
+        except IntegrityError:
+            # Ja estornado por outra chamada. O saldo dela vale; nao se soma de
+            # novo. Mesmo desenho de `topup_wallet`.
+            await db.rollback()
+            return pagamento
+        pagador.wallet_balance = saldo
+    else:
+        provedor = await provedor_do_pagamento(db, pagamento, invoice)
+        resposta = await provedor.refund(pagamento.provider_ref or "", total)
+        if resposta.status != PaymentStatus.REFUNDED:
+            raise PaymentError(
+                f"provedor não confirmou a devolução: {resposta.failure_reason or resposta.status}"
+            )
+
+    pagamento.status = PaymentStatus.REFUNDED
+    invoice.status = InvoiceStatus.REFUNDED
+    await db.commit()
+    log.info(
+        "fatura.estornada",
+        fatura=invoice.code,
+        metodo=str(pagamento.method),
+        valor=float(total),
+        por=str(autor.id),
+    )
+    await db.refresh(pagamento)
+    return pagamento
+
+
+async def provedor_do_pagamento(db: AsyncSession, pagamento: Payment, invoice: Invoice):
+    """O provedor configurado para o meio com que ESTA fatura foi paga.
+
+    Nao e' `get_provider()` global: com dois sites em PSPs diferentes, devolver
+    pelo provedor errado falha - ou, pior, devolve da conta do vizinho.
+    """
+    metodo = (
+        await db.execute(
+            select(SitePaymentMethod).where(
+                SitePaymentMethod.site_id == invoice.site_id,
+                SitePaymentMethod.kind == pagamento.method,
+            )
+        )
+    ).scalar_one_or_none()
+    if metodo is None:
+        return get_provider()
+    return get_provider(metodo.provider, metodo.provider_config)
+
+
 async def topup_wallet(
     db: AsyncSession, user: User, amount: Decimal, idempotency_key: str | None = None
 ) -> User:

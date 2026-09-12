@@ -15,6 +15,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
@@ -180,6 +181,16 @@ class WalletEntry(UUIDMixin, TimestampMixin, Base):
             "OR (origem = 'ajuste' AND amount <> 0)",
             name="sinal_da_origem",
         ),
+        # Ajuste e' o unico lancamento em que alguem ESCOLHE o numero: nao ha
+        # fatura nem recarga por tras. Sem motivo, e' dinheiro que aparece na
+        # conta de alguem sem ninguem saber explicar - e num razao isso e' o
+        # defeito, nao o campo faltando.
+        #
+        # O estorno fica de fora da exigencia de proposito: ele nasce de uma
+        # fatura, e a fatura E' a justificativa.
+        CheckConstraint(
+            "origem <> 'ajuste' OR motivo IS NOT NULL", name="ajuste_com_motivo"
+        ),
     )
 
     user_id: Mapped[uuid.UUID] = mapped_column(
@@ -207,4 +218,20 @@ class WalletEntry(UUIDMixin, TimestampMixin, Base):
     # creditos, que nao pagam fatura nenhuma.
     invoice_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("invoices.id", ondelete="SET NULL")
+    )
+    # Por que o saldo mudou, em texto de gente. Obrigatorio em `ajuste` pelo
+    # CHECK acima; nos demais e' opcional, porque a origem ja explica.
+    # O carimbo desta tabela e' por LINHA, nao por transacao. `now()` do
+    # Postgres devolve o instante em que a transacao comecou, e
+    # `conceder_pendentes` credita varias recompensas num commit so' - as linhas
+    # sairiam com o mesmo `created_at`, o extrato ordenaria por `id` (UUID
+    # sorteado) e o saldo corrido pareceria andar para tras. Ver a 0026.
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("clock_timestamp()"), nullable=False
+    )
+    motivo: Mapped[str | None] = mapped_column(String(200))
+    # QUEM decidiu. SET NULL porque a saida do funcionario nao pode apagar o
+    # lancamento - mas enquanto a conta existir, o nome fica junto do dinheiro.
+    criado_por: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
     )

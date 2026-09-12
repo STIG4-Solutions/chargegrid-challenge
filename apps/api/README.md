@@ -366,8 +366,47 @@ de ontem. A taxa do adquirente é separada, então o lojista vê receita bruta e
 | `GET/PUT /payment-methods` | Métodos aceitos e taxas |
 | `GET /invoices` · `GET /invoices/{id}` | Faturas geradas das sessões |
 | `POST /invoices/{id}/charge` | Dispara a cobrança (idempotente) |
+| `POST /invoices/{id}/refund` | Estorna a fatura — carteira volta na hora, PSP pelo provedor (admin) |
+| `POST /wallets/{id}/adjust` | Correção manual de saldo, com motivo e responsável (admin) |
 | `POST /payments/webhook` | Liquidação do PSP, com HMAC obrigatório |
 | `GET /revenue/summary` | Receita bruta × líquida do período |
+
+#### Estorno e ajuste: as duas origens que faltavam
+
+`origem` aceitava `estorno` e `ajuste` desde a `0021` e **nada criava nenhum dos dois**. Dar
+caminho a eles revelou um defeito de verdade: **pagamento por carteira era irreversível pela
+API**. `handle_webhook` sabia marcar `REFUNDED` quando o PSP avisava, mas carteira não gera
+webhook — é capturada na hora —, então uma recarga cobrada errado do saldo do motorista só se
+desfazia no banco.
+
+| operação | rota | quem | o que faz |
+|---|---|---|---|
+| **estorno** | `POST /invoices/{id}/refund` | admin | carteira → crédito no razão, na hora; PSP → chama `provider.refund` |
+| **ajuste** | `POST /wallets/{id}/adjust` | admin | cria ou destrói saldo por decisão humana |
+
+Admin nos dois, e não operador: devolver dinheiro é decisão da rede — o motorista não pode se
+auto-reembolsar, e o operador não devolve do caixa da plataforma.
+
+**Só o ajuste exige motivo**, e o CHECK `ajuste_com_motivo` o garante no banco. É o único
+lançamento em que alguém *escolhe* o número: não há fatura nem recarga por trás. Saldo que
+aparece na conta de alguém sem ninguém saber explicar é o defeito que um razão existe para
+impedir. O estorno fica de fora da exigência porque a fatura **é** a justificativa — e o motivo
+vai para o rótulo do extrato, não para um campo escondido.
+
+`criado_por` grava **quem** decidiu, com `SET NULL`: a saída do funcionário não apaga o
+lançamento, mas enquanto a conta existir o nome fica junto do dinheiro.
+
+Ajuste aceita valor negativo de propósito — correção existe nos dois sentidos, e um crédito
+lançado por engano precisa poder ser desfeito. O que não se aceita é deixar o saldo negativo: a
+carteira é pré-paga, e saldo devedor seria crédito que ninguém autorizou.
+
+**Um carimbo por linha, não por transação.** `created_at` de `wallet_entries` usa
+`clock_timestamp()` (migration `0026`), e não o `now()` herdado do mixin. `now()` devolve o
+instante em que a *transação* começou, e `conceder_pendentes` credita todas as recompensas
+pendentes num commit só: um motorista que concluiu duas missões na mesma passada recebia duas
+linhas com o mesmo carimbo, o extrato desempatava por `id` (UUID sorteado) e o saldo corrido
+podia parecer andar para trás. As demais tabelas continuam com `now()`, que para elas é o
+comportamento certo.
 
 #### Pix: escrito e testado, não homologado
 

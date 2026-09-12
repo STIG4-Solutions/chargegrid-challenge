@@ -78,6 +78,8 @@ export interface MovimentoDaCarteira {
   /** `origem` já traduzida para quem recebeu o dinheiro. */
   rotulo: string
   invoice_id: string | null
+  /** Só em `ajuste`, onde é obrigatório: a explicação da linha. */
+  motivo: string | null
 }
 
 export interface ExtratoDaCarteira {

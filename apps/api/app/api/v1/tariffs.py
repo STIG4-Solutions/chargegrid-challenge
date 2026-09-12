@@ -9,7 +9,14 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
-from app.core.deps import CurrentUser, DbSession, OperatorUser, ScopedSiteId, get_scoped_site_id
+from app.core.deps import (
+    AdminUser,
+    CurrentUser,
+    DbSession,
+    OperatorUser,
+    ScopedSiteId,
+    get_scoped_site_id,
+)
 from app.models.billing import Invoice, SitePaymentMethod
 from app.models.charge_point import ChargePoint
 from app.models.enums import InvoiceStatus, UserRole
@@ -19,6 +26,7 @@ from app.models.tariff import Tariff, TariffWindow
 from app.models.user import User
 from app.schemas.common import Page
 from app.schemas.ev import (
+    AjusteDeCarteiraIn,
     ChargeRequestIn,
     InvoiceOut,
     PaymentMethodIn,
@@ -32,7 +40,7 @@ from app.schemas.ev import (
     TariffUpdate,
     TariffWindowIn,
 )
-from app.services import billing_service, payment_service, tariff_rules
+from app.services import billing_service, payment_service, tariff_rules, wallet_service
 from app.services.tariff_engine import simulate
 
 router = APIRouter(tags=["recarga ev · tarifação e pagamento"])
@@ -310,6 +318,52 @@ async def charge_invoice(
 
     return await payment_service.charge_invoice(
         db, invoice, payload.method, idempotency_key=payload.idempotency_key, payer=payer
+    )
+
+
+@router.post("/invoices/{invoice_id}/refund", response_model=PaymentOut)
+async def refund_invoice(invoice_id: uuid.UUID, db: DbSession, admin: AdminUser):
+    """Estorna a fatura: devolve o que foi cobrado.
+
+    ADMIN, e nao operador nem motorista. Devolver dinheiro e' decisao da rede -
+    o motorista nao pode se auto-reembolsar, e o operador nao pode devolver do
+    caixa da plataforma. Mesmo criterio da baixa da cobranca da plataforma.
+
+    Pagamento por CARTEIRA volta como credito no razao, na hora. Por PSP, quem
+    devolve e' o provedor - marcar `REFUNDED` sem chama-lo seria dizer que
+    devolveu sem devolver.
+    """
+    invoice = (
+        await db.execute(select(Invoice).where(Invoice.id == invoice_id))
+    ).scalar_one_or_none()
+    if invoice is None:
+        raise HTTPException(status_code=404, detail="fatura não encontrada")
+    return await payment_service.estornar(db, invoice, autor=admin)
+
+
+@router.post("/wallets/{user_id}/adjust")
+async def adjust_wallet(
+    user_id: uuid.UUID, payload: AjusteDeCarteiraIn, db: DbSession, admin: AdminUser
+) -> dict:
+    """Correcao manual de saldo, com motivo e responsavel.
+
+    ADMIN, e nao operador. E' o unico lancamento do razao em que alguem escolhe
+    o numero, sem fatura nem recarga por tras - e quem pode criar saldo do nada
+    precisa ser o menor grupo possivel.
+
+    Devolve o extrato atualizado, e nao so' o saldo: quem acabou de mexer no
+    dinheiro de alguem tem de ver a linha que criou.
+    """
+    dono = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    if dono is None:
+        raise HTTPException(status_code=404, detail="motorista não encontrado")
+    return await wallet_service.ajustar(
+        db,
+        dono,
+        payload.valor,
+        payload.motivo,
+        autor=admin,
+        idempotency_key=payload.idempotency_key,
     )
 
 

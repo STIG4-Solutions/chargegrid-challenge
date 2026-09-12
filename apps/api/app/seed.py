@@ -1033,6 +1033,7 @@ async def seed() -> None:
                     idempotency_key=f"seed:abertura:{driver.id}",
                     provider="seed",
                     origem="ajuste",
+                    motivo="Saldo de abertura do seed",
                 )
             )
             veiculo = Vehicle(

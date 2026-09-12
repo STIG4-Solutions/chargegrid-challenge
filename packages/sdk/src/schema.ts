@@ -795,6 +795,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/invoices/{invoice_id}/refund": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refund Invoice
+         * @description Estorna a fatura: devolve o que foi cobrado.
+         *
+         *     ADMIN, e nao operador nem motorista. Devolver dinheiro e' decisao da rede -
+         *     o motorista nao pode se auto-reembolsar, e o operador nao pode devolver do
+         *     caixa da plataforma. Mesmo criterio da baixa da cobranca da plataforma.
+         *
+         *     Pagamento por CARTEIRA volta como credito no razao, na hora. Por PSP, quem
+         *     devolve e' o provedor - marcar `REFUNDED` sem chama-lo seria dizer que
+         *     devolveu sem devolver.
+         */
+        post: operations["refund_invoice_api_v1_invoices__invoice_id__refund_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/payments/webhook": {
         parameters: {
             query?: never;
@@ -814,6 +842,33 @@ export interface paths {
          *     sempre `{"eventos": [...]}`, com um elemento no caso comum.
          */
         post: operations["payment_webhook_api_v1_payments_webhook_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/wallets/{user_id}/adjust": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Adjust Wallet
+         * @description Correcao manual de saldo, com motivo e responsavel.
+         *
+         *     ADMIN, e nao operador. E' o unico lancamento do razao em que alguem escolhe
+         *     o numero, sem fatura nem recarga por tras - e quem pode criar saldo do nada
+         *     precisa ser o menor grupo possivel.
+         *
+         *     Devolve o extrato atualizado, e nao so' o saldo: quem acabou de mexer no
+         *     dinheiro de alguem tem de ver a linha que criou.
+         */
+        post: operations["adjust_wallet_api_v1_wallets__user_id__adjust_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3277,6 +3332,27 @@ export interface components {
             /** Nome */
             nome: string;
         };
+        /**
+         * AjusteDeCarteiraIn
+         * @description Correcao manual de saldo.
+         *
+         *     `valor` sem piso nem teto de sinal: correcao existe nos dois sentidos, e um
+         *     credito lancado por engano precisa poder ser desfeito. O que o servico
+         *     recusa e' zero - ajuste de nada nao corrige nada - e deixar o saldo
+         *     negativo.
+         *
+         *     `motivo` e' obrigatorio AQUI e no banco. Duas guardas para a mesma coisa
+         *     porque as duas respondem perguntas diferentes: esta devolve 422 legivel a
+         *     quem chamou, e o CHECK garante que nenhum caminho futuro escape dela.
+         */
+        AjusteDeCarteiraIn: {
+            /** Valor */
+            valor: number | string;
+            /** Motivo */
+            motivo: string;
+            /** Idempotency Key */
+            idempotency_key?: string | null;
+        };
     };
     responses: never;
     parameters: never;
@@ -4858,6 +4934,37 @@ export interface operations {
             };
         };
     };
+    refund_invoice_api_v1_invoices__invoice_id__refund_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     payment_webhook_api_v1_payments_webhook_post: {
         parameters: {
             query?: never;
@@ -4874,6 +4981,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    adjust_wallet_api_v1_wallets__user_id__adjust_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AjusteDeCarteiraIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
