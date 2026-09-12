@@ -12,6 +12,7 @@
     "2026-08-31"
   ],
   "n_linhas_treino": 1647,
+  "impressao_do_treino": "416150b47232481a321011789294cd35",
   "estacoes_treinadas": [
     "lab-fiap-eco-station",
     "posto-anhanguera-km-68",
@@ -29,10 +30,10 @@
       "2026-08-01"
     ],
     "n_obs_teste": 276,
-    "wape_diario": 24.97,
-    "wape_mensal": 8.31,
+    "wape_diario": 25.66,
+    "wape_mensal": 9.94,
     "wape_mensal_baseline_m28": 7.61,
-    "vies_medio_pct": 0.72,
+    "vies_medio_pct": 1.75,
     "cobertura_p10_p90_diaria": 62.3
   }
 }

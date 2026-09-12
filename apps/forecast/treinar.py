@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import json
 import sys
 from datetime import date, timedelta
@@ -146,6 +147,25 @@ def main() -> int:
             "  npm run infra:down -- -v && npm run infra:up"
         )
 
+    # Impressao digital do que entrou no treino.
+    #
+    # Existe por uma pergunta que ficou sem resposta: o WAPE mensal saiu 8,31
+    # de manha e 9,94 a tarde, com a MESMA janela, as mesmas 1.647 linhas, os
+    # mesmos parametros e a MESMA regua (7,61 nas duas). Deu para provar que o
+    # treino e' deterministico - execucoes seguidas batem - e que a ordem das
+    # categorias nao influi; nao deu para provar se os DADOS mudaram.
+    #
+    # Sem isto a pergunta e' irrespondivel depois do fato: o banco de
+    # desenvolvimento nao guarda versao. Com o hash gravado ao lado da
+    # metrica, a proxima vez que o numero se mexer a comparacao responde
+    # sozinha - hash igual aponta para o ambiente, hash diferente para o banco.
+    impressao = hashlib.sha256(
+        ds.sort_values(["location_id", "date", "horizonte"])[FEATURES + ["y_ratio"]]
+        .to_csv(index=False)
+        .encode()
+    ).hexdigest()[:32]
+    print(f"   impressao digital do treino: {impressao}")
+
     print(f"\n3. Backtest ({args.meses_backtest} meses fora da amostra)...")
     metricas = backtest(ds, args.meses_backtest)
     for chave, valor in metricas.items():
@@ -191,6 +211,7 @@ def main() -> int:
         "estacoes_treinadas": sorted(ds["location_id"].astype(str).unique()),
         "periodo_treino": [str(ds["date"].min().date()), str(ds["date"].max().date())],
         "n_linhas_treino": int(len(ds)),
+        "impressao_do_treino": impressao,
     }
 
     destino = Path(args.saida)
@@ -213,6 +234,9 @@ def main() -> int:
         "versoes": artefato["versoes"],
         "periodo_treino": artefato["periodo_treino"],
         "n_linhas_treino": artefato["n_linhas_treino"],
+        # Muda com os DADOS, nao com o codigo. E' o que separa "o modelo
+        # piorou" de "o banco e' outro" na proxima vez que a metrica mexer.
+        "impressao_do_treino": impressao,
         "estacoes_treinadas": artefato["estacoes_treinadas"],
         "determinismo": DETERMINISMO,
         "metricas": metricas,

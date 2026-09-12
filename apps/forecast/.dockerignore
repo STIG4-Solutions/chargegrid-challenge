@@ -1,0 +1,12 @@
+# Os artefatos treinados NAO entram na imagem.
+#
+# Sao ~2 MB por retreino, e o diretorio inteiro chega facil a 10 MB. Pior que o
+# peso: o `COPY . .` invalida o cache de camada a cada treino, entao toda
+# reconstrucao passava a reinstalar as dependencias por causa de um arquivo que
+# a imagem nem usa - `modelos/` chega por volume em tempo de execucao.
+modelos/*.joblib
+modelos/metricas_*.json
+
+__pycache__/
+*.pyc
+.pytest_cache/

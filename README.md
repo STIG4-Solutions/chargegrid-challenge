@@ -119,15 +119,24 @@ o modelo de previsão descarta local com menos de 150 dias de energia, os relat�
 medem janelas de 30 dias, e uma missão de "recarregue 5 vezes este mês" é indemonstrável com
 uma semana de dados. Com poucos dias no banco, as três entregam tela vazia e parecem quebradas.
 
-É determinístico por semente fixa: duas máquinas produzem o mesmo banco, e um artefato de
-previsão treinado numa continua valendo na outra.
+A **forma** é determinística por semente fixa: mesma quantidade de sessões, mesmos perfis
+semanais, mesmos valores. As **datas** não — o histórico é ancorado em `now()`, então máquinas
+que semeiam em dias diferentes têm janelas diferentes. Para previsão isso importa: o artefato é
+reproduzível com `--ate` explícito e o mesmo banco, não entre bancos semeados em dias distintos.
+`apps/forecast/README.md` detalha, incluindo um caso em que a métrica se mexeu e não deu para
+provar por quê.
 
 
 ```bash
 cp apps/api/.env.example apps/api/.env
 # Preencha os valores de apps/api/.env antes de continuar.
 npm run infra:up          # API em http://localhost:8000
+npm run forecast          # treina o modelo e grava a previsão do mês
 ```
+
+O `forecast` é **uma vez por ambiente**: o modelo não vai para o git (2 MB por retreino, diff
+irrevisável), então um clone novo mostra "nenhuma previsão calculada" até esse comando rodar.
+Depois disso, uma vez por mês para exportar e por trimestre para retreinar.
 
 **Dashboard:**
 

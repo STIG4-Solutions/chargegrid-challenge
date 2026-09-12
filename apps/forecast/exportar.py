@@ -127,8 +127,22 @@ def main() -> int:
 
     caminho = Path(args.modelo)
     if not caminho.exists():
+        # E' AQUI que um clone novo para, e a mensagem tem de dizer o que
+        # fazer. O modelo nao e' versionado de proposito - 2 MB de binario
+        # por retreino, com diff irrevisavel -, entao o primeiro export de
+        # QUALQUER ambiente esbarra nisto. Dizer so' "nao encontrado" manda
+        # a pessoa procurar um arquivo que nunca existiu.
         raise SystemExit(
-            f"artefato nao encontrado em {caminho}\nRode `python treinar.py` antes."
+            f"artefato nao encontrado em {caminho}\n"
+            "\n"
+            "O modelo nao vai para o git (ver apps/forecast/README.md).\n"
+            "Treine o seu com o banco ja populado - uma vez por ambiente:\n"
+            "\n"
+            "    npm run forecast        # treina e exporta, da raiz do repo\n"
+            "\n"
+            "Ou so' o treino, para conferir as metricas antes de exportar:\n"
+            "\n"
+            "    npm run forecast:train"
         )
 
     artefato = joblib.load(caminho)

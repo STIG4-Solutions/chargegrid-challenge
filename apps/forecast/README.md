@@ -17,27 +17,38 @@ CPU-bound numa API que é async de ponta a ponta.
 
 ## Como rodar
 
+Um comando, da raiz do repositório, com a stack já de pé (`npm run infra:up`):
+
 ```bash
-docker build -t chargegrid-forecast apps/forecast
+npm run forecast          # treina e exporta — é isto que um clone novo precisa
+```
 
-# Treinar com os dados do banco (uma vez por trimestre, ou quando a rede mudar)
-docker run --rm --network backend_default \
-  -e POSTGRES_HOST=db -e POSTGRES_USER=... -e POSTGRES_PASSWORD=... -e POSTGRES_DB=... \
-  -v "$PWD/apps/forecast/modelos:/forecast/modelos" \
-  chargegrid-forecast python treinar.py
+O modelo **não vai para o git** (2 MB por retreino, diff irrevisável), então todo
+ambiente novo passa por aqui uma vez. `exportar.py` sem artefato não diz apenas
+"não encontrado": ele imprime este comando.
 
-# Refazer EXATAMENTE o artefato publicado: o comando está dentro de
-# modelos/metricas_atual.json, no campo `gerado_por`
-docker run --rm --network backend_default ... \n  chargegrid-forecast python treinar.py --ate 2026-08-31
+Os passos separados, quando a diferença importa:
 
-# Testes do pipeline (não precisam do banco)
-docker run --rm -v "$PWD/apps/forecast:/forecast" \n  chargegrid-forecast python -m pytest tests -q
+```bash
+npm run forecast:train    # treina; imprime backtest e grava metricas_atual.json
+npm run forecast:export   # grava a previsão do mês em site_forecasts
+npm run forecast:test     # testes do pipeline (não precisam do banco)
+```
 
-# Gerar a previsão do mês e gravar no banco (uma vez por mês)
-docker run --rm --network backend_default \
-  -e POSTGRES_HOST=db -e POSTGRES_USER=... -e POSTGRES_PASSWORD=... -e POSTGRES_DB=... \
-  -v "$PWD/apps/forecast/modelos:/forecast/modelos" \
-  chargegrid-forecast python exportar.py
+Cadência: treinar por trimestre ou quando a rede mudar, exportar por mês.
+
+O serviço `forecast` existe no `compose.yaml` sob `profiles: ["forecast"]` — fica
+fora do `up` porque não é um processo que fica de pé, é um job. Estar no compose
+em vez de numa linha de `docker run` no README economiza os três erros de sempre:
+o nome da rede, o caminho do volume, e o `POSTGRES_HOST` apontando para
+`localhost` de dentro do container.
+
+Para refazer **exatamente** o artefato publicado, o comando está dentro de
+`modelos/metricas_atual.json`, no campo `gerado_por`:
+
+```bash
+docker compose --env-file apps/api/.env --profile forecast run --rm forecast \
+  python treinar.py --ate 2026-08-31
 ```
 
 Sem linha na tabela, o painel mostra "nenhuma previsão calculada" — que é
@@ -59,8 +70,23 @@ Isso só vale se o treino for reproduzível, e ele não era. Três coisas faltav
 | `--ate` explícito | o histórico do seed é ancorado em `now()`, então a janela de treino escorrega com o calendário |
 | `num_threads` fixo | a ordem em que as somas parciais se juntam depende da contagem de threads, e ponto flutuante não é associativo |
 
-Verificado: dois treinos independentes com `--ate 2026-08-31` produziram árvores
-com o **mesmo SHA-256** e métricas idênticas.
+Verificado: treinos independentes com `--ate 2026-08-31`, na mesma máquina e no
+mesmo banco, produzem árvores com o **mesmo SHA-256** e métricas idênticas.
+
+**E um limite que apareceu na prática, vale registrar em vez de esconder.** O
+WAPE mensal saiu **8,31%** de manhã e **9,94%** à tarde do mesmo dia — com a
+mesma janela, as mesmas 1.647 linhas de treino, os mesmos parâmetros, a mesma
+versão de cada biblioteca e a **mesma régua** (7,61% nas duas). Ficou provado
+que o treino é determinístico (execuções seguidas batem) e que a ordem das
+categorias não influi; **não** ficou provado o que mudou. O banco de
+desenvolvimento não guarda versão, então a pergunta virou irrespondível depois
+do fato.
+
+Por isso `treinar.py` passou a gravar `impressao_do_treino` — um SHA-256 das
+features e do alvo — junto da métrica. Na próxima vez que o número se mexer, a
+comparação responde sozinha: hash igual aponta para o ambiente, hash diferente
+aponta para o banco. É instrumentação nascida de uma pergunta que não soube
+responder.
 
 Sobre `deterministic=True` e `force_row_wise=True`, que acompanham o
 `num_threads`: são **preventivos, não demonstrados**. A documentação do LightGBM
@@ -89,10 +115,13 @@ e traz dentro o comando que o refaz:
 
 | métrica | valor |
 |---|---|
-| WAPE mensal do modelo | **8,31%** |
+| WAPE mensal do modelo | **9,94%** |
 | WAPE mensal da média móvel de 28 dias | **7,61%** |
-| WAPE diário do modelo | 24,97% |
+| WAPE diário do modelo | 25,66% |
 | Cobertura da faixa p10–p90 | **62,3%** (deveria ser ~80%) |
+
+Estes números mudam quando o banco muda — e é para isso que a evidência é
+versionada. Se a tabela divergir de `metricas_atual.json`, o arquivo manda.
 
 Três meses são doze estação-meses, e a diferença caberia no ruído de amostragem —
 por isso a derrota foi remedida em 3, 6 e 12 meses. Ela se repete nos três
