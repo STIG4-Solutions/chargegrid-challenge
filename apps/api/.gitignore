@@ -4,3 +4,9 @@ __pycache__/
 .env
 .pytest_cache/
 .ruff_cache/
+
+# Sobras de `pip install .` num checkout: o empacotamento passou a ser explicito
+# (ver [tool.setuptools] no pyproject), e instalar a partir do diretorio deixa
+# estes dois para tras.
+build/
+*.egg-info/

@@ -1,3 +1,21 @@
+# Sem esta secao, o setuptools tenta adivinhar o que empacotar e desiste: o
+# diretorio tem `app`, `tests`, `alembic` e `scripts` no topo, e a deteccao
+# automatica recusa mais de um. O sintoma era `pip install .` falhando com
+# "Multiple top-level packages discovered in a flat-layout" - o que empurrava
+# quem precisasse das dependencias (o CI, por exemplo) a redigitar a lista
+# inteira num script, onde ela envelheceria em silencio.
+#
+# `app*` e' o que se instala; o resto do repositorio nao e' biblioteca. No
+# Dockerfile isto tambem funciona: la' o `pip install .` roda com SO' o
+# pyproject.toml presente, nao encontra `app/`, e instala apenas as
+# dependencias - que e' exatamente o que aquela camada quer.
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
 [project]
 name = "chargegrid-api"
 version = "0.1.0"

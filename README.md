@@ -309,6 +309,7 @@ npm run test:mobile                        # 13 testes de renderização do app 
 npm run typecheck                          # tipos do SDK e do app contra o contrato
 npm run format:check                       # Prettier no lado JS (`npm run format` corrige)
 npm run build                              # dashboard
+npm run build:staging                      # dashboard apontando para api.staging.stig4.com
 cd apps/api && python -m pytest -q          # 725 testes (precisa do Postgres)
 cd apps/api && python -m ruff check .
 cd apps/api && python -m ruff format --check .
@@ -379,6 +380,11 @@ continua apagado, o que é verdade naquele instante. `tests/util.tsx` registra i
 
 A divisão não é arbitrária: lógica pura no `verify`, decisão de apresentação no `test`. Só o
 segundo precisa de DOM, e é por isso que ele veio depois.
+
+Desde `ci.yml`, tudo isto roda em **PR e push para `staging` e `main`** — em dois
+jobs, API (com Postgres 18 de serviço) e web. Antes dele o repositório tinha só
+workflows de migration: as verificações existiam e nada as cobrava, num fluxo em
+que o merge em `staging` aplica migration em banco real.
 
 **Teste de mutação é o padrão de aceite**: reverter a guarda e confirmar que o teste quebra.
 Não é cerimônia — ele já encontrou quatro guardas decorativas neste projeto, incluindo um

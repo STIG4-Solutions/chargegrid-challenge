@@ -79,6 +79,12 @@ const { mesesRestantes, multaPorRescisao, pontosExcedentes, proximaCobranca } = 
   pathToFileURL(saidaContrato).href
 )
 
+// O endereço da API é importado direto, sem passar pelo esbuild: o módulo já é
+// `.mjs` e não depende de JSX. É a única peça daqui que lê o disco, e é de
+// propósito — o que se quer verificar é justamente a leitura de
+// `config/domains.json`.
+const { enderecoDaApi } = await import('./dominios.mjs')
+
 let falhas = 0
 const check = (nome, cond, extra = '') => {
   console.log(`${cond ? 'ok  ' : 'FALHA'} ${nome}${extra ? ' -> ' + extra : ''}`)
@@ -728,6 +734,26 @@ check('admin ve a aba de contas', abasAdmin.includes('/ev/users'))
 check('operador nao ve a aba de contas', !abasOperador.includes('/ev/users'))
 
 rmSync(saidaContas, { force: true })
+// ------------------------------------------------- endereço da API por ambiente
+//
+// 41. Esta é a decisão mais silenciosa do projeto quando erra: o endereço vai
+//     ASSADO no pacote, então um build de staging que saia apontando para
+//     produção abre, carrega e mostra dados — do ambiente errado, sem nada na
+//     tela indicando isso. A mutação encontrou este ponto sem guarda: desligar
+//     o ramo de staging fazia `build:staging` assar produção em silêncio.
+const dev = enderecoDaApi(true, 'development')
+const prod = enderecoDaApi(false, 'production')
+const stg = enderecoDaApi(false, 'staging')
+
+check('dev aponta para a maquina local', /localhost|127\.0\.0\.1/.test(dev))
+check(
+  'producao aponta para o dominio de producao',
+  /^https:\/\/api\./.test(prod) && !/staging/.test(prod)
+)
+check('staging aponta para o dominio de staging', /^https:\/\/api\.staging\./.test(stg))
+check('staging e producao NAO sao o mesmo endereco', stg !== prod)
+check('nenhum dos tres sai vazio', Boolean(dev && prod && stg))
+
 rmSync(saida, { force: true })
 rmSync(saidaCampanha, { force: true })
 rmSync(saidaManutencao, { force: true })

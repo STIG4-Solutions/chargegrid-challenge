@@ -73,6 +73,16 @@ def _origens_padrao() -> list[str]:
     origens = []
     if d.get("dashboard") and d.get("protocolo"):
         origens.append(f"{d['protocolo']}://{d['dashboard']}")
+    # O painel de staging entra na lista padrao, e nao substitui o de producao:
+    # sao ambientes diferentes, e cada um so' fala com a API do seu proprio - o
+    # endereco da API fica assado no pacote de cada build.
+    #
+    # Isso vale para quem roda a API a partir do repositorio. Na Azure o arquivo
+    # nem existe (a imagem copia so' `apps/api`), entao la' quem manda e'
+    # CORS_ORIGINS, como o roteiro de deploy instrui.
+    dashboard_staging = (d.get("staging") or {}).get("dashboard")
+    if dashboard_staging and d.get("protocolo"):
+        origens.append(f"{d['protocolo']}://{dashboard_staging}")
     dashboard_dev = (d.get("desenvolvimento") or {}).get("dashboard", "http://localhost:5173")
     # O dashboard de desenvolvimento continua liberado: sem isso, trabalhar
     # localmente exigiria editar o .env a cada clone.
