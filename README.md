@@ -311,10 +311,20 @@ cd apps/api && python -m pytest -q          # 703 testes (precisa do Postgres)
 cd apps/api && python -m ruff check .
 cd apps/api && python -m ruff format --check .
 cd apps/api && python -m scripts.smoke_test # 116 cenários ponta a ponta (API no ar)
+npm run gen:contrato                       # regera openapi.json e os tipos do SDK
 npm run forecast:test                      # 4 testes do pipeline de previsão
 npm run forecast:lint                      # regra e forma no código de previsão que é deste projeto
 cd apps/mobile && npx expo export --platform android --output-dir .expo-bundle
 ```
+
+**O contrato é gerado, não editado.** `openapi.json` é a fonte de
+`packages/sdk/src/schema.ts` — e portanto dos tipos com que o painel e o app
+foram escritos. Havia `gen:types` para ir do JSON aos tipos e **nada** para ir
+do app ao JSON: o arquivo era mantido à mão, e chegou a divergir em 30 rotas sem
+que nada acusasse. Uma das divergências não era cosmética: `RatingOut.desconto`
+existia na API e não no contrato, então o desconto da prévia era invisível para
+todo cliente tipado. `npm run gen:contrato` refaz os dois elos, e
+`test_contrato_openapi.py` recusa o arquivo fora de sincronia.
 
 O `ruff format --check` entrou depois do `ruff check`, e não junto com ele por
 acaso: o projeto passou muito tempo com o primeiro limpo e o segundo nunca

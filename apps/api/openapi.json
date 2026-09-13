@@ -24,6 +24,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": true,
                   "type": "object",
                   "title": "Response Health Health Get"
                 }
@@ -414,6 +415,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "additionalProperties": true,
                   "title": "Response Push Meter Reading Api V1 Power Meter Readings Post"
                 }
               }
@@ -543,6 +545,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "additionalProperties": true,
                   "title": "Response Rebalance Api V1 Power Rebalance Post"
                 }
               }
@@ -985,6 +988,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "additionalProperties": true,
                   "title": "Response Demand Forecast Api V1 Power Demand Forecast Get"
                 }
               }
@@ -1056,6 +1060,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "additionalProperties": true,
                   "title": "Response Demand Avoided Cost Api V1 Power Demand Avoided Cost Get"
                 }
               }
@@ -1139,6 +1144,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "additionalProperties": true,
                   "title": "Response Demand Contract Simulator Api V1 Power Demand Contract Simulator Get"
                 }
               }
@@ -1210,6 +1216,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "additionalProperties": true,
                   "title": "Response Maintenance Attention Api V1 Power Maintenance Attention Get"
                 }
               }
@@ -1292,7 +1299,8 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "type": "object"
+                    "type": "object",
+                    "additionalProperties": true
                   },
                   "title": "Response Maintenance Reports Api V1 Power Maintenance Reports Get"
                 }
@@ -1373,6 +1381,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "additionalProperties": true,
                   "title": "Response Resolve Report Api V1 Power Maintenance Reports  Reporte Id  Resolve Post"
                 }
               }
@@ -1444,6 +1453,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "additionalProperties": true,
                   "title": "Response Utilization By Point Api V1 Power Utilization By Point Get"
                 }
               }
@@ -1782,6 +1792,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "additionalProperties": true,
                   "title": "Response Preview Priority Rules Api V1 Power Priority Rules Preview Get"
                 }
               }
@@ -1815,6 +1826,7 @@
               "application/json": {
                 "schema": {
                   "items": {
+                    "additionalProperties": true,
                     "type": "object"
                   },
                   "type": "array",
@@ -1865,7 +1877,702 @@
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "additionalProperties": true,
                   "title": "Response Sites Portfolio Api V1 Power Sites Portfolio Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/power/demand/energy-forecast": {
+      "get": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "Demand Energy Forecast",
+        "description": "Quanto este site deve VENDER no proximo mes, em kWh e em reais.\n\nA aba ja responde \"quanto vou puxar\" - kW, contrato, custo evitado. Isto\nresponde \"quanto vou vender\", e as duas alimentam a MESMA decisao: quanta\ndemanda contratar. Por isso mora aqui e nao numa aba propria.\n\nA API so' LE: quem escreve e' o job de `apps/forecast`, que roda fora do\nprocesso da API. Sem linha para a competencia, a resposta e' `disponivel:\nfalse` - e a tela diz que nao ha previsao, em vez de inventar um numero.\n\nSeguranca: filtra por `site_id` do escopo, que para operador comum e' sempre\no site dele, independentemente do que a query pedir.",
+        "operationId": "demand_energy_forecast_api_v1_power_demand_energy_forecast_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Demand Energy Forecast Api V1 Power Demand Energy Forecast Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/campaigns/fleets": {
+      "get": {
+        "tags": [
+          "campanhas"
+        ],
+        "summary": "Frotas",
+        "description": "As frotas as quais uma campanha pode ser dirigida.\n\nFica sob `/campaigns` porque e' isto que ela serve: preencher o seletor do\nformulario. Uma rota `/fleets` de proposito geral prometeria administracao\nde frota, que nao existe neste painel.\n\nID E NOME, e mais nada. `Fleet` tem CNPJ e e-mail de cobranca, e o operador\nde uma praca nao precisa de nenhum dos dois para dirigir uma campanha - sao\ndados comerciais de uma empresa que nao e' cliente dele.\n\nSem escopo por site, e isso e' deliberado: frota nao pertence a praca\nnenhuma. Dirigir uma campanha a uma frota nao custa nada a ela - quem paga\ncontinua sendo o estabelecimento ou a rede, pelo tipo de beneficio -, entao\nnao ha o que proteger aqui alem do dado pessoal, que ja ficou de fora.",
+        "operationId": "frotas_api_v1_campaigns_fleets_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FrotaOut"
+                  },
+                  "type": "array",
+                  "title": "Response Frotas Api V1 Campaigns Fleets Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/campaigns": {
+      "get": {
+        "tags": [
+          "campanhas"
+        ],
+        "summary": "Listar",
+        "operationId": "listar_api_v1_campaigns_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CampanhaOut"
+                  },
+                  "title": "Response Listar Api V1 Campaigns Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "campanhas"
+        ],
+        "summary": "Criar",
+        "operationId": "criar_api_v1_campaigns_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampanhaIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampanhaOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/campaigns/{campanha_id}": {
+      "patch": {
+        "tags": [
+          "campanhas"
+        ],
+        "summary": "Atualizar",
+        "operationId": "atualizar_api_v1_campaigns__campanha_id__patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campanha_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campanha Id"
+            }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampanhaOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "campanhas"
+        ],
+        "summary": "Encerrar",
+        "description": "Encerra a campanha. NAO apaga.\n\nApagar levaria junto o progresso de quem estava no meio dela, e o RESTRICT em\n`rewards.campaign_id` recusaria a exclusao assim que a primeira recompensa\ntivesse sido concedida - com um erro de banco que ninguem sabe ler. Desativar\ne' o que o operador quer dizer com \"encerrar\", e preserva o rastro.",
+        "operationId": "encerrar_api_v1_campaigns__campanha_id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campanha_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campanha Id"
+            }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/campaigns/{campanha_id}/desempenho": {
+      "get": {
+        "tags": [
+          "campanhas"
+        ],
+        "summary": "Desempenho",
+        "operationId": "desempenho_api_v1_campaigns__campanha_id__desempenho_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campanha_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campanha Id"
+            }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesempenhoOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/plans": {
+      "get": {
+        "tags": [
+          "plataforma"
+        ],
+        "summary": "Planos",
+        "description": "O que a GoodWe vende. Escopo de rede.",
+        "operationId": "planos_api_v1_platform_plans_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response Planos Api V1 Platform Plans Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/platform/contract": {
+      "get": {
+        "tags": [
+          "plataforma"
+        ],
+        "summary": "Contrato",
+        "description": "Contrato desta praca, com as ultimas cobrancas.\n\nSeguranca: `site_id` vem do escopo, que para operador comum e' sempre o site\ndele - trocar o parametro na URL nao mostra o contrato do vizinho.",
+        "operationId": "contrato_api_v1_platform_contract_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Contrato Api V1 Platform Contract Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "plataforma"
+        ],
+        "summary": "Contratar",
+        "operationId": "contratar_api_v1_platform_contract_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Contratar Api V1 Platform Contract Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/contract/terminate": {
+      "post": {
+        "tags": [
+          "plataforma"
+        ],
+        "summary": "Rescindir",
+        "description": "Pede a rescisao. Dentro do prazo minimo, emite a multa junto.\n\nNao e' DELETE: nao apaga nem encerra no ato. O contrato corre ate o fim do\nciclo ja cobrado, e a resposta diz ate quando e quanto custa.",
+        "operationId": "rescindir_api_v1_platform_contract_terminate_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Rescindir Api V1 Platform Contract Terminate Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/invoices/{cobranca_id}/settle": {
+      "post": {
+        "tags": [
+          "plataforma"
+        ],
+        "summary": "Dar Baixa",
+        "description": "Baixa MANUAL, e so' de admin.\n\nNao ha integracao bancaria: a cobranca nasce aberta e alguem da rede confirma\no recebimento. Deixar o proprio estabelecimento declarar que pagou nao seria\nbaixa manual, seria baixa nenhuma.",
+        "operationId": "dar_baixa_api_v1_platform_invoices__cobranca_id__settle_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cobranca_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Cobranca Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Dar Baixa Api V1 Platform Invoices  Cobranca Id  Settle Post"
                 }
               }
             }
@@ -2426,7 +3133,8 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "type": "object"
+                    "type": "object",
+                    "additionalProperties": true
                   },
                   "title": "Response Session Telemetry Api V1 Sessions  Session Id  Telemetry Get"
                 }
@@ -2497,6 +3205,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "additionalProperties": true,
                   "title": "Response Bill Api V1 Sessions  Session Id  Bill Post"
                 }
               }
@@ -2992,7 +3701,7 @@
           "recarga ev · tarifação e pagamento"
         ],
         "summary": "Upsert Payment Method",
-        "description": "Habilita ou atualiza um metodo. Um por tipo por site.",
+        "description": "Habilita ou atualiza um metodo. Um por tipo por site.\n\nAUDITADO, e e' o caso que exigiu mascara: `provider_config` carrega\n`client_secret` e `webhook_secret`. Gravar o \"antes e depois\" cru escreveria\na credencial do PSP numa tabela feita para ser lida por gente - trocaria um\ndefeito por outro pior.",
         "operationId": "upsert_payment_method_api_v1_payment_methods_put",
         "security": [
           {
@@ -3037,93 +3746,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PaymentMethodOut"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/audit": {
-      "get": {
-        "tags": [
-          "recarga ev · tarifação e pagamento"
-        ],
-        "summary": "Audit Trail",
-        "description": "A trilha de auditoria. So' admin.\n\nExiste porque trilha que ninguem consegue ler e' meio caminho do defeito que\nela veio consertar: o dado estaria no banco e a pergunta continuaria\ndependendo de alguem com acesso a producao.\n\nAdmin porque a propria trilha e' informacao sensivel - ela diz quem mexeu em\nque e de qual IP, e isso nao e' assunto de operador de praca.",
-        "operationId": "audit_trail_api_v1_audit_get",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 500,
-              "minimum": 1,
-              "default": 100,
-              "title": "Limit"
-            }
-          },
-          {
-            "name": "action",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Action"
-            }
-          },
-          {
-            "name": "entity",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Entity"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "type": "object"
-                  },
-                  "title": "Response Audit Trail Api V1 Audit Get"
                 }
               }
             }
@@ -3393,22 +4015,87 @@
         }
       }
     },
-    "/api/v1/payments/webhook": {
-      "post": {
+    "/api/v1/audit": {
+      "get": {
         "tags": [
           "recarga ev · tarifação e pagamento"
         ],
-        "summary": "Payment Webhook",
-        "description": "Liquidacao assincrona do PSP. Assinatura HMAC obrigatoria.\n\nUm POST pode trazer MAIS DE UM pagamento: o Pix notifica em lote, com uma\nlista de recebimentos no mesmo corpo. Quem sabe desmontar isso e' o\nprovedor - a rota nao supoe a forma do corpo, e por isso a resposta e'\nsempre `{\"eventos\": [...]}`, com um elemento no caso comum.",
-        "operationId": "payment_webhook_api_v1_payments_webhook_post",
+        "summary": "Audit Trail",
+        "description": "A trilha de auditoria. So' admin.\n\nExiste porque trilha que ninguem consegue ler e' meio caminho do defeito que\nela veio consertar: o dado estaria no banco e a pergunta continuaria\ndependendo de alguem com acesso a producao.\n\nAdmin porque a propria trilha e' informacao sensivel - ela diz quem mexeu em\nque e de qual IP, e isso nao e' assunto de operador de praca.",
+        "operationId": "audit_trail_api_v1_audit_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Action"
+            }
+          },
+          {
+            "name": "entity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Entity"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "title": "Response Payment Webhook Api V1 Payments Webhook Post"
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response Audit Trail Api V1 Audit Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -3458,6 +4145,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "additionalProperties": true,
                   "title": "Response Adjust Wallet Api V1 Wallets  User Id  Adjust Post"
                 }
               }
@@ -3469,6 +4157,30 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/payments/webhook": {
+      "post": {
+        "tags": [
+          "recarga ev · tarifação e pagamento"
+        ],
+        "summary": "Payment Webhook",
+        "description": "Liquidacao assincrona do PSP. Assinatura HMAC obrigatoria.\n\nUm POST pode trazer MAIS DE UM pagamento: o Pix notifica em lote, com uma\nlista de recebimentos no mesmo corpo. Quem sabe desmontar isso e' o\nprovedor - a rota nao supoe a forma do corpo, e por isso a resposta e'\nsempre `{\"eventos\": [...]}`, com um elemento no caso comum.",
+        "operationId": "payment_webhook_api_v1_payments_webhook_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Payment Webhook Api V1 Payments Webhook Post"
                 }
               }
             }
@@ -3568,8 +4280,8 @@
               "anyOf": [
                 {
                   "type": "number",
-                  "maximum": 90.0,
-                  "minimum": -90.0
+                  "maximum": 90,
+                  "minimum": -90
                 },
                 {
                   "type": "null"
@@ -3586,8 +4298,8 @@
               "anyOf": [
                 {
                   "type": "number",
-                  "maximum": 180.0,
-                  "minimum": -180.0
+                  "maximum": 180,
+                  "minimum": -180
                 },
                 {
                   "type": "null"
@@ -3602,8 +4314,8 @@
             "required": false,
             "schema": {
               "type": "number",
-              "maximum": 500.0,
-              "exclusiveMinimum": 0.0,
+              "maximum": 500,
+              "exclusiveMinimum": 0,
               "default": 25,
               "title": "Radius Km"
             }
@@ -3806,7 +4518,7 @@
             "required": false,
             "schema": {
               "type": "number",
-              "minimum": 0.0,
+              "minimum": 0,
               "default": 50.0,
               "title": "Preauth Amount"
             }
@@ -3819,7 +4531,7 @@
               "anyOf": [
                 {
                   "type": "number",
-                  "exclusiveMinimum": 0.0
+                  "exclusiveMinimum": 0
                 },
                 {
                   "type": "null"
@@ -3854,7 +4566,7 @@
               "anyOf": [
                 {
                   "type": "number",
-                  "exclusiveMinimum": 0.0
+                  "exclusiveMinimum": 0
                 },
                 {
                   "type": "null"
@@ -4479,54 +5191,6 @@
         }
       }
     },
-    "/api/v1/app/wallet/topup": {
-      "post": {
-        "tags": [
-          "app mobile"
-        ],
-        "summary": "Topup",
-        "description": "Credito na carteira pre-paga.\n\nNa integracao real, o credito so entra depois do webhook do PSP confirmar -\nesta rota representa o passo final desse fluxo.\n\nA chave de idempotencia e' opcional no contrato, mas o app sempre manda: sem\nela, dois toques no botao viram dois creditos.",
-        "operationId": "topup_api_v1_app_wallet_topup_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/WalletTopUpIn"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "title": "Response Topup Api V1 App Wallet Topup Post"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ]
-      }
-    },
     "/api/v1/app/wallet/statement": {
       "get": {
         "tags": [
@@ -4561,6 +5225,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "additionalProperties": true,
                   "title": "Response Wallet Statement Api V1 App Wallet Statement Get"
                 }
               }
@@ -4577,6 +5242,55 @@
             }
           }
         }
+      }
+    },
+    "/api/v1/app/wallet/topup": {
+      "post": {
+        "tags": [
+          "app mobile"
+        ],
+        "summary": "Topup",
+        "description": "Credito na carteira pre-paga.\n\nNa integracao real, o credito so entra depois do webhook do PSP confirmar -\nesta rota representa o passo final desse fluxo.\n\nA chave de idempotencia e' opcional no contrato, mas o app sempre manda: sem\nela, dois toques no botao viram dois creditos.",
+        "operationId": "topup_api_v1_app_wallet_topup_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WalletTopUpIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Topup Api V1 App Wallet Topup Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
       }
     },
     "/api/v1/app/charge-points/{charge_point_id}/when-to-start": {
@@ -4609,8 +5323,8 @@
             "required": false,
             "schema": {
               "type": "number",
-              "maximum": 200.0,
-              "exclusiveMinimum": 0.0,
+              "maximum": 200,
+              "exclusiveMinimum": 0,
               "default": 30.0,
               "title": "Kwh"
             }
@@ -4635,6 +5349,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "additionalProperties": true,
                   "title": "Response When To Start Api V1 App Charge Points  Charge Point Id  When To Start Get"
                 }
               }
@@ -4766,6 +5481,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "additionalProperties": true,
                   "title": "Response Invoice Receipt Api V1 App Invoices  Invoice Id  Receipt Get"
                 }
               }
@@ -4875,6 +5591,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "additionalProperties": true,
                   "title": "Response Report Problem Api V1 App Charge Points  Charge Point Id  Reports Post"
                 }
               }
@@ -4924,7 +5641,8 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "type": "object"
+                    "type": "object",
+                    "additionalProperties": true
                   },
                   "title": "Response My Reports For Point Api V1 App Charge Points  Charge Point Id  Reports Get"
                 }
@@ -4978,6 +5696,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "additionalProperties": true,
                   "title": "Response Fleet Report Api V1 App Fleet Report Get"
                 }
               }
@@ -5011,6 +5730,7 @@
               "application/json": {
                 "schema": {
                   "items": {
+                    "additionalProperties": true,
                     "type": "object"
                   },
                   "type": "array",
@@ -5069,369 +5789,8 @@
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "additionalProperties": true,
                   "title": "Response Set Cost Center Api V1 App Fleet Vehicles  Vehicle Id  Cost Center Put"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/campaigns/fleets": {
-      "get": {
-        "tags": [
-          "campanhas"
-        ],
-        "summary": "Frotas",
-        "description": "As frotas as quais uma campanha pode ser dirigida.\n\nFica sob `/campaigns` porque e' isto que ela serve: preencher o seletor do\nformulario. Uma rota `/fleets` de proposito geral prometeria administracao\nde frota, que nao existe neste painel.\n\nID E NOME, e mais nada. `Fleet` tem CNPJ e e-mail de cobranca, e o operador\nde uma praca nao precisa de nenhum dos dois para dirigir uma campanha - sao\ndados comerciais de uma empresa que nao e' cliente dele.\n\nSem escopo por site, e isso e' deliberado: frota nao pertence a praca\nnenhuma. Dirigir uma campanha a uma frota nao custa nada a ela - quem paga\ncontinua sendo o estabelecimento ou a rede, pelo tipo de beneficio -, entao\nnao ha o que proteger aqui alem do dado pessoal, que ja ficou de fora.",
-        "operationId": "frotas_api_v1_campaigns_fleets_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/FrotaOut"
-                  },
-                  "type": "array",
-                  "title": "Response Frotas Api V1 Campaigns Fleets Get"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/campaigns": {
-      "get": {
-        "tags": [
-          "campanhas"
-        ],
-        "summary": "Listar",
-        "operationId": "listar_api_v1_campaigns_get",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "site_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "admin: escolhe o site da rede",
-              "title": "Site Id"
-            },
-            "description": "admin: escolhe o site da rede"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CampanhaOut"
-                  },
-                  "title": "Response Listar Api V1 Campaigns Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "campanhas"
-        ],
-        "summary": "Criar",
-        "operationId": "criar_api_v1_campaigns_post",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "site_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "admin: escolhe o site da rede",
-              "title": "Site Id"
-            },
-            "description": "admin: escolhe o site da rede"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CampanhaIn"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CampanhaOut"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/campaigns/{campanha_id}": {
-      "patch": {
-        "tags": [
-          "campanhas"
-        ],
-        "summary": "Atualizar",
-        "operationId": "atualizar_api_v1_campaigns__campanha_id__patch",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "campanha_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Campanha Id"
-            }
-          },
-          {
-            "name": "site_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "admin: escolhe o site da rede",
-              "title": "Site Id"
-            },
-            "description": "admin: escolhe o site da rede"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": true,
-                "title": "Payload"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CampanhaOut"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "campanhas"
-        ],
-        "summary": "Encerrar",
-        "description": "Encerra a campanha. NAO apaga.\n\nApagar levaria junto o progresso de quem estava no meio dela, e o RESTRICT em\n`rewards.campaign_id` recusaria a exclusao assim que a primeira recompensa\ntivesse sido concedida - com um erro de banco que ninguem sabe ler. Desativar\ne' o que o operador quer dizer com \"encerrar\", e preserva o rastro.",
-        "operationId": "encerrar_api_v1_campaigns__campanha_id__delete",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "campanha_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Campanha Id"
-            }
-          },
-          {
-            "name": "site_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "admin: escolhe o site da rede",
-              "title": "Site Id"
-            },
-            "description": "admin: escolhe o site da rede"
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/campaigns/{campanha_id}/desempenho": {
-      "get": {
-        "tags": [
-          "campanhas"
-        ],
-        "summary": "Desempenho",
-        "operationId": "desempenho_api_v1_campaigns__campanha_id__desempenho_get",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "campanha_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Campanha Id"
-            }
-          },
-          {
-            "name": "site_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "admin: escolhe o site da rede",
-              "title": "Site Id"
-            },
-            "description": "admin: escolhe o site da rede"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DesempenhoOut"
                 }
               }
             }
@@ -5509,66 +5868,6 @@
             "OAuth2PasswordBearer": []
           }
         ]
-      }
-    },
-    "/api/v1/power/demand/energy-forecast": {
-      "get": {
-        "tags": [
-          "recarga ev · potência"
-        ],
-        "summary": "Demand Energy Forecast",
-        "description": "Quanto este site deve VENDER no proximo mes, em kWh e em reais.\n\nA aba ja responde \"quanto vou puxar\" - kW, contrato, custo evitado. Isto\nresponde \"quanto vou vender\", e as duas alimentam a MESMA decisao: quanta\ndemanda contratar. Por isso mora aqui e nao numa aba propria.\n\nA API so' LE: quem escreve e' o job de `apps/forecast`, que roda fora do\nprocesso da API. Sem linha para a competencia, a resposta e' `disponivel:\nfalse` - e a tela diz que nao ha previsao, em vez de inventar um numero.\n\nSeguranca: filtra por `site_id` do escopo, que para operador comum e' sempre\no site dele, independentemente do que a query pedir.",
-        "operationId": "demand_energy_forecast_api_v1_power_demand_energy_forecast_get",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "site_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "admin: escolhe o site da rede",
-              "title": "Site Id"
-            },
-            "description": "admin: escolhe o site da rede"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Demand Energy Forecast Api V1 Power Demand Energy Forecast Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
       }
     },
     "/api/v1/app/plans": {
@@ -5698,279 +5997,51 @@
           }
         ]
       }
-    },
-    "/api/v1/platform/plans": {
-      "get": {
-        "tags": [
-          "plataforma"
-        ],
-        "summary": "Planos",
-        "description": "O que a GoodWe vende. Escopo de rede.",
-        "operationId": "planos_api_v1_platform_plans_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
-                  "type": "array",
-                  "title": "Response Planos Api V1 Platform Plans Get"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ]
-      }
-    },
-    "/api/v1/platform/contract": {
-      "get": {
-        "tags": [
-          "plataforma"
-        ],
-        "summary": "Contrato",
-        "description": "Contrato desta praca, com as ultimas cobrancas.\n\nSeguranca: `site_id` vem do escopo, que para operador comum e' sempre o site\ndele - trocar o parametro na URL nao mostra o contrato do vizinho.",
-        "operationId": "contrato_api_v1_platform_contract_get",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "site_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "admin: escolhe o site da rede",
-              "title": "Site Id"
-            },
-            "description": "admin: escolhe o site da rede"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "title": "Response Contrato Api V1 Platform Contract Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "plataforma"
-        ],
-        "summary": "Contratar",
-        "operationId": "contratar_api_v1_platform_contract_post",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "site_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "admin: escolhe o site da rede",
-              "title": "Site Id"
-            },
-            "description": "admin: escolhe o site da rede"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "title": "Payload"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "title": "Response Contratar Api V1 Platform Contract Post"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/platform/contract/terminate": {
-      "post": {
-        "tags": [
-          "plataforma"
-        ],
-        "summary": "Rescindir",
-        "description": "Pede a rescisao. Dentro do prazo minimo, emite a multa junto.\n\nNao e' DELETE: nao apaga nem encerra no ato. O contrato corre ate o fim do\nciclo ja cobrado, e a resposta diz ate quando e quanto custa.",
-        "operationId": "rescindir_api_v1_platform_contract_terminate_post",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "site_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "admin: escolhe o site da rede",
-              "title": "Site Id"
-            },
-            "description": "admin: escolhe o site da rede"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Rescindir Api V1 Platform Contract Terminate Post"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/platform/invoices/{cobranca_id}/settle": {
-      "post": {
-        "tags": [
-          "plataforma"
-        ],
-        "summary": "Dar Baixa",
-        "description": "Baixa MANUAL, e so' de admin.\n\nNao ha integracao bancaria: a cobranca nasce aberta e alguem da rede confirma\no recebimento. Deixar o proprio estabelecimento declarar que pagou nao seria\nbaixa manual, seria baixa nenhuma.",
-        "operationId": "dar_baixa_api_v1_platform_invoices__cobranca_id__settle_post",
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "cobranca_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Cobranca Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Dar Baixa Api V1 Platform Invoices  Cobranca Id  Settle Post"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
     }
   },
   "components": {
     "schemas": {
+      "AjusteDeCarteiraIn": {
+        "properties": {
+          "valor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,13}0*$)\\d{0,10}\\.\\d{0,2}0*$)"
+              }
+            ],
+            "title": "Valor"
+          },
+          "motivo": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 3,
+            "title": "Motivo"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idempotency Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "valor",
+          "motivo"
+        ],
+        "title": "AjusteDeCarteiraIn",
+        "description": "Correcao manual de saldo.\n\n`valor` sem piso nem teto de sinal: correcao existe nos dois sentidos, e um\ncredito lancado por engano precisa poder ser desfeito. O que o servico\nrecusa e' zero - ajuste de nada nao corrige nada - e deixar o saldo\nnegativo.\n\n`motivo` e' obrigatorio AQUI e no banco. Duas guardas para a mesma coisa\nporque as duas respondem perguntas diferentes: esta devolve 422 legivel a\nquem chamou, e o CHECK garante que nenhum caminho futuro escape dela."
+      },
       "AllocationOut": {
         "properties": {
           "charge_point_id": {
@@ -6029,6 +6100,245 @@
           "operator"
         ],
         "title": "AuthMethod"
+      },
+      "CampanhaIn": {
+        "properties": {
+          "nome": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "Nome"
+          },
+          "descricao": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descricao"
+          },
+          "patrocinador": {
+            "type": "string",
+            "title": "Patrocinador",
+            "default": "rede"
+          },
+          "fleet_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fleet Id"
+          },
+          "starts_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Starts At"
+          },
+          "ends_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ends At"
+          },
+          "ativa": {
+            "type": "boolean",
+            "title": "Ativa",
+            "default": true
+          },
+          "beneficio_tipo": {
+            "type": "string",
+            "title": "Beneficio Tipo"
+          },
+          "beneficio_valor": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Beneficio Valor"
+          },
+          "teto_por_recompensa": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Teto Por Recompensa"
+          },
+          "orcamento_brl": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Orcamento Brl",
+            "default": 0
+          },
+          "limite_por_motorista": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limite Por Motorista"
+          },
+          "missoes": {
+            "items": {
+              "$ref": "#/components/schemas/MissaoIn"
+            },
+            "type": "array",
+            "title": "Missoes",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "nome",
+          "starts_at",
+          "ends_at",
+          "beneficio_tipo",
+          "beneficio_valor"
+        ],
+        "title": "CampanhaIn"
+      },
+      "CampanhaOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "nome": {
+            "type": "string",
+            "title": "Nome"
+          },
+          "descricao": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descricao"
+          },
+          "patrocinador": {
+            "type": "string",
+            "title": "Patrocinador"
+          },
+          "site_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site Id"
+          },
+          "fleet_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fleet Id"
+          },
+          "starts_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Starts At"
+          },
+          "ends_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ends At"
+          },
+          "ativa": {
+            "type": "boolean",
+            "title": "Ativa"
+          },
+          "beneficio_tipo": {
+            "type": "string",
+            "title": "Beneficio Tipo"
+          },
+          "beneficio_valor": {
+            "type": "number",
+            "title": "Beneficio Valor"
+          },
+          "teto_por_recompensa": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Teto Por Recompensa"
+          },
+          "orcamento_brl": {
+            "type": "number",
+            "title": "Orcamento Brl"
+          },
+          "consumido_brl": {
+            "type": "number",
+            "title": "Consumido Brl"
+          },
+          "limite_por_motorista": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limite Por Motorista"
+          },
+          "missoes": {
+            "items": {
+              "$ref": "#/components/schemas/MissaoOut"
+            },
+            "type": "array",
+            "title": "Missoes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "nome",
+          "descricao",
+          "patrocinador",
+          "site_id",
+          "fleet_id",
+          "starts_at",
+          "ends_at",
+          "ativa",
+          "beneficio_tipo",
+          "beneficio_valor",
+          "teto_por_recompensa",
+          "orcamento_brl",
+          "consumido_brl",
+          "limite_por_motorista"
+        ],
+        "title": "CampanhaOut",
+        "description": "Visao do operador: inclui o dinheiro."
       },
       "CentroDeCustoIn": {
         "properties": {
@@ -6389,6 +6699,81 @@
         ],
         "title": "ConnectorType"
       },
+      "DesempenhoOut": {
+        "properties": {
+          "campanha_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Campanha Id"
+          },
+          "nome": {
+            "type": "string",
+            "title": "Nome"
+          },
+          "motoristas_alcancados": {
+            "type": "integer",
+            "title": "Motoristas Alcancados"
+          },
+          "missoes_concluidas": {
+            "type": "integer",
+            "title": "Missoes Concluidas"
+          },
+          "recompensas_creditadas": {
+            "type": "integer",
+            "title": "Recompensas Creditadas"
+          },
+          "consumido_brl": {
+            "type": "number",
+            "title": "Consumido Brl"
+          },
+          "orcamento_brl": {
+            "type": "number",
+            "title": "Orcamento Brl"
+          },
+          "orcamento_disponivel": {
+            "type": "number",
+            "title": "Orcamento Disponivel"
+          },
+          "percentual_consumido": {
+            "type": "number",
+            "title": "Percentual Consumido"
+          }
+        },
+        "type": "object",
+        "required": [
+          "campanha_id",
+          "nome",
+          "motoristas_alcancados",
+          "missoes_concluidas",
+          "recompensas_creditadas",
+          "consumido_brl",
+          "orcamento_brl",
+          "orcamento_disponivel",
+          "percentual_consumido"
+        ],
+        "title": "DesempenhoOut",
+        "description": "O que o operador precisa para decidir se a campanha vale.\n\nSem `motoristas_alcancados` e `concluidas`, \"consumido_brl\" sozinho nao diz\nse o dinheiro comprou comportamento ou so' saiu do caixa."
+      },
+      "FrotaOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "nome": {
+            "type": "string",
+            "title": "Nome"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "nome"
+        ],
+        "title": "FrotaOut",
+        "description": "So' o que o seletor de campanha precisa.\n\n`Fleet` tem `document` (CNPJ) e `billing_email`; nenhum dos dois entra aqui.\nUm operador de praca dirige campanha a uma frota sem nunca precisar do\ncadastro dela, e um campo exposto \"porque estava no modelo\" e' dado pessoal\nde terceiro viajando de graca."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -6647,6 +7032,222 @@
         "type": "object",
         "title": "MeterReadingIn",
         "description": "Leitura do smart meter do site (inversor GoodWe, medidor MID ou gateway)."
+      },
+      "MissaoDoMotoristaOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "codigo": {
+            "type": "string",
+            "title": "Codigo"
+          },
+          "titulo": {
+            "type": "string",
+            "title": "Titulo"
+          },
+          "descricao": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descricao"
+          },
+          "metrica": {
+            "type": "string",
+            "title": "Metrica"
+          },
+          "alvo": {
+            "type": "number",
+            "title": "Alvo"
+          },
+          "janela": {
+            "type": "string",
+            "title": "Janela"
+          },
+          "progresso": {
+            "type": "number",
+            "title": "Progresso"
+          },
+          "concluida": {
+            "type": "boolean",
+            "title": "Concluida"
+          },
+          "concluida_em": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Concluida Em"
+          },
+          "periodo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Periodo"
+          },
+          "campanha": {
+            "type": "string",
+            "title": "Campanha"
+          },
+          "recompensa": {
+            "type": "string",
+            "title": "Recompensa"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "codigo",
+          "titulo",
+          "descricao",
+          "metrica",
+          "alvo",
+          "janela",
+          "progresso",
+          "concluida",
+          "concluida_em",
+          "periodo",
+          "campanha",
+          "recompensa"
+        ],
+        "title": "MissaoDoMotoristaOut",
+        "description": "Visao do motorista: sem numero de orcamento.\n\nExpor `orcamento_brl` aqui vazaria a estrategia comercial do estabelecimento\npara quem carrega nele."
+      },
+      "MissaoIn": {
+        "properties": {
+          "codigo": {
+            "type": "string",
+            "maxLength": 40,
+            "title": "Codigo"
+          },
+          "titulo": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "Titulo"
+          },
+          "descricao": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descricao"
+          },
+          "metrica": {
+            "type": "string",
+            "title": "Metrica"
+          },
+          "alvo": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Alvo"
+          },
+          "janela": {
+            "type": "string",
+            "title": "Janela",
+            "default": "campanha"
+          },
+          "ordem": {
+            "type": "integer",
+            "title": "Ordem",
+            "default": 0
+          },
+          "repetivel": {
+            "type": "boolean",
+            "title": "Repetivel",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "codigo",
+          "titulo",
+          "metrica",
+          "alvo"
+        ],
+        "title": "MissaoIn"
+      },
+      "MissaoOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "codigo": {
+            "type": "string",
+            "title": "Codigo"
+          },
+          "titulo": {
+            "type": "string",
+            "title": "Titulo"
+          },
+          "descricao": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descricao"
+          },
+          "metrica": {
+            "type": "string",
+            "title": "Metrica"
+          },
+          "alvo": {
+            "type": "number",
+            "title": "Alvo"
+          },
+          "janela": {
+            "type": "string",
+            "title": "Janela"
+          },
+          "ordem": {
+            "type": "integer",
+            "title": "Ordem"
+          },
+          "repetivel": {
+            "type": "boolean",
+            "title": "Repetivel"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "codigo",
+          "titulo",
+          "descricao",
+          "metrica",
+          "alvo",
+          "janela",
+          "ordem",
+          "repetivel"
+        ],
+        "title": "MissaoOut"
       },
       "Page_InvoiceOut_": {
         "properties": {
@@ -7336,6 +7937,11 @@
             "type": "number",
             "title": "Subtotal"
           },
+          "desconto": {
+            "type": "number",
+            "title": "Desconto",
+            "default": 0
+          },
           "total": {
             "type": "number",
             "title": "Total"
@@ -7360,6 +7966,7 @@
             "title": "Lines"
           },
           "tariff_snapshot": {
+            "additionalProperties": true,
             "type": "object",
             "title": "Tariff Snapshot",
             "default": {}
@@ -7376,6 +7983,46 @@
         ],
         "title": "RatingOut"
       },
+      "RecompensaOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "campanha": {
+            "type": "string",
+            "title": "Campanha"
+          },
+          "valor_brl": {
+            "type": "number",
+            "title": "Valor Brl"
+          },
+          "estado": {
+            "type": "string",
+            "title": "Estado"
+          },
+          "tipo": {
+            "type": "string",
+            "title": "Tipo"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "campanha",
+          "valor_brl",
+          "estado",
+          "tipo",
+          "created_at"
+        ],
+        "title": "RecompensaOut"
+      },
       "RefreshRequest": {
         "properties": {
           "refresh_token": {
@@ -7388,6 +8035,56 @@
           "refresh_token"
         ],
         "title": "RefreshRequest"
+      },
+      "RegistroPublicoIn": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "full_name": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 2,
+            "title": "Full Name"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "title": "Password"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "document": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "full_name",
+          "password"
+        ],
+        "title": "RegistroPublicoIn",
+        "description": "Cadastro pelo app do motorista. Rota PUBLICA, sem token.\n\nNAO tem `role` nem `site_id`, e a ausencia dos dois e' a regra de seguranca -\nnao esquecimento. A rota fixa `role=\"driver\"` no corpo da funcao, entao\naceita-los aqui esta' seguro HOJE por causa de como a funcao foi escrita, e\nnao por causa do contrato. No dia em que alguem trocar a construcao\nexplicita por `User(**payload.model_dump())` - que e' o idioma usado em\n`mobile.py:538` e `power.py:454` - vira escalacao de privilegio silenciosa:\nqualquer pessoa na internet criaria um admin.\n\nQuem cria operador e admin e' o admin da rede, por rota propria e\nautenticada."
       },
       "ReporteIn": {
         "properties": {
@@ -7593,6 +8290,22 @@
           "expired"
         ],
         "title": "ReservationStatus"
+      },
+      "ResolucaoIn": {
+        "properties": {
+          "resolucao": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Resolucao"
+          }
+        },
+        "type": "object",
+        "required": [
+          "resolucao"
+        ],
+        "title": "ResolucaoIn",
+        "description": "O que foi feito para fechar o reporte.\n\nObrigatorio, com piso de tamanho: \"ok\" nao explica nada ao proximo\nmotorista que reportar o mesmo cabo, nem ao relatorio de manutencao."
       },
       "RevenueSummary": {
         "properties": {
@@ -7974,6 +8687,7 @@
             "title": "Message"
           },
           "payload": {
+            "additionalProperties": true,
             "type": "object",
             "title": "Payload"
           }
@@ -9059,56 +9773,6 @@
         ],
         "title": "TokenPair"
       },
-      "RegistroPublicoIn": {
-        "properties": {
-          "email": {
-            "type": "string",
-            "format": "email",
-            "title": "Email"
-          },
-          "full_name": {
-            "type": "string",
-            "maxLength": 160,
-            "minLength": 2,
-            "title": "Full Name"
-          },
-          "password": {
-            "type": "string",
-            "minLength": 8,
-            "title": "Password"
-          },
-          "phone": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Phone"
-          },
-          "document": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Document"
-          }
-        },
-        "type": "object",
-        "required": [
-          "email",
-          "full_name",
-          "password"
-        ],
-        "title": "RegistroPublicoIn",
-        "description": "Cadastro pelo app do motorista. Rota PUBLICA, sem token.\n\nNAO tem `role` nem `site_id`, e a ausencia dos dois e' a regra de seguranca -\nnao esquecimento. A rota fixa `role=\"driver\"` no corpo da funcao, entao\naceita-los aqui esta' seguro HOJE por causa de como a funcao foi escrita, e\nnao por causa do contrato. No dia em que alguem trocar a construcao\nexplicita por `User(**payload.model_dump())` - que e' o idioma usado em\n`mobile.py:538` e `power.py:454` - vira escalacao de privilegio silenciosa:\nqualquer pessoa na internet criaria um admin.\n\nQuem cria operador e admin e' o admin da rede, por rota propria e\nautenticada."
-      },
       "UserOut": {
         "properties": {
           "id": {
@@ -9240,6 +9904,13 @@
           "type": {
             "type": "string",
             "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
           }
         },
         "type": "object",
@@ -9462,7 +10133,8 @@
                 "exclusiveMinimum": 0.0
               },
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,13}0*$)\\d{0,10}\\.\\d{0,2}0*$)"
               }
             ],
             "title": "Amount"
@@ -9486,632 +10158,6 @@
         ],
         "title": "WalletTopUpIn",
         "description": "Corpo do credito na carteira.\n\nO valor era um parametro de query, e float. Dinheiro nao anda na URL - ela\nvaza para log de servidor, historico e referer - e todo o resto do dominio\nusa Decimal. Aqui ele volta a ser Decimal, com duas casas."
-      },
-      "CampanhaIn": {
-        "properties": {
-          "nome": {
-            "type": "string",
-            "maxLength": 120,
-            "title": "Nome"
-          },
-          "descricao": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Descricao"
-          },
-          "patrocinador": {
-            "type": "string",
-            "title": "Patrocinador",
-            "default": "rede"
-          },
-          "fleet_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fleet Id"
-          },
-          "starts_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Starts At"
-          },
-          "ends_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Ends At"
-          },
-          "ativa": {
-            "type": "boolean",
-            "title": "Ativa",
-            "default": true
-          },
-          "beneficio_tipo": {
-            "type": "string",
-            "title": "Beneficio Tipo"
-          },
-          "beneficio_valor": {
-            "type": "number",
-            "exclusiveMinimum": 0.0,
-            "title": "Beneficio Valor"
-          },
-          "teto_por_recompensa": {
-            "anyOf": [
-              {
-                "type": "number",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Teto Por Recompensa"
-          },
-          "orcamento_brl": {
-            "type": "number",
-            "minimum": 0.0,
-            "title": "Orcamento Brl",
-            "default": 0
-          },
-          "limite_por_motorista": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Limite Por Motorista"
-          },
-          "missoes": {
-            "items": {
-              "$ref": "#/components/schemas/MissaoIn"
-            },
-            "type": "array",
-            "title": "Missoes",
-            "default": []
-          }
-        },
-        "type": "object",
-        "required": [
-          "nome",
-          "starts_at",
-          "ends_at",
-          "beneficio_tipo",
-          "beneficio_valor"
-        ],
-        "title": "CampanhaIn"
-      },
-      "CampanhaOut": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Id"
-          },
-          "nome": {
-            "type": "string",
-            "title": "Nome"
-          },
-          "descricao": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Descricao"
-          },
-          "patrocinador": {
-            "type": "string",
-            "title": "Patrocinador"
-          },
-          "site_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Site Id"
-          },
-          "fleet_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fleet Id"
-          },
-          "starts_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Starts At"
-          },
-          "ends_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Ends At"
-          },
-          "ativa": {
-            "type": "boolean",
-            "title": "Ativa"
-          },
-          "beneficio_tipo": {
-            "type": "string",
-            "title": "Beneficio Tipo"
-          },
-          "beneficio_valor": {
-            "type": "number",
-            "title": "Beneficio Valor"
-          },
-          "teto_por_recompensa": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Teto Por Recompensa"
-          },
-          "orcamento_brl": {
-            "type": "number",
-            "title": "Orcamento Brl"
-          },
-          "consumido_brl": {
-            "type": "number",
-            "title": "Consumido Brl"
-          },
-          "limite_por_motorista": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Limite Por Motorista"
-          },
-          "missoes": {
-            "items": {
-              "$ref": "#/components/schemas/MissaoOut"
-            },
-            "type": "array",
-            "title": "Missoes"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "nome",
-          "descricao",
-          "patrocinador",
-          "site_id",
-          "fleet_id",
-          "starts_at",
-          "ends_at",
-          "ativa",
-          "beneficio_tipo",
-          "beneficio_valor",
-          "teto_por_recompensa",
-          "orcamento_brl",
-          "consumido_brl",
-          "limite_por_motorista"
-        ],
-        "title": "CampanhaOut",
-        "description": "Visao do operador: inclui o dinheiro."
-      },
-      "DesempenhoOut": {
-        "properties": {
-          "campanha_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Campanha Id"
-          },
-          "nome": {
-            "type": "string",
-            "title": "Nome"
-          },
-          "motoristas_alcancados": {
-            "type": "integer",
-            "title": "Motoristas Alcancados"
-          },
-          "missoes_concluidas": {
-            "type": "integer",
-            "title": "Missoes Concluidas"
-          },
-          "recompensas_creditadas": {
-            "type": "integer",
-            "title": "Recompensas Creditadas"
-          },
-          "consumido_brl": {
-            "type": "number",
-            "title": "Consumido Brl"
-          },
-          "orcamento_brl": {
-            "type": "number",
-            "title": "Orcamento Brl"
-          },
-          "orcamento_disponivel": {
-            "type": "number",
-            "title": "Orcamento Disponivel"
-          },
-          "percentual_consumido": {
-            "type": "number",
-            "title": "Percentual Consumido"
-          }
-        },
-        "type": "object",
-        "required": [
-          "campanha_id",
-          "nome",
-          "motoristas_alcancados",
-          "missoes_concluidas",
-          "recompensas_creditadas",
-          "consumido_brl",
-          "orcamento_brl",
-          "orcamento_disponivel",
-          "percentual_consumido"
-        ],
-        "title": "DesempenhoOut",
-        "description": "O que o operador precisa para decidir se a campanha vale.\n\nSem `motoristas_alcancados` e `concluidas`, \"consumido_brl\" sozinho nao diz\nse o dinheiro comprou comportamento ou so' saiu do caixa."
-      },
-      "MissaoDoMotoristaOut": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Id"
-          },
-          "codigo": {
-            "type": "string",
-            "title": "Codigo"
-          },
-          "titulo": {
-            "type": "string",
-            "title": "Titulo"
-          },
-          "descricao": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Descricao"
-          },
-          "metrica": {
-            "type": "string",
-            "title": "Metrica"
-          },
-          "alvo": {
-            "type": "number",
-            "title": "Alvo"
-          },
-          "janela": {
-            "type": "string",
-            "title": "Janela"
-          },
-          "progresso": {
-            "type": "number",
-            "title": "Progresso"
-          },
-          "concluida": {
-            "type": "boolean",
-            "title": "Concluida"
-          },
-          "concluida_em": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Concluida Em"
-          },
-          "periodo": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Periodo"
-          },
-          "campanha": {
-            "type": "string",
-            "title": "Campanha"
-          },
-          "recompensa": {
-            "type": "string",
-            "title": "Recompensa"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "codigo",
-          "titulo",
-          "descricao",
-          "metrica",
-          "alvo",
-          "janela",
-          "progresso",
-          "concluida",
-          "concluida_em",
-          "periodo",
-          "campanha",
-          "recompensa"
-        ],
-        "title": "MissaoDoMotoristaOut",
-        "description": "Visao do motorista: sem numero de orcamento.\n\nExpor `orcamento_brl` aqui vazaria a estrategia comercial do estabelecimento\npara quem carrega nele."
-      },
-      "MissaoIn": {
-        "properties": {
-          "codigo": {
-            "type": "string",
-            "maxLength": 40,
-            "title": "Codigo"
-          },
-          "titulo": {
-            "type": "string",
-            "maxLength": 120,
-            "title": "Titulo"
-          },
-          "descricao": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Descricao"
-          },
-          "metrica": {
-            "type": "string",
-            "title": "Metrica"
-          },
-          "alvo": {
-            "type": "number",
-            "exclusiveMinimum": 0.0,
-            "title": "Alvo"
-          },
-          "janela": {
-            "type": "string",
-            "title": "Janela",
-            "default": "campanha"
-          },
-          "ordem": {
-            "type": "integer",
-            "title": "Ordem",
-            "default": 0
-          },
-          "repetivel": {
-            "type": "boolean",
-            "title": "Repetivel",
-            "default": false
-          }
-        },
-        "type": "object",
-        "required": [
-          "codigo",
-          "titulo",
-          "metrica",
-          "alvo"
-        ],
-        "title": "MissaoIn"
-      },
-      "MissaoOut": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Id"
-          },
-          "codigo": {
-            "type": "string",
-            "title": "Codigo"
-          },
-          "titulo": {
-            "type": "string",
-            "title": "Titulo"
-          },
-          "descricao": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Descricao"
-          },
-          "metrica": {
-            "type": "string",
-            "title": "Metrica"
-          },
-          "alvo": {
-            "type": "number",
-            "title": "Alvo"
-          },
-          "janela": {
-            "type": "string",
-            "title": "Janela"
-          },
-          "ordem": {
-            "type": "integer",
-            "title": "Ordem"
-          },
-          "repetivel": {
-            "type": "boolean",
-            "title": "Repetivel"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "codigo",
-          "titulo",
-          "descricao",
-          "metrica",
-          "alvo",
-          "janela",
-          "ordem",
-          "repetivel"
-        ],
-        "title": "MissaoOut"
-      },
-      "RecompensaOut": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Id"
-          },
-          "campanha": {
-            "type": "string",
-            "title": "Campanha"
-          },
-          "valor_brl": {
-            "type": "number",
-            "title": "Valor Brl"
-          },
-          "estado": {
-            "type": "string",
-            "title": "Estado"
-          },
-          "tipo": {
-            "type": "string",
-            "title": "Tipo"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "campanha",
-          "valor_brl",
-          "estado",
-          "tipo",
-          "created_at"
-        ],
-        "title": "RecompensaOut"
-      },
-      "FrotaOut": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Id"
-          },
-          "nome": {
-            "type": "string",
-            "title": "Nome"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "nome"
-        ],
-        "title": "FrotaOut",
-        "description": "So' o que o seletor de campanha precisa.\n\n`Fleet` tem `document` (CNPJ) e `billing_email`; nenhum dos dois entra aqui.\nUm operador de praca dirige campanha a uma frota sem nunca precisar do\ncadastro dela, e um campo exposto \"porque estava no modelo\" e' dado pessoal\nde terceiro viajando de graca."
-      },
-      "AjusteDeCarteiraIn": {
-        "properties": {
-          "valor": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string"
-              }
-            ],
-            "title": "Valor"
-          },
-          "motivo": {
-            "type": "string",
-            "maxLength": 200,
-            "minLength": 3,
-            "title": "Motivo"
-          },
-          "idempotency_key": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 80
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Idempotency Key"
-          }
-        },
-        "type": "object",
-        "required": [
-          "valor",
-          "motivo"
-        ],
-        "title": "AjusteDeCarteiraIn",
-        "description": "Correcao manual de saldo.\n\n`valor` sem piso nem teto de sinal: correcao existe nos dois sentidos, e um\ncredito lancado por engano precisa poder ser desfeito. O que o servico\nrecusa e' zero - ajuste de nada nao corrige nada - e deixar o saldo\nnegativo.\n\n`motivo` e' obrigatorio AQUI e no banco. Duas guardas para a mesma coisa\nporque as duas respondem perguntas diferentes: esta devolve 422 legivel a\nquem chamou, e o CHECK garante que nenhum caminho futuro escape dela."
-      },
-      "ResolucaoIn": {
-        "properties": {
-          "resolucao": {
-            "type": "string",
-            "maxLength": 2000,
-            "minLength": 3,
-            "title": "Resolucao"
-          }
-        },
-        "type": "object",
-        "required": [
-          "resolucao"
-        ],
-        "title": "ResolucaoIn",
-        "description": "O que foi feito para fechar o reporte.\n\nObrigatorio, com piso de tamanho: \"ok\" nao explica nada ao proximo\nmotorista que reportar o mesmo cabo, nem ao relatorio de manutencao."
       }
     },
     "securitySchemes": {

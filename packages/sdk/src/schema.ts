@@ -555,6 +555,222 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/power/demand/energy-forecast": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Demand Energy Forecast
+         * @description Quanto este site deve VENDER no proximo mes, em kWh e em reais.
+         *
+         *     A aba ja responde "quanto vou puxar" - kW, contrato, custo evitado. Isto
+         *     responde "quanto vou vender", e as duas alimentam a MESMA decisao: quanta
+         *     demanda contratar. Por isso mora aqui e nao numa aba propria.
+         *
+         *     A API so' LE: quem escreve e' o job de `apps/forecast`, que roda fora do
+         *     processo da API. Sem linha para a competencia, a resposta e' `disponivel:
+         *     false` - e a tela diz que nao ha previsao, em vez de inventar um numero.
+         *
+         *     Seguranca: filtra por `site_id` do escopo, que para operador comum e' sempre
+         *     o site dele, independentemente do que a query pedir.
+         */
+        get: operations["demand_energy_forecast_api_v1_power_demand_energy_forecast_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns/fleets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Frotas
+         * @description As frotas as quais uma campanha pode ser dirigida.
+         *
+         *     Fica sob `/campaigns` porque e' isto que ela serve: preencher o seletor do
+         *     formulario. Uma rota `/fleets` de proposito geral prometeria administracao
+         *     de frota, que nao existe neste painel.
+         *
+         *     ID E NOME, e mais nada. `Fleet` tem CNPJ e e-mail de cobranca, e o operador
+         *     de uma praca nao precisa de nenhum dos dois para dirigir uma campanha - sao
+         *     dados comerciais de uma empresa que nao e' cliente dele.
+         *
+         *     Sem escopo por site, e isso e' deliberado: frota nao pertence a praca
+         *     nenhuma. Dirigir uma campanha a uma frota nao custa nada a ela - quem paga
+         *     continua sendo o estabelecimento ou a rede, pelo tipo de beneficio -, entao
+         *     nao ha o que proteger aqui alem do dado pessoal, que ja ficou de fora.
+         */
+        get: operations["frotas_api_v1_campaigns_fleets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Listar */
+        get: operations["listar_api_v1_campaigns_get"];
+        put?: never;
+        /** Criar */
+        post: operations["criar_api_v1_campaigns_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/campaigns/{campanha_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Encerrar
+         * @description Encerra a campanha. NAO apaga.
+         *
+         *     Apagar levaria junto o progresso de quem estava no meio dela, e o RESTRICT em
+         *     `rewards.campaign_id` recusaria a exclusao assim que a primeira recompensa
+         *     tivesse sido concedida - com um erro de banco que ninguem sabe ler. Desativar
+         *     e' o que o operador quer dizer com "encerrar", e preserva o rastro.
+         */
+        delete: operations["encerrar_api_v1_campaigns__campanha_id__delete"];
+        options?: never;
+        head?: never;
+        /** Atualizar */
+        patch: operations["atualizar_api_v1_campaigns__campanha_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/campaigns/{campanha_id}/desempenho": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Desempenho */
+        get: operations["desempenho_api_v1_campaigns__campanha_id__desempenho_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Planos
+         * @description O que a GoodWe vende. Escopo de rede.
+         */
+        get: operations["planos_api_v1_platform_plans_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/contract": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Contrato
+         * @description Contrato desta praca, com as ultimas cobrancas.
+         *
+         *     Seguranca: `site_id` vem do escopo, que para operador comum e' sempre o site
+         *     dele - trocar o parametro na URL nao mostra o contrato do vizinho.
+         */
+        get: operations["contrato_api_v1_platform_contract_get"];
+        put?: never;
+        /** Contratar */
+        post: operations["contratar_api_v1_platform_contract_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/contract/terminate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rescindir
+         * @description Pede a rescisao. Dentro do prazo minimo, emite a multa junto.
+         *
+         *     Nao e' DELETE: nao apaga nem encerra no ato. O contrato corre ate o fim do
+         *     ciclo ja cobrado, e a resposta diz ate quando e quanto custa.
+         */
+        post: operations["rescindir_api_v1_platform_contract_terminate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/platform/invoices/{cobranca_id}/settle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dar Baixa
+         * @description Baixa MANUAL, e so' de admin.
+         *
+         *     Nao ha integracao bancaria: a cobranca nasce aberta e alguem da rede confirma
+         *     o recebimento. Deixar o proprio estabelecimento declarar que pagou nao seria
+         *     baixa manual, seria baixa nenhuma.
+         */
+        post: operations["dar_baixa_api_v1_platform_invoices__cobranca_id__settle_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions": {
         parameters: {
             query?: never;
@@ -796,35 +1012,13 @@ export interface paths {
         /**
          * Upsert Payment Method
          * @description Habilita ou atualiza um metodo. Um por tipo por site.
+         *
+         *     AUDITADO, e e' o caso que exigiu mascara: `provider_config` carrega
+         *     `client_secret` e `webhook_secret`. Gravar o "antes e depois" cru escreveria
+         *     a credencial do PSP numa tabela feita para ser lida por gente - trocaria um
+         *     defeito por outro pior.
          */
         put: operations["upsert_payment_method_api_v1_payment_methods_put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/audit": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Audit Trail
-         * @description A trilha de auditoria. So' admin.
-         *
-         *     Existe porque trilha que ninguem consegue ler e' meio caminho do defeito que
-         *     ela veio consertar: o dado estaria no banco e a pergunta continuaria
-         *     dependendo de alguem com acesso a producao.
-         *
-         *     Admin porque a propria trilha e' informacao sensivel - ela diz quem mexeu em
-         *     que e de qual IP, e isso nao e' assunto de operador de praca.
-         */
-        get: operations["audit_trail_api_v1_audit_get"];
-        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -914,25 +1108,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/payments/webhook": {
+    "/api/v1/audit": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
-        put?: never;
         /**
-         * Payment Webhook
-         * @description Liquidacao assincrona do PSP. Assinatura HMAC obrigatoria.
+         * Audit Trail
+         * @description A trilha de auditoria. So' admin.
          *
-         *     Um POST pode trazer MAIS DE UM pagamento: o Pix notifica em lote, com uma
-         *     lista de recebimentos no mesmo corpo. Quem sabe desmontar isso e' o
-         *     provedor - a rota nao supoe a forma do corpo, e por isso a resposta e'
-         *     sempre `{"eventos": [...]}`, com um elemento no caso comum.
+         *     Existe porque trilha que ninguem consegue ler e' meio caminho do defeito que
+         *     ela veio consertar: o dado estaria no banco e a pergunta continuaria
+         *     dependendo de alguem com acesso a producao.
+         *
+         *     Admin porque a propria trilha e' informacao sensivel - ela diz quem mexeu em
+         *     que e de qual IP, e isso nao e' assunto de operador de praca.
          */
-        post: operations["payment_webhook_api_v1_payments_webhook_post"];
+        get: operations["audit_trail_api_v1_audit_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -960,6 +1156,31 @@ export interface paths {
          *     dinheiro de alguem tem de ver a linha que criou.
          */
         post: operations["adjust_wallet_api_v1_wallets__user_id__adjust_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payments/webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Payment Webhook
+         * @description Liquidacao assincrona do PSP. Assinatura HMAC obrigatoria.
+         *
+         *     Um POST pode trazer MAIS DE UM pagamento: o Pix notifica em lote, com uma
+         *     lista de recebimentos no mesmo corpo. Quem sabe desmontar isso e' o
+         *     provedor - a rota nao supoe a forma do corpo, e por isso a resposta e'
+         *     sempre `{"eventos": [...]}`, com um elemento no caso comum.
+         */
+        post: operations["payment_webhook_api_v1_payments_webhook_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1230,32 +1451,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/app/wallet/topup": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Topup
-         * @description Credito na carteira pre-paga.
-         *
-         *     Na integracao real, o credito so entra depois do webhook do PSP confirmar -
-         *     esta rota representa o passo final desse fluxo.
-         *
-         *     A chave de idempotencia e' opcional no contrato, mas o app sempre manda: sem
-         *     ela, dois toques no botao viram dois creditos.
-         */
-        post: operations["topup_api_v1_app_wallet_topup_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/app/wallet/statement": {
         parameters: {
             query?: never;
@@ -1277,6 +1472,32 @@ export interface paths {
         get: operations["wallet_statement_api_v1_app_wallet_statement_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/app/wallet/topup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Topup
+         * @description Credito na carteira pre-paga.
+         *
+         *     Na integracao real, o credito so entra depois do webhook do PSP confirmar -
+         *     esta rota representa o passo final desse fluxo.
+         *
+         *     A chave de idempotencia e' opcional no contrato, mas o app sempre manda: sem
+         *     ela, dois toques no botao viram dois creditos.
+         */
+        post: operations["topup_api_v1_app_wallet_topup_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1499,100 +1720,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/campaigns/fleets": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Frotas
-         * @description As frotas as quais uma campanha pode ser dirigida.
-         *
-         *     Fica sob `/campaigns` porque e' isto que ela serve: preencher o seletor do
-         *     formulario. Uma rota `/fleets` de proposito geral prometeria administracao
-         *     de frota, que nao existe neste painel.
-         *
-         *     ID E NOME, e mais nada. `Fleet` tem CNPJ e e-mail de cobranca, e o operador
-         *     de uma praca nao precisa de nenhum dos dois para dirigir uma campanha - sao
-         *     dados comerciais de uma empresa que nao e' cliente dele.
-         *
-         *     Sem escopo por site, e isso e' deliberado: frota nao pertence a praca
-         *     nenhuma. Dirigir uma campanha a uma frota nao custa nada a ela - quem paga
-         *     continua sendo o estabelecimento ou a rede, pelo tipo de beneficio -, entao
-         *     nao ha o que proteger aqui alem do dado pessoal, que ja ficou de fora.
-         */
-        get: operations["frotas_api_v1_campaigns_fleets_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/campaigns": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Listar */
-        get: operations["listar_api_v1_campaigns_get"];
-        put?: never;
-        /** Criar */
-        post: operations["criar_api_v1_campaigns_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/campaigns/{campanha_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Encerrar
-         * @description Encerra a campanha. NAO apaga.
-         *
-         *     Apagar levaria junto o progresso de quem estava no meio dela, e o RESTRICT em
-         *     `rewards.campaign_id` recusaria a exclusao assim que a primeira recompensa
-         *     tivesse sido concedida - com um erro de banco que ninguem sabe ler. Desativar
-         *     e' o que o operador quer dizer com "encerrar", e preserva o rastro.
-         */
-        delete: operations["encerrar_api_v1_campaigns__campanha_id__delete"];
-        options?: never;
-        head?: never;
-        /** Atualizar */
-        patch: operations["atualizar_api_v1_campaigns__campanha_id__patch"];
-        trace?: never;
-    };
-    "/api/v1/campaigns/{campanha_id}/desempenho": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Desempenho */
-        get: operations["desempenho_api_v1_campaigns__campanha_id__desempenho_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/app/missions": {
         parameters: {
             query?: never;
@@ -1628,37 +1755,6 @@ export interface paths {
          * @description Historico de recompensas, so' as de quem esta pedindo.
          */
         get: operations["minhas_recompensas_api_v1_app_rewards_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/power/demand/energy-forecast": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Demand Energy Forecast
-         * @description Quanto este site deve VENDER no proximo mes, em kWh e em reais.
-         *
-         *     A aba ja responde "quanto vou puxar" - kW, contrato, custo evitado. Isto
-         *     responde "quanto vou vender", e as duas alimentam a MESMA decisao: quanta
-         *     demanda contratar. Por isso mora aqui e nao numa aba propria.
-         *
-         *     A API so' LE: quem escreve e' o job de `apps/forecast`, que roda fora do
-         *     processo da API. Sem linha para a competencia, a resposta e' `disponivel:
-         *     false` - e a tela diz que nao ha previsao, em vez de inventar um numero.
-         *
-         *     Seguranca: filtra por `site_id` do escopo, que para operador comum e' sempre
-         *     o site dele, independentemente do que a query pedir.
-         */
-        get: operations["demand_energy_forecast_api_v1_power_demand_energy_forecast_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1718,101 +1814,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/platform/plans": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Planos
-         * @description O que a GoodWe vende. Escopo de rede.
-         */
-        get: operations["planos_api_v1_platform_plans_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/platform/contract": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Contrato
-         * @description Contrato desta praca, com as ultimas cobrancas.
-         *
-         *     Seguranca: `site_id` vem do escopo, que para operador comum e' sempre o site
-         *     dele - trocar o parametro na URL nao mostra o contrato do vizinho.
-         */
-        get: operations["contrato_api_v1_platform_contract_get"];
-        put?: never;
-        /** Contratar */
-        post: operations["contratar_api_v1_platform_contract_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/platform/contract/terminate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Rescindir
-         * @description Pede a rescisao. Dentro do prazo minimo, emite a multa junto.
-         *
-         *     Nao e' DELETE: nao apaga nem encerra no ato. O contrato corre ate o fim do
-         *     ciclo ja cobrado, e a resposta diz ate quando e quanto custa.
-         */
-        post: operations["rescindir_api_v1_platform_contract_terminate_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/platform/invoices/{cobranca_id}/settle": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Dar Baixa
-         * @description Baixa MANUAL, e so' de admin.
-         *
-         *     Nao ha integracao bancaria: a cobranca nasce aberta e alguem da rede confirma
-         *     o recebimento. Deixar o proprio estabelecimento declarar que pagou nao seria
-         *     baixa manual, seria baixa nenhuma.
-         */
-        post: operations["dar_baixa_api_v1_platform_invoices__cobranca_id__settle_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AjusteDeCarteiraIn
+         * @description Correcao manual de saldo.
+         *
+         *     `valor` sem piso nem teto de sinal: correcao existe nos dois sentidos, e um
+         *     credito lancado por engano precisa poder ser desfeito. O que o servico
+         *     recusa e' zero - ajuste de nada nao corrige nada - e deixar o saldo
+         *     negativo.
+         *
+         *     `motivo` e' obrigatorio AQUI e no banco. Duas guardas para a mesma coisa
+         *     porque as duas respondem perguntas diferentes: esta devolve 422 legivel a
+         *     quem chamou, e o CHECK garante que nenhum caminho futuro escape dela.
+         */
+        AjusteDeCarteiraIn: {
+            /** Valor */
+            valor: number | string;
+            /** Motivo */
+            motivo: string;
+            /** Idempotency Key */
+            idempotency_key?: string | null;
+        };
         /** AllocationOut */
         AllocationOut: {
             /** Charge Point Id */
@@ -1840,6 +1866,100 @@ export interface components {
          * @enum {string}
          */
         AuthMethod: "rfid" | "app" | "plug_and_charge" | "reservation" | "operator";
+        /** CampanhaIn */
+        CampanhaIn: {
+            /** Nome */
+            nome: string;
+            /** Descricao */
+            descricao?: string | null;
+            /**
+             * Patrocinador
+             * @default rede
+             */
+            patrocinador: string;
+            /** Fleet Id */
+            fleet_id?: string | null;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /**
+             * Ativa
+             * @default true
+             */
+            ativa: boolean;
+            /** Beneficio Tipo */
+            beneficio_tipo: string;
+            /** Beneficio Valor */
+            beneficio_valor: number;
+            /** Teto Por Recompensa */
+            teto_por_recompensa?: number | null;
+            /**
+             * Orcamento Brl
+             * @default 0
+             */
+            orcamento_brl: number;
+            /** Limite Por Motorista */
+            limite_por_motorista?: number | null;
+            /**
+             * Missoes
+             * @default []
+             */
+            missoes: components["schemas"]["MissaoIn"][];
+        };
+        /**
+         * CampanhaOut
+         * @description Visao do operador: inclui o dinheiro.
+         */
+        CampanhaOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Nome */
+            nome: string;
+            /** Descricao */
+            descricao: string | null;
+            /** Patrocinador */
+            patrocinador: string;
+            /** Site Id */
+            site_id: string | null;
+            /** Fleet Id */
+            fleet_id: string | null;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /** Ativa */
+            ativa: boolean;
+            /** Beneficio Tipo */
+            beneficio_tipo: string;
+            /** Beneficio Valor */
+            beneficio_valor: number;
+            /** Teto Por Recompensa */
+            teto_por_recompensa: number | null;
+            /** Orcamento Brl */
+            orcamento_brl: number;
+            /** Consumido Brl */
+            consumido_brl: number;
+            /** Limite Por Motorista */
+            limite_por_motorista: number | null;
+            /** Missoes */
+            missoes?: components["schemas"]["MissaoOut"][];
+        };
         /**
          * CentroDeCustoIn
          * @description Vazio ou so' espacos limpa o centro de custo do veiculo.
@@ -1960,6 +2080,54 @@ export interface components {
          * @enum {string}
          */
         ConnectorType: "Type 2" | "CCS2" | "CHAdeMO";
+        /**
+         * DesempenhoOut
+         * @description O que o operador precisa para decidir se a campanha vale.
+         *
+         *     Sem `motoristas_alcancados` e `concluidas`, "consumido_brl" sozinho nao diz
+         *     se o dinheiro comprou comportamento ou so' saiu do caixa.
+         */
+        DesempenhoOut: {
+            /**
+             * Campanha Id
+             * Format: uuid
+             */
+            campanha_id: string;
+            /** Nome */
+            nome: string;
+            /** Motoristas Alcancados */
+            motoristas_alcancados: number;
+            /** Missoes Concluidas */
+            missoes_concluidas: number;
+            /** Recompensas Creditadas */
+            recompensas_creditadas: number;
+            /** Consumido Brl */
+            consumido_brl: number;
+            /** Orcamento Brl */
+            orcamento_brl: number;
+            /** Orcamento Disponivel */
+            orcamento_disponivel: number;
+            /** Percentual Consumido */
+            percentual_consumido: number;
+        };
+        /**
+         * FrotaOut
+         * @description So' o que o seletor de campanha precisa.
+         *
+         *     `Fleet` tem `document` (CNPJ) e `billing_email`; nenhum dos dois entra aqui.
+         *     Um operador de praca dirige campanha a uma frota sem nunca precisar do
+         *     cadastro dela, e um campo exposto "porque estava no modelo" e' dado pessoal
+         *     de terceiro viajando de graca.
+         */
+        FrotaOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Nome */
+            nome: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -2075,6 +2243,96 @@ export interface components {
              * @default 0
              */
             ev_load_kw: number;
+        };
+        /**
+         * MissaoDoMotoristaOut
+         * @description Visao do motorista: sem numero de orcamento.
+         *
+         *     Expor `orcamento_brl` aqui vazaria a estrategia comercial do estabelecimento
+         *     para quem carrega nele.
+         */
+        MissaoDoMotoristaOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Codigo */
+            codigo: string;
+            /** Titulo */
+            titulo: string;
+            /** Descricao */
+            descricao: string | null;
+            /** Metrica */
+            metrica: string;
+            /** Alvo */
+            alvo: number;
+            /** Janela */
+            janela: string;
+            /** Progresso */
+            progresso: number;
+            /** Concluida */
+            concluida: boolean;
+            /** Concluida Em */
+            concluida_em: string | null;
+            /** Periodo */
+            periodo: string | null;
+            /** Campanha */
+            campanha: string;
+            /** Recompensa */
+            recompensa: string;
+        };
+        /** MissaoIn */
+        MissaoIn: {
+            /** Codigo */
+            codigo: string;
+            /** Titulo */
+            titulo: string;
+            /** Descricao */
+            descricao?: string | null;
+            /** Metrica */
+            metrica: string;
+            /** Alvo */
+            alvo: number;
+            /**
+             * Janela
+             * @default campanha
+             */
+            janela: string;
+            /**
+             * Ordem
+             * @default 0
+             */
+            ordem: number;
+            /**
+             * Repetivel
+             * @default false
+             */
+            repetivel: boolean;
+        };
+        /** MissaoOut */
+        MissaoOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Codigo */
+            codigo: string;
+            /** Titulo */
+            titulo: string;
+            /** Descricao */
+            descricao: string | null;
+            /** Metrica */
+            metrica: string;
+            /** Alvo */
+            alvo: number;
+            /** Janela */
+            janela: string;
+            /** Ordem */
+            ordem: number;
+            /** Repetivel */
+            repetivel: boolean;
         };
         /** Page[InvoiceOut] */
         Page_InvoiceOut_: {
@@ -2346,6 +2604,11 @@ export interface components {
         RatingOut: {
             /** Subtotal */
             subtotal: number;
+            /**
+             * Desconto
+             * @default 0
+             */
+            desconto: number;
             /** Total */
             total: number;
             /** Energy Kwh */
@@ -2360,12 +2623,65 @@ export interface components {
              * Tariff Snapshot
              * @default {}
              */
-            tariff_snapshot: Record<string, never>;
+            tariff_snapshot: {
+                [key: string]: unknown;
+            };
+        };
+        /** RecompensaOut */
+        RecompensaOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Campanha */
+            campanha: string;
+            /** Valor Brl */
+            valor_brl: number;
+            /** Estado */
+            estado: string;
+            /** Tipo */
+            tipo: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
         };
         /** RefreshRequest */
         RefreshRequest: {
             /** Refresh Token */
             refresh_token: string;
+        };
+        /**
+         * RegistroPublicoIn
+         * @description Cadastro pelo app do motorista. Rota PUBLICA, sem token.
+         *
+         *     NAO tem `role` nem `site_id`, e a ausencia dos dois e' a regra de seguranca -
+         *     nao esquecimento. A rota fixa `role="driver"` no corpo da funcao, entao
+         *     aceita-los aqui esta' seguro HOJE por causa de como a funcao foi escrita, e
+         *     nao por causa do contrato. No dia em que alguem trocar a construcao
+         *     explicita por `User(**payload.model_dump())` - que e' o idioma usado em
+         *     `mobile.py:538` e `power.py:454` - vira escalacao de privilegio silenciosa:
+         *     qualquer pessoa na internet criaria um admin.
+         *
+         *     Quem cria operador e admin e' o admin da rede, por rota propria e
+         *     autenticada.
+         */
+        RegistroPublicoIn: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+            /** Full Name */
+            full_name: string;
+            /** Password */
+            password: string;
+            /** Phone */
+            phone?: string | null;
+            /** Document */
+            document?: string | null;
         };
         /**
          * ReporteIn
@@ -2455,6 +2771,17 @@ export interface components {
          * @enum {string}
          */
         ReservationStatus: "pending" | "confirmed" | "consumed" | "cancelled" | "expired";
+        /**
+         * ResolucaoIn
+         * @description O que foi feito para fechar o reporte.
+         *
+         *     Obrigatorio, com piso de tamanho: "ok" nao explica nada ao proximo
+         *     motorista que reportar o mesmo cabo, nem ao relatorio de manutencao.
+         */
+        ResolucaoIn: {
+            /** Resolucao */
+            resolucao: string;
+        };
         /** RevenueSummary */
         RevenueSummary: {
             /** Gross */
@@ -2587,7 +2914,9 @@ export interface components {
             /** Message */
             message: string | null;
             /** Payload */
-            payload: Record<string, never>;
+            payload: {
+                [key: string]: unknown;
+            };
         };
         /** SessionKpis */
         SessionKpis: {
@@ -3035,36 +3364,6 @@ export interface components {
             /** Expires In */
             expires_in: number;
         };
-        /**
-         * RegistroPublicoIn
-         * @description Cadastro pelo app do motorista. Rota PUBLICA, sem token.
-         *
-         *     NAO tem `role` nem `site_id`, e a ausencia dos dois e' a regra de seguranca -
-         *     nao esquecimento. A rota fixa `role="driver"` no corpo da funcao, entao
-         *     aceita-los aqui esta' seguro HOJE por causa de como a funcao foi escrita, e
-         *     nao por causa do contrato. No dia em que alguem trocar a construcao
-         *     explicita por `User(**payload.model_dump())` - que e' o idioma usado em
-         *     `mobile.py:538` e `power.py:454` - vira escalacao de privilegio silenciosa:
-         *     qualquer pessoa na internet criaria um admin.
-         *
-         *     Quem cria operador e admin e' o admin da rede, por rota propria e
-         *     autenticada.
-         */
-        RegistroPublicoIn: {
-            /**
-             * Email
-             * Format: email
-             */
-            email: string;
-            /** Full Name */
-            full_name: string;
-            /** Password */
-            password: string;
-            /** Phone */
-            phone?: string | null;
-            /** Document */
-            document?: string | null;
-        };
         /** UserOut */
         UserOut: {
             /**
@@ -3116,6 +3415,10 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
         };
         /** VehicleCreate */
         VehicleCreate: {
@@ -3180,291 +3483,6 @@ export interface components {
             /** Idempotency Key */
             idempotency_key?: string | null;
         };
-        /** CampanhaIn */
-        CampanhaIn: {
-            /** Nome */
-            nome: string;
-            /** Descricao */
-            descricao?: string | null;
-            /**
-             * Patrocinador
-             * @default rede
-             */
-            patrocinador: string;
-            /** Fleet Id */
-            fleet_id?: string | null;
-            /**
-             * Starts At
-             * Format: date-time
-             */
-            starts_at: string;
-            /**
-             * Ends At
-             * Format: date-time
-             */
-            ends_at: string;
-            /**
-             * Ativa
-             * @default true
-             */
-            ativa: boolean;
-            /** Beneficio Tipo */
-            beneficio_tipo: string;
-            /** Beneficio Valor */
-            beneficio_valor: number;
-            /** Teto Por Recompensa */
-            teto_por_recompensa?: number | null;
-            /**
-             * Orcamento Brl
-             * @default 0
-             */
-            orcamento_brl: number;
-            /** Limite Por Motorista */
-            limite_por_motorista?: number | null;
-            /**
-             * Missoes
-             * @default []
-             */
-            missoes: components["schemas"]["MissaoIn"][];
-        };
-        /**
-         * CampanhaOut
-         * @description Visao do operador: inclui o dinheiro.
-         */
-        CampanhaOut: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Nome */
-            nome: string;
-            /** Descricao */
-            descricao: string | null;
-            /** Patrocinador */
-            patrocinador: string;
-            /** Site Id */
-            site_id: string | null;
-            /** Fleet Id */
-            fleet_id: string | null;
-            /**
-             * Starts At
-             * Format: date-time
-             */
-            starts_at: string;
-            /**
-             * Ends At
-             * Format: date-time
-             */
-            ends_at: string;
-            /** Ativa */
-            ativa: boolean;
-            /** Beneficio Tipo */
-            beneficio_tipo: string;
-            /** Beneficio Valor */
-            beneficio_valor: number;
-            /** Teto Por Recompensa */
-            teto_por_recompensa: number | null;
-            /** Orcamento Brl */
-            orcamento_brl: number;
-            /** Consumido Brl */
-            consumido_brl: number;
-            /** Limite Por Motorista */
-            limite_por_motorista: number | null;
-            /** Missoes */
-            missoes?: components["schemas"]["MissaoOut"][];
-        };
-        /**
-         * DesempenhoOut
-         * @description O que o operador precisa para decidir se a campanha vale.
-         *
-         *     Sem `motoristas_alcancados` e `concluidas`, "consumido_brl" sozinho nao diz
-         *     se o dinheiro comprou comportamento ou so' saiu do caixa.
-         */
-        DesempenhoOut: {
-            /**
-             * Campanha Id
-             * Format: uuid
-             */
-            campanha_id: string;
-            /** Nome */
-            nome: string;
-            /** Motoristas Alcancados */
-            motoristas_alcancados: number;
-            /** Missoes Concluidas */
-            missoes_concluidas: number;
-            /** Recompensas Creditadas */
-            recompensas_creditadas: number;
-            /** Consumido Brl */
-            consumido_brl: number;
-            /** Orcamento Brl */
-            orcamento_brl: number;
-            /** Orcamento Disponivel */
-            orcamento_disponivel: number;
-            /** Percentual Consumido */
-            percentual_consumido: number;
-        };
-        /**
-         * MissaoDoMotoristaOut
-         * @description Visao do motorista: sem numero de orcamento.
-         *
-         *     Expor `orcamento_brl` aqui vazaria a estrategia comercial do estabelecimento
-         *     para quem carrega nele.
-         */
-        MissaoDoMotoristaOut: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Codigo */
-            codigo: string;
-            /** Titulo */
-            titulo: string;
-            /** Descricao */
-            descricao: string | null;
-            /** Metrica */
-            metrica: string;
-            /** Alvo */
-            alvo: number;
-            /** Janela */
-            janela: string;
-            /** Progresso */
-            progresso: number;
-            /** Concluida */
-            concluida: boolean;
-            /** Concluida Em */
-            concluida_em: string | null;
-            /** Periodo */
-            periodo: string | null;
-            /** Campanha */
-            campanha: string;
-            /** Recompensa */
-            recompensa: string;
-        };
-        /** MissaoIn */
-        MissaoIn: {
-            /** Codigo */
-            codigo: string;
-            /** Titulo */
-            titulo: string;
-            /** Descricao */
-            descricao?: string | null;
-            /** Metrica */
-            metrica: string;
-            /** Alvo */
-            alvo: number;
-            /**
-             * Janela
-             * @default campanha
-             */
-            janela: string;
-            /**
-             * Ordem
-             * @default 0
-             */
-            ordem: number;
-            /**
-             * Repetivel
-             * @default false
-             */
-            repetivel: boolean;
-        };
-        /** MissaoOut */
-        MissaoOut: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Codigo */
-            codigo: string;
-            /** Titulo */
-            titulo: string;
-            /** Descricao */
-            descricao: string | null;
-            /** Metrica */
-            metrica: string;
-            /** Alvo */
-            alvo: number;
-            /** Janela */
-            janela: string;
-            /** Ordem */
-            ordem: number;
-            /** Repetivel */
-            repetivel: boolean;
-        };
-        /** RecompensaOut */
-        RecompensaOut: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Campanha */
-            campanha: string;
-            /** Valor Brl */
-            valor_brl: number;
-            /** Estado */
-            estado: string;
-            /** Tipo */
-            tipo: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-        };
-        /**
-         * FrotaOut
-         * @description So' o que o seletor de campanha precisa.
-         *
-         *     `Fleet` tem `document` (CNPJ) e `billing_email`; nenhum dos dois entra aqui.
-         *     Um operador de praca dirige campanha a uma frota sem nunca precisar do
-         *     cadastro dela, e um campo exposto "porque estava no modelo" e' dado pessoal
-         *     de terceiro viajando de graca.
-         */
-        FrotaOut: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Nome */
-            nome: string;
-        };
-        /**
-         * AjusteDeCarteiraIn
-         * @description Correcao manual de saldo.
-         *
-         *     `valor` sem piso nem teto de sinal: correcao existe nos dois sentidos, e um
-         *     credito lancado por engano precisa poder ser desfeito. O que o servico
-         *     recusa e' zero - ajuste de nada nao corrige nada - e deixar o saldo
-         *     negativo.
-         *
-         *     `motivo` e' obrigatorio AQUI e no banco. Duas guardas para a mesma coisa
-         *     porque as duas respondem perguntas diferentes: esta devolve 422 legivel a
-         *     quem chamou, e o CHECK garante que nenhum caminho futuro escape dela.
-         */
-        AjusteDeCarteiraIn: {
-            /** Valor */
-            valor: number | string;
-            /** Motivo */
-            motivo: string;
-            /** Idempotency Key */
-            idempotency_key?: string | null;
-        };
-        /**
-         * ResolucaoIn
-         * @description O que foi feito para fechar o reporte.
-         *
-         *     Obrigatorio, com piso de tamanho: "ok" nao explica nada ao proximo
-         *     motorista que reportar o mesmo cabo, nem ao relatorio de manutencao.
-         */
-        ResolucaoIn: {
-            /** Resolucao */
-            resolucao: string;
-        };
     };
     responses: never;
     parameters: never;
@@ -3489,7 +3507,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };
@@ -3735,7 +3755,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -3801,7 +3823,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -4014,7 +4038,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -4047,7 +4073,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -4081,7 +4109,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -4114,7 +4144,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -4148,7 +4180,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
                 };
             };
             /** @description Validation Error */
@@ -4186,7 +4220,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -4219,7 +4255,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -4391,7 +4429,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -4420,7 +4460,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
                 };
             };
         };
@@ -4442,7 +4484,400 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    demand_energy_forecast_api_v1_power_demand_energy_forecast_get: {
+        parameters: {
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    frotas_api_v1_campaigns_fleets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FrotaOut"][];
+                };
+            };
+        };
+    };
+    listar_api_v1_campaigns_get: {
+        parameters: {
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampanhaOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    criar_api_v1_campaigns_post: {
+        parameters: {
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CampanhaIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampanhaOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    encerrar_api_v1_campaigns__campanha_id__delete: {
+        parameters: {
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path: {
+                campanha_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    atualizar_api_v1_campaigns__campanha_id__patch: {
+        parameters: {
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path: {
+                campanha_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampanhaOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    desempenho_api_v1_campaigns__campanha_id__desempenho_get: {
+        parameters: {
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path: {
+                campanha_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DesempenhoOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    planos_api_v1_platform_plans_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+        };
+    };
+    contrato_api_v1_platform_contract_get: {
+        parameters: {
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    contratar_api_v1_platform_contract_post: {
+        parameters: {
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rescindir_api_v1_platform_contract_terminate_post: {
+        parameters: {
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dar_baixa_api_v1_platform_invoices__cobranca_id__settle_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cobranca_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -4689,7 +5124,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
                 };
             };
             /** @description Validation Error */
@@ -4723,7 +5160,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -5017,39 +5456,6 @@ export interface operations {
             };
         };
     };
-    audit_trail_api_v1_audit_get: {
-        parameters: {
-            query?: {
-                limit?: number;
-                action?: string | null;
-                entity?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>[];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     list_invoices_api_v1_invoices_get: {
         parameters: {
             query?: {
@@ -5182,9 +5588,13 @@ export interface operations {
             };
         };
     };
-    payment_webhook_api_v1_payments_webhook_post: {
+    audit_trail_api_v1_audit_get: {
         parameters: {
-            query?: never;
+            query?: {
+                limit?: number;
+                action?: string | null;
+                entity?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -5197,7 +5607,18 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -5223,7 +5644,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -5233,6 +5656,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    payment_webhook_api_v1_payments_webhook_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };
@@ -5771,6 +6216,39 @@ export interface operations {
             };
         };
     };
+    wallet_statement_api_v1_app_wallet_statement_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     topup_api_v1_app_wallet_topup_post: {
         parameters: {
             query?: never;
@@ -5790,38 +6268,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    wallet_statement_api_v1_app_wallet_statement_get: {
-        parameters: {
-            query?: {
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -5855,7 +6304,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -5946,7 +6397,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -6008,7 +6461,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
                 };
             };
             /** @description Validation Error */
@@ -6043,7 +6498,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -6075,7 +6532,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -6104,7 +6563,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>[];
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
                 };
             };
         };
@@ -6130,201 +6591,9 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    frotas_api_v1_campaigns_fleets_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FrotaOut"][];
-                };
-            };
-        };
-    };
-    listar_api_v1_campaigns_get: {
-        parameters: {
-            query?: {
-                /** @description admin: escolhe o site da rede */
-                site_id?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CampanhaOut"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    criar_api_v1_campaigns_post: {
-        parameters: {
-            query?: {
-                /** @description admin: escolhe o site da rede */
-                site_id?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CampanhaIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CampanhaOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    encerrar_api_v1_campaigns__campanha_id__delete: {
-        parameters: {
-            query?: {
-                /** @description admin: escolhe o site da rede */
-                site_id?: string | null;
-            };
-            header?: never;
-            path: {
-                campanha_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    atualizar_api_v1_campaigns__campanha_id__patch: {
-        parameters: {
-            query?: {
-                /** @description admin: escolhe o site da rede */
-                site_id?: string | null;
-            };
-            header?: never;
-            path: {
-                campanha_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CampanhaOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    desempenho_api_v1_campaigns__campanha_id__desempenho_get: {
-        parameters: {
-            query?: {
-                /** @description admin: escolhe o site da rede */
-                site_id?: string | null;
-            };
-            header?: never;
-            path: {
-                campanha_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DesempenhoOut"];
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -6374,40 +6643,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RecompensaOut"][];
-                };
-            };
-        };
-    };
-    demand_energy_forecast_api_v1_power_demand_energy_forecast_get: {
-        parameters: {
-            query?: {
-                /** @description admin: escolhe o site da rede */
-                site_id?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -6508,163 +6743,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-        };
-    };
-    planos_api_v1_platform_plans_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
-                };
-            };
-        };
-    };
-    contrato_api_v1_platform_contract_get: {
-        parameters: {
-            query?: {
-                /** @description admin: escolhe o site da rede */
-                site_id?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    contratar_api_v1_platform_contract_post: {
-        parameters: {
-            query?: {
-                /** @description admin: escolhe o site da rede */
-                site_id?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": Record<string, never>;
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": Record<string, never>;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    rescindir_api_v1_platform_contract_terminate_post: {
-        parameters: {
-            query?: {
-                /** @description admin: escolhe o site da rede */
-                site_id?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    dar_baixa_api_v1_platform_invoices__cobranca_id__settle_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                cobranca_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
             };
         };
     };
