@@ -24,6 +24,7 @@ const cache = join(workspace, 'node_modules/.cache/chargegrid')
 mkdirSync(cache, { recursive: true })
 const saidaVeiculo = join(cache, 'veiculo.mjs')
 const saidaFrota = join(cache, 'frota.mjs')
+const saidaCadastro = join(cache, 'cadastro.mjs')
 
 // Só os módulos puros entram. Importar um `.tsx` puxaria react-native para
 // dentro do Node — e o que se quer verificar não depende dele.
@@ -32,7 +33,8 @@ const saidaFrota = join(cache, 'frota.mjs')
 // passa a decidir os nomes, e o import abaixo deixaria de saber o que procurar.
 for (const [entrada, destino] of [
   ['src/veiculo.ts', saidaVeiculo],
-  ['src/frota.ts', saidaFrota]
+  ['src/frota.ts', saidaFrota],
+  ['src/cadastro.ts', saidaCadastro]
 ]) {
   await build({
     entryPoints: [join(raiz, entrada)],
@@ -49,6 +51,15 @@ const { camposIniciais, comoNumero, corpoDaEdicao, problemaNaEdicao } = await im
 const { CENTRO_MAXIMO, centrosEmUso, problemaNoCentro, semArea } = await import(
   pathToFileURL(saidaFrota).href
 )
+const {
+  CADASTRO_VAZIO,
+  SENHA_MINIMA,
+  corpoDoCadastro,
+  emailPlausivel,
+  ofereceEntrar,
+  problemaNoCadastro,
+  recadoDoErro
+} = await import(pathToFileURL(saidaCadastro).href)
 
 let falhas = 0
 const check = (nome, cond, extra = '') => {
@@ -150,7 +161,68 @@ check('nome longo demais impede salvar', problemaNoCentro('x'.repeat(CENTRO_MAXI
 check('nome no limite passa', problemaNoCentro('x'.repeat(CENTRO_MAXIMO)) === null)
 check('nome comum passa', problemaNoCentro('Logística') === null)
 
+// --------------------------------------------------------------- cadastro
+
+const CADASTRO = {
+  nome: '  Maria Souza  ',
+  email: '  Maria@Email.COM ',
+  senha: 'senha com espaco ',
+  telefone: ' +5511999990000 ',
+  documento: ''
+}
+
+// 9. O formulário abre vazio e não pode ser enviado — mas a mensagem só aparece
+//    depois que a pessoa começa a escrever (isso é da tela, não daqui).
+check('cadastro vazio nao pode ser enviado', problemaNoCadastro(CADASTRO_VAZIO) !== null)
+check('cadastro completo pode', problemaNoCadastro(CADASTRO) === null)
+
+// 10. Os pisos espelham o servidor. Errar para MENOS aqui é preferível a errar
+//     para mais: recusar o que o servidor aceitaria trava um cadastro válido.
+check('nome de uma letra nao passa',
+  problemaNoCadastro({ ...CADASTRO, nome: 'M' }) !== null)
+check('nome de duas letras passa',
+  problemaNoCadastro({ ...CADASTRO, nome: 'Ma' }) === null)
+check('senha de 7 nao passa',
+  problemaNoCadastro({ ...CADASTRO, senha: 'x'.repeat(SENHA_MINIMA - 1) }) !== null)
+check('senha no piso passa',
+  problemaNoCadastro({ ...CADASTRO, senha: 'x'.repeat(SENHA_MINIMA) }) === null)
+
+// 11. E-mail plausível, não RFC: quem manda é o `EmailStr` do servidor.
+check('email sem arroba nao passa', emailPlausivel('mariaemail.com') === false)
+check('email sem dominio nao passa', emailPlausivel('maria@email') === false)
+check('email com espaco nao passa', emailPlausivel('mar ia@email.com') === false)
+check('email comum passa', emailPlausivel(' maria@email.com ') === true)
+
+// 12. O corpo do POST. E-mail normalizado, opcionais vazios viram `null` — o
+//     banco guarda ausência como NULL, e `''` seria um telefone que existe e
+//     não tem dígitos.
+const corpo = corpoDoCadastro(CADASTRO)
+check('email vai aparado e em minusculas', corpo.email === 'maria@email.com')
+check('nome vai aparado', corpo.full_name === 'Maria Souza')
+check('documento vazio vira null', corpo.document === null)
+check('telefone vai aparado', corpo.phone === '+5511999990000')
+
+// 13. A senha NÃO é aparada. Cortar espaço criaria a conta com uma senha
+//     diferente da que a pessoa escolheu, e o login seguinte falharia sem
+//     explicação nenhuma.
+check('senha vai como foi digitada', corpo.password === 'senha com espaco ')
+
+// 14. `role` e `site_id` não têm como sair daqui — é a metade cliente da guarda
+//     que o `RegistroPublicoIn` faz no servidor.
+check('corpo nao carrega role nem site_id',
+  !('role' in corpo) && !('site_id' in corpo))
+
+// 15. O 409 é o caso comum e tem saída óbvia: quem já tem conta precisa ser
+//     mandado para o login, não deixado olhando um erro genérico.
+check('409 oferece entrar', ofereceEntrar(409) === true)
+check('422 nao oferece entrar', ofereceEntrar(422) === false)
+check('409 tem recado proprio', /Tente entrar/.test(recadoDoErro(409, 'e-mail já cadastrado')))
+check('outro erro mostra o detalhe do servidor',
+  recadoDoErro(422, 'senha muito curta') === 'senha muito curta')
+check('erro sem detalhe ainda diz alguma coisa', recadoDoErro(undefined, undefined).length > 0)
+
 rmSync(saidaVeiculo, { force: true })
 rmSync(saidaFrota, { force: true })
+rmSync(saidaCadastro, { force: true })
 console.log(falhas === 0 ? '\nTodos os cenarios passaram.' : `\n${falhas} falha(s).`)
 process.exit(falhas === 0 ? 0 : 1)

@@ -69,9 +69,15 @@ export interface paths {
         put?: never;
         /**
          * Register
-         * @description Cadastro publico do app mobile - sempre cria motorista.
+         * @description Cadastro publico do app do motorista - sempre cria motorista.
          *
-         *     Contas de operador e admin sao criadas por um admin em /users.
+         *     `role` e' fixado aqui e o schema nem aceita o campo: sao as duas metades da
+         *     mesma guarda. Ver `RegistroPublicoIn` para o porque de nao bastar uma.
+         *
+         *     Contas de operador e admin nascem do seed. Uma rota de administracao de
+         *     contas nao existe ainda - ate' ela existir, esta docstring nao aponta para
+         *     lugar nenhum de proposito, porque apontar para uma rota inexistente foi
+         *     exatamente o que esta linha fazia antes.
          */
         post: operations["register_api_v1_auth_register_post"];
         delete?: never;
@@ -3029,8 +3035,22 @@ export interface components {
             /** Expires In */
             expires_in: number;
         };
-        /** UserCreate */
-        UserCreate: {
+        /**
+         * RegistroPublicoIn
+         * @description Cadastro pelo app do motorista. Rota PUBLICA, sem token.
+         *
+         *     NAO tem `role` nem `site_id`, e a ausencia dos dois e' a regra de seguranca -
+         *     nao esquecimento. A rota fixa `role="driver"` no corpo da funcao, entao
+         *     aceita-los aqui esta' seguro HOJE por causa de como a funcao foi escrita, e
+         *     nao por causa do contrato. No dia em que alguem trocar a construcao
+         *     explicita por `User(**payload.model_dump())` - que e' o idioma usado em
+         *     `mobile.py:538` e `power.py:454` - vira escalacao de privilegio silenciosa:
+         *     qualquer pessoa na internet criaria um admin.
+         *
+         *     Quem cria operador e admin e' o admin da rede, por rota propria e
+         *     autenticada.
+         */
+        RegistroPublicoIn: {
             /**
              * Email
              * Format: email
@@ -3040,14 +3060,10 @@ export interface components {
             full_name: string;
             /** Password */
             password: string;
-            /** @default driver */
-            role: components["schemas"]["UserRole"];
             /** Phone */
             phone?: string | null;
             /** Document */
             document?: string | null;
-            /** Site Id */
-            site_id?: string | null;
         };
         /** UserOut */
         UserOut: {
@@ -3553,7 +3569,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["UserCreate"];
+                "application/json": components["schemas"]["RegistroPublicoIn"];
             };
         };
         responses: {

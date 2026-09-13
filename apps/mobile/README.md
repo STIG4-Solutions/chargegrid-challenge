@@ -279,6 +279,7 @@ entre "nada agora" e "o app quebrou".
 | Agendar recarga | `src/screens/NewReservationScreen.tsx` | `app.stations`, `app.stationChargePoints`, `app.myVehicles`, `app.createReservation` |
 | Histórico (recargas e faturas) | `src/screens/HistoryScreen.tsx` | `app.mySessions`, `app.myInvoices` |
 | Missões | `src/screens/MissionsScreen.tsx` | `app.missions`, `app.rewards` |
+| Entrada (login e cadastro) | `src/screens/Entrada.tsx`, `LoginScreen.tsx`, `SignUpScreen.tsx` | `auth.register`, `auth.login` |
 | Perfil (carteira, veículos e plano) | `src/screens/ProfileScreen.tsx` | `app.myVehicles`, `app.addVehicle`, `app.updateVehicle`, `app.removeVehicle`, `app.topUpWallet`, `app.plans`, `app.subscription`, `app.subscribe`, `app.unsubscribe` |
 | Ler QR do carregador | `src/screens/ScannerScreen.tsx` | `app.chargePointByCode` |
 | Frota (só gestor) | `src/screens/FleetScreen.tsx` | `app.fleetReport`, `app.fleetVehicles`, `app.setCostCenter` |
@@ -306,6 +307,18 @@ A aba de missões traduz cada métrica para a unidade certa: "3 de 5 recargas", 
 solares". Sem isso a tela diria "3 de 5 energia_verde_kwh", que é o nome da coluna e não o nome
 da coisa. Missões que o motorista ainda não começou aparecem com barra zerada — quem acabou de
 instalar o app é justamente quem mais precisa ver o que há para ganhar.
+
+**Criar conta pelo app, e não por SQL.** `POST /auth/register` existia desde
+sempre — testado por ninguém, e sem tela: o app só sabia entrar, então virar
+cliente do ChargeGrid exigia que alguém inserisse a linha no banco. A rota
+devolve o **usuário**, não um par de tokens, então o cadastro termina com um
+login automático; parar no 201 deixaria a pessoa cadastrada e de fora ao mesmo
+tempo. O 409 (e-mail já existe) não vira erro genérico: é o caso comum e tem
+saída óbvia, então a tela oferece ir para o login.
+
+A senha **não** é aparada antes de enviar. Cortar espaço criaria a conta com uma
+senha diferente da que a pessoa escolheu, e o login seguinte falharia sem
+explicação — o oposto do que um `trim()` bem-intencionado promete.
 
 **Editar veículo em vez de apagar e recadastrar.** O perfil tinha adicionar e remover e nada
 entre os dois — uma placa digitada errada só se corrigia apagando o carro, e `vehicles.id` é

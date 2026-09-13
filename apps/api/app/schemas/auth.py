@@ -29,14 +29,26 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
-class UserCreate(BaseModel):
+class RegistroPublicoIn(BaseModel):
+    """Cadastro pelo app do motorista. Rota PUBLICA, sem token.
+
+    NAO tem `role` nem `site_id`, e a ausencia dos dois e' a regra de seguranca -
+    nao esquecimento. A rota fixa `role="driver"` no corpo da funcao, entao
+    aceita-los aqui esta' seguro HOJE por causa de como a funcao foi escrita, e
+    nao por causa do contrato. No dia em que alguem trocar a construcao
+    explicita por `User(**payload.model_dump())` - que e' o idioma usado em
+    `mobile.py:538` e `power.py:454` - vira escalacao de privilegio silenciosa:
+    qualquer pessoa na internet criaria um admin.
+
+    Quem cria operador e admin e' o admin da rede, por rota propria e
+    autenticada.
+    """
+
     email: EmailStr
     full_name: str = Field(min_length=2, max_length=160)
     password: str = Field(min_length=8)
-    role: UserRole = UserRole.DRIVER
     phone: str | None = None
     document: str | None = None
-    site_id: uuid.UUID | None = None
 
 
 class UserOut(ORMModel):

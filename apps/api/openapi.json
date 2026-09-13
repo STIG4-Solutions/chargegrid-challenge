@@ -121,13 +121,13 @@
           "autenticação"
         ],
         "summary": "Register",
-        "description": "Cadastro publico do app mobile - sempre cria motorista.\n\nContas de operador e admin sao criadas por um admin em /users.",
+        "description": "Cadastro publico do app do motorista - sempre cria motorista.\n\n`role` e' fixado aqui e o schema nem aceita o campo: sao as duas metades da\nmesma guarda. Ver `RegistroPublicoIn` para o porque de nao bastar uma.\n\nContas de operador e admin nascem do seed. Uma rota de administracao de\ncontas nao existe ainda - ate' ela existir, esta docstring nao aponta para\nlugar nenhum de proposito, porque apontar para uma rota inexistente foi\nexatamente o que esta linha fazia antes.",
         "operationId": "register_api_v1_auth_register_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UserCreate"
+                "$ref": "#/components/schemas/RegistroPublicoIn"
               }
             }
           },
@@ -9059,7 +9059,7 @@
         ],
         "title": "TokenPair"
       },
-      "UserCreate": {
+      "RegistroPublicoIn": {
         "properties": {
           "email": {
             "type": "string",
@@ -9076,10 +9076,6 @@
             "type": "string",
             "minLength": 8,
             "title": "Password"
-          },
-          "role": {
-            "$ref": "#/components/schemas/UserRole",
-            "default": "driver"
           },
           "phone": {
             "anyOf": [
@@ -9102,18 +9098,6 @@
               }
             ],
             "title": "Document"
-          },
-          "site_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Site Id"
           }
         },
         "type": "object",
@@ -9122,7 +9106,8 @@
           "full_name",
           "password"
         ],
-        "title": "UserCreate"
+        "title": "RegistroPublicoIn",
+        "description": "Cadastro pelo app do motorista. Rota PUBLICA, sem token.\n\nNAO tem `role` nem `site_id`, e a ausencia dos dois e' a regra de seguranca -\nnao esquecimento. A rota fixa `role=\"driver\"` no corpo da funcao, entao\naceita-los aqui esta' seguro HOJE por causa de como a funcao foi escrita, e\nnao por causa do contrato. No dia em que alguem trocar a construcao\nexplicita por `User(**payload.model_dump())` - que e' o idioma usado em\n`mobile.py:538` e `power.py:454` - vira escalacao de privilegio silenciosa:\nqualquer pessoa na internet criaria um admin.\n\nQuem cria operador e admin e' o admin da rede, por rota propria e\nautenticada."
       },
       "UserOut": {
         "properties": {

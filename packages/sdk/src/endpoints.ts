@@ -30,7 +30,18 @@ export const auth = {
       body: { email, password: senha },
       auth: false
     }),
-  register: (dados: { email: string; full_name: string; password: string }) =>
+  /**
+   * Cadastro publico do app do motorista. Sem token, e sempre motorista.
+   *
+   * O tipo vem do contrato (`RegistroPublicoIn`), e nao escrito a mao: e' o que
+   * garante que `role` e `site_id` nao tenham como ser enviados daqui nem por
+   * engano - o servidor tambem os recusa, mas errar isso no cliente daria um
+   * 422 no lugar de um erro de compilacao.
+   *
+   * Devolve o usuario, e NAO um par de tokens: quem cadastra ainda precisa
+   * fazer login em seguida.
+   */
+  register: (dados: T.RegistroPublico) =>
     request<T.Usuario>('/auth/register', { method: 'POST', body: dados, auth: false }),
   me: () => api.get<T.Usuario>('/auth/me')
 }

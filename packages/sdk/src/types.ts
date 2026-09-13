@@ -13,6 +13,8 @@ type S = components['schemas']
 export type TokenPairOut = S['TokenPair']
 export type Usuario = S['UserOut']
 export type PapelUsuario = S['UserRole']
+/** Corpo do cadastro publico. Sem `role` e sem `site_id`, por contrato. */
+export type RegistroPublico = S['RegistroPublicoIn']
 
 // Potência
 export type VisaoPotencia = S['PowerOverview']

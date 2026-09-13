@@ -2,6 +2,7 @@ import { useState } from 'react'
 import {
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -21,7 +22,7 @@ const emailDemo = process.env.EXPO_PUBLIC_DEMO_DRIVER_EMAIL
 const senhaDemo = process.env.EXPO_PUBLIC_DEMO_DRIVER_PASSWORD
 const DEMO = __DEV__ && emailDemo && senhaDemo ? { email: emailDemo, senha: senhaDemo } : null
 
-export default function LoginScreen() {
+export default function LoginScreen({ aoCriarConta }: { aoCriarConta: () => void }) {
   const { login, error: erroDaSessao, limparErro } = useAuth()
   const [email, setEmail] = useState(DEMO?.email ?? '')
   const [senha, setSenha] = useState(DEMO?.senha ?? '')
@@ -93,6 +94,14 @@ export default function LoginScreen() {
           {(erro || erroDaSessao) && <Aviso mensagem={erro ?? erroDaSessao ?? ''} />}
 
           <Botao titulo="Entrar" onPress={entrar} pending={pending} style={s.entrar} />
+
+          {/*
+            Ate' aqui o app so' sabia entrar: quem ainda nao tinha conta nao
+            tinha por onde comecar, e `POST /auth/register` existia sem tela.
+          */}
+          <Pressable accessibilityRole="button" onPress={aoCriarConta} hitSlop={8}>
+            <Text style={s.link}>Criar conta</Text>
+          </Pressable>
         </View>
 
         <Text style={s.rodape}>API: {API_URL}</Text>
@@ -120,5 +129,6 @@ const s = StyleSheet.create({
     paddingVertical: 14
   },
   entrar: { marginTop: espaco.md },
+  link: { color: cores.acento, fontSize: 14, fontWeight: '600', textAlign: 'center' },
   rodape: { color: cores.textoFraco, fontSize: 11, textAlign: 'center' }
 })
