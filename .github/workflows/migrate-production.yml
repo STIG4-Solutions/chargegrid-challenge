@@ -1,0 +1,62 @@
+name: Migrate production database
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/api/**"
+      - ".github/workflows/migrate-production.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: production-database-migrations
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    name: Migrate production database
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: apps/api
+
+    env:
+      # A aplicacao exige estas configuracoes ao importar o ambiente do Alembic.
+      # Somente DATABASE_URL_OVERRIDE e usada para conectar durante a migracao.
+      ENV: test
+      DEBUG: "false"
+      DATABASE_URL_OVERRIDE: ${{ secrets.PRODUCTION_DATABASE_URL }}
+      PGSSLROOTCERT: /etc/ssl/certs/ca-certificates.crt
+      POSTGRES_PASSWORD: unused-during-migrations
+      SECRET_KEY: unused-during-migrations
+      PAYMENT_WEBHOOK_SECRET: unused-during-migrations
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/api/pyproject.toml
+
+      - name: Install API dependencies
+        run: >-
+          python -m pip install
+          "alembic>=1.13.2"
+          "sqlalchemy[asyncio]>=2.0.35"
+          "asyncpg>=0.29.0"
+          "pydantic[email]>=2.9.0"
+          "pydantic-settings>=2.5.0"
+
+      - name: Apply database migrations
+        run: |
+          alembic upgrade head
+          alembic current

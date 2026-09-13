@@ -6,7 +6,7 @@
  *
  *   CP-01                          codigo puro
  *   chargegrid://cp/CP-01          deeplink do app
- *   https://stig4-solutions.com/cp/CP-01  URL, que tambem abre no navegador
+ *   https://stig4.com/cp/CP-01  URL, que tambem abre no navegador
  *
  * A URL e' o formato recomendado: quem nao tem o app instalado cai numa
  * pagina em vez de num texto sem sentido.

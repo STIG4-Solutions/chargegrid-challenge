@@ -9,9 +9,9 @@
     "  app      EXPO_PUBLIC_API_URL  (embutida no APK no momento do build)"
   ],
   "protocolo": "https",
-  "api": "api.stig4-solutions.com",
-  "dashboard": "dashboard.stig4-solutions.com",
-  "site": "stig4-solutions.com",
+  "api": "api.stig4.com",
+  "dashboard": "dashboard.stig4.com",
+  "site": "stig4.com",
   "desenvolvimento": {
     "api": "http://localhost:8000",
     "dashboard": "http://localhost:5173"

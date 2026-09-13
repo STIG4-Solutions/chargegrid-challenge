@@ -106,9 +106,10 @@ No Azure Portal, procure **Container Apps** e clique em **Create**.
 | Subscription | Assinatura estudantil com créditos |
 | Resource group | `rg-chargegrid-staging` |
 | Container app name | `chargegrid-api-staging` |
+| App type | `Standard` (não usar `Express (Preview)`, que não suporta este domínio personalizado) |
 | Deployment source | Container image |
 | Region | Brazil South, se disponível para sua assinatura |
-| Container Apps environment | Criar `cae-chargegrid-staging` |
+| Container Apps environment | Criar `cae-chargegrid-staging-standard` |
 | Workload profile | Consumption |
 | Image source | Docker Hub or other registries |
 | Image type | Private |
@@ -143,7 +144,7 @@ na inicialização até receber essa configuração.
 | --- | --- | --- |
 | `ENV` | `staging` | Valor literal |
 | `DEBUG` | `false` | Valor literal |
-| `CORS_ORIGINS` | `["https://dashboard.staging.stig4-solutions.com"]` | Valor literal |
+| `CORS_ORIGINS` | `["https://dashboard.staging.stig4.com"]` | Valor literal |
 | `DATABASE_URL_OVERRIDE` | URL adaptada do Neon de staging | Secret `database-url` |
 | `PGSSLROOTCERT` | `/etc/ssl/certs/ca-certificates.crt` | Valor literal |
 | `POSTGRES_PASSWORD` | Senha real do Neon, sem codificação de URL | Secret `postgres-password` |
@@ -216,9 +217,9 @@ que o build da imagem e o `/health` isoladamente não cobrem.
 ## 7. Domínio na Cloudflare
 
 Na Azure, abra **Networking > Custom domains > Add custom domain**, escolha
-**Managed certificate** e informe `api.staging.stig4-solutions.com`.
+**Managed certificate** e informe `api.staging.stig4.com`.
 
-Crie na zona `stig4-solutions.com` da Cloudflare os registros exibidos pela Azure:
+Crie na zona `stig4.com` da Cloudflare os registros exibidos pela Azure:
 
 | Tipo | Nome | Conteúdo |
 | --- | --- | --- |
@@ -230,7 +231,7 @@ gerenciado. Se houver registros CAA restritivos, autorize também `digicert.com`
 Volte à Azure, valide e aguarde o domínio ficar **Secured**.
 
 Teste `/health` e `/docs` novamente no domínio próprio. O dashboard usará
-`VITE_API_URL=https://api.staging.stig4-solutions.com`, sem `/api/v1` no final.
+`VITE_API_URL=https://api.staging.stig4.com`, sem `/api/v1` no final.
 
 ## 8. Produção e próximos deploys
 
@@ -239,12 +240,12 @@ Depois de validar staging, repita com:
 | Item | Produção |
 | --- | --- |
 | Resource group | `rg-chargegrid-prod` |
-| Environment | `cae-chargegrid-prod` |
+| Environment | `cae-chargegrid-prod-standard` |
 | Container App | `chargegrid-api-prod` |
 | Neon | Projeto `chargegrid` e seu banco real |
 | `ENV` | `prod` |
-| `CORS_ORIGINS` | `["https://dashboard.stig4-solutions.com"]` |
-| Domínio | `api.stig4-solutions.com` |
+| `CORS_ORIGINS` | `["https://dashboard.stig4.com"]` |
+| Domínio | `api.stig4.com` |
 | DNS | CNAME `api` e TXT `asuid.api` |
 | Réplicas | Mínimo 1, máximo 1 |
 

@@ -18,7 +18,7 @@ SEGURO = {
     # Producao com CORS so local significa que o dominio nao chegou a
     # configuracao - a API sobe e o painel e' bloqueado. Faz parte de "prod
     # configurado corretamente".
-    "cors_origins": ["https://stig4-solutions.com"],
+    "cors_origins": ["https://stig4.com"],
 }
 
 
