@@ -142,5 +142,14 @@ jobs:
 
       # Por ultimo, e nao por menos importante: `tsc` aceita coisa que o bundler
       # recusa, e um build quebrado so' apareceria na hora de publicar.
-      - name: Build
+      - name: Build · painel
         run: npm run build
+
+      # O app nunca foi exercitado em simulador, e continua nao sendo - isso
+      # exigiria emulador Android no runner. Mas empacotar com o Metro nao e'
+      # pouco: ele resolve TODOS os imports, encontra os assets e compila para
+      # Hermes. Import quebrado, arquivo que sumiu ou `app.config.js` invalido
+      # aparecem aqui, e nao aparecem no typecheck nem nos 13 testes de
+      # renderizacao - que montam componentes isolados, nunca o app inteiro.
+      - name: Bundle · app
+        run: npm run bundle -w @chargegrid/mobile
