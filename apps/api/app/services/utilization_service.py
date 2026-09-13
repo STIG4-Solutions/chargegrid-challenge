@@ -159,9 +159,7 @@ class RelatorioDeUtilizacao:
     horas_da_janela: float = 0.0
 
     def as_dict(self) -> dict:
-        ordenados = sorted(
-            self.pontos, key=lambda p: p.receita_por_hora_disponivel, reverse=True
-        )
+        ordenados = sorted(self.pontos, key=lambda p: p.receita_por_hora_disponivel, reverse=True)
         receita = sum(p.receita_brl for p in self.pontos)
         energia = sum(p.energia_kwh for p in self.pontos)
         ocupadas = sum(p.horas_ocupadas for p in self.pontos)
@@ -216,9 +214,7 @@ async def ocupacao_por_ponto(
     ).scalar_one_or_none()
     primeira_sessao = (
         await db.execute(
-            select(func.min(ChargingSession.started_at)).where(
-                ChargingSession.site_id == site_id
-            )
+            select(func.min(ChargingSession.started_at)).where(ChargingSession.site_id == site_id)
         )
     ).scalar_one_or_none()
     marcos = [m for m in (nascimento, primeira_sessao) if m is not None]
@@ -228,9 +224,7 @@ async def ocupacao_por_ponto(
     pontos = (
         (
             await db.execute(
-                select(ChargePoint)
-                .where(ChargePoint.site_id == site_id)
-                .order_by(ChargePoint.code)
+                select(ChargePoint).where(ChargePoint.site_id == site_id).order_by(ChargePoint.code)
             )
         )
         .scalars()

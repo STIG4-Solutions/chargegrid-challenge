@@ -281,9 +281,7 @@ async def estornar(db: AsyncSession, invoice: Invoice, *, autor: User) -> Paymen
 
     if pagamento.method == PaymentMethodKind.WALLET:
         pagador = (
-            await db.execute(
-                select(User).where(User.id == invoice.user_id).with_for_update()
-            )
+            await db.execute(select(User).where(User.id == invoice.user_id).with_for_update())
         ).scalar_one_or_none()
         if pagador is None:
             raise PaymentError("fatura sem pagador: não há carteira para devolver")

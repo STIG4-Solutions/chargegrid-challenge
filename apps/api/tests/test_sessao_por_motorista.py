@@ -28,9 +28,7 @@ async def test_o_conflito_diz_qual_sessao_esta_aberta(db, ponto, segundo_ponto, 
     assert aberta.code in str(erro.value)
 
 
-async def test_motoristas_diferentes_ocupam_vagas_diferentes(
-    db, ponto, segundo_ponto, motorista
-):
+async def test_motoristas_diferentes_ocupam_vagas_diferentes(db, ponto, segundo_ponto, motorista):
     import uuid
 
     from app.models.enums import UserRole

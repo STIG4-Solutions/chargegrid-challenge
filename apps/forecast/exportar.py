@@ -173,9 +173,7 @@ def main() -> int:
     #
     # Sem metrica nenhuma no artefato, o modelo NAO e' usado: e' o valor
     # conservador, e um artefato sem backtest nao provou nada.
-    modelo_vence = (
-        wape_modelo is not None and wape_regua is not None and wape_modelo < wape_regua
-    )
+    modelo_vence = wape_modelo is not None and wape_regua is not None and wape_modelo < wape_regua
 
     if not modelo_vence and wape_modelo is not None and wape_regua is not None:
         print(

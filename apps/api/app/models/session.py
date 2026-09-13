@@ -11,9 +11,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin, UUIDMixin
 from app.models.enums import AuthMethod, SessionState, StopReason
 
-_ATIVOS_SQL = (
-    "state IN ('AUTHORIZING', 'QUEUED', 'STARTING', 'CHARGING', 'SUSPENDED', 'FINISHING')"
-)
+_ATIVOS_SQL = "state IN ('AUTHORIZING', 'QUEUED', 'STARTING', 'CHARGING', 'SUSPENDED', 'FINISHING')"
 
 
 class ChargingSession(UUIDMixin, TimestampMixin, Base):

@@ -32,6 +32,7 @@ from app.models.site import Site, SiteMeterReading
 
 log = get_logger(__name__)
 
+
 def _hora_local(agora: datetime, fuso: str | None) -> float:
     """Hora do dia com fracao (13.5 = 13h30), no fuso do site.
 
@@ -100,10 +101,14 @@ async def gerar_leitura() -> dict:
             predio = max(0.0, round(predio * random.uniform(0.95, 1.05), 2))
 
             ev = (
-                await db.execute(
-                    select(ChargePoint.current_kw).where(ChargePoint.site_id == site.id)
+                (
+                    await db.execute(
+                        select(ChargePoint.current_kw).where(ChargePoint.site_id == site.id)
+                    )
                 )
-            ).scalars().all()
+                .scalars()
+                .all()
+            )
             ev_kw = round(sum(float(v or 0) for v in ev), 2)
 
             # O que falta depois do sol e da bateria vem da rede.

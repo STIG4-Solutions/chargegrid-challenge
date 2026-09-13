@@ -280,9 +280,7 @@ def test_uma_fonte_so_passa_direto():
     assert benefit_service.combinar(None, plano) is plano
 
 
-async def test_assinante_em_campanha_recebe_o_maior_e_nao_a_soma(
-    db, ponto, motorista, tarifa
-):
+async def test_assinante_em_campanha_recebe_o_maior_e_nao_a_soma(db, ponto, motorista, tarifa):
     """O mesmo, agora pelo caminho real: fatura emitida."""
     plano = await _plano(db, desconto_pct=Decimal("20"))
     await subscription_service.assinar(db, motorista, plano.codigo)
@@ -324,9 +322,7 @@ async def test_cobranca_mensal_e_idempotente_por_periodo(db, motorista):
     assert cobradas == 0
 
     faturas = (
-        (await db.execute(select(Invoice).where(Invoice.user_id == motorista.id)))
-        .scalars()
-        .all()
+        (await db.execute(select(Invoice).where(Invoice.user_id == motorista.id))).scalars().all()
     )
     assert len(faturas) == 2, "primeira mensalidade + uma renovacao"
 
@@ -352,9 +348,7 @@ async def test_worker_que_morre_antes_de_avancar_o_periodo_nao_recobra(db, motor
     vencido_em = assinatura.current_period_end
     await subscription_service.cobrar_mensalidades(db)
     depois_da_primeira = len(
-        (await db.execute(select(Invoice).where(Invoice.user_id == motorista.id)))
-        .scalars()
-        .all()
+        (await db.execute(select(Invoice).where(Invoice.user_id == motorista.id))).scalars().all()
     )
 
     # O worker morreu antes de gravar o avanco: o periodo volta ao que era.
@@ -365,9 +359,7 @@ async def test_worker_que_morre_antes_de_avancar_o_periodo_nao_recobra(db, motor
     await subscription_service.cobrar_mensalidades(db)
 
     faturas = (
-        (await db.execute(select(Invoice).where(Invoice.user_id == motorista.id)))
-        .scalars()
-        .all()
+        (await db.execute(select(Invoice).where(Invoice.user_id == motorista.id))).scalars().all()
     )
     assert len(faturas) == depois_da_primeira, "sobrou fatura aberta que ninguem emitiu"
 

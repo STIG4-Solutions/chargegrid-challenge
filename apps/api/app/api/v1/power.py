@@ -387,9 +387,7 @@ async def maintenance_reports(
     Escopo pelo site do PONTO: `charge_point_reports` nao tem `site_id`, e ler
     sem o JOIN devolveria a reclamacao do vizinho.
     """
-    return await maintenance_service.listar_reportes(
-        db, site_id, abertos=abertos, limite=limit
-    )
+    return await maintenance_service.listar_reportes(db, site_id, abertos=abertos, limite=limit)
 
 
 @router.post("/maintenance/reports/{reporte_id}/resolve")
@@ -466,9 +464,7 @@ async def _regra_do_site(db: DbSession, regra_id: uuid.UUID, site_id: uuid.UUID)
     """
     regra = (
         await db.execute(
-            select(PriorityRule).where(
-                PriorityRule.id == regra_id, PriorityRule.site_id == site_id
-            )
+            select(PriorityRule).where(PriorityRule.id == regra_id, PriorityRule.site_id == site_id)
         )
     ).scalar_one_or_none()
     if regra is None:
@@ -531,9 +527,7 @@ async def preview_priority_rules(
     pontos = list(
         (
             await db.execute(
-                select(ChargePoint)
-                .where(ChargePoint.site_id == site_id)
-                .order_by(ChargePoint.code)
+                select(ChargePoint).where(ChargePoint.site_id == site_id).order_by(ChargePoint.code)
             )
         )
         .scalars()

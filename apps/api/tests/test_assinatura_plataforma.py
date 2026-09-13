@@ -63,16 +63,12 @@ def test_multa_e_proporcional_ao_que_faltava():
 
 
 def test_sem_meses_restantes_nao_ha_multa():
-    assert platform_service.multa_por_rescisao(Decimal("100"), 0, Decimal("30")) == Decimal(
-        "0.00"
-    )
+    assert platform_service.multa_por_rescisao(Decimal("100"), 0, Decimal("30")) == Decimal("0.00")
 
 
 def test_multa_zerada_no_contrato_nao_cobra_nada():
     """Percentual zero e' uma escolha comercial legitima, nao um bug."""
-    assert platform_service.multa_por_rescisao(Decimal("100"), 6, Decimal("0")) == Decimal(
-        "0.00"
-    )
+    assert platform_service.multa_por_rescisao(Decimal("100"), 6, Decimal("0")) == Decimal("0.00")
 
 
 # --------------------------------------------------------------- contratar
@@ -164,9 +160,7 @@ async def test_rescindir_dentro_do_prazo_emite_multa(db, site):
 
     cobranca = (
         await db.execute(
-            select(PlatformInvoice).where(
-                PlatformInvoice.id == uuid_de(saida["cobranca_da_multa"])
-            )
+            select(PlatformInvoice).where(PlatformInvoice.id == uuid_de(saida["cobranca_da_multa"]))
         )
     ).scalar_one()
     # So' a multa: nao se cobra mensalidade e taxa junto de quem esta saindo no
@@ -260,9 +254,7 @@ async def test_emitir_duas_vezes_no_mesmo_mes_nao_dobra(db, site):
     assert await platform_service.emitir_competencia(db) == 1
     assert await platform_service.emitir_competencia(db) == 0
 
-    cobrancas = (
-        (await db.execute(select(PlatformInvoice))).scalars().all()
-    )
+    cobrancas = (await db.execute(select(PlatformInvoice))).scalars().all()
     assert len(cobrancas) == 1
 
 
@@ -286,7 +278,7 @@ async def test_banco_recusa_duas_cobrancas_da_mesma_competencia(db, site):
 
 
 async def test_a_cobranca_separa_as_tres_parcelas(db, site, ponto, segundo_ponto):
-    """"R$ 480" nao explica nada; o lojista confere cada parcela."""
+    """ "R$ 480" nao explica nada; o lojista confere cada parcela."""
     plano = await _plano(
         db,
         preco_mensal_brl=Decimal("149"),
@@ -304,9 +296,7 @@ async def test_a_cobranca_separa_as_tres_parcelas(db, site, ponto, segundo_ponto
     assert cobranca.pontos_cobrados == 2
     assert float(cobranca.pontos_brl) == pytest.approx(35.0)
     assert float(cobranca.total_brl) == pytest.approx(
-        float(cobranca.assinatura_brl)
-        + float(cobranca.pontos_brl)
-        + float(cobranca.transacao_brl)
+        float(cobranca.assinatura_brl) + float(cobranca.pontos_brl) + float(cobranca.transacao_brl)
     )
 
 

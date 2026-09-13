@@ -104,9 +104,7 @@ class Campaign(UUIDMixin, TimestampMixin, Base):
             " OR (patrocinador = 'rede' AND site_id IS NULL)",
             name="escopo_coerente",
         ),
-        CheckConstraint(
-            f"patrocinador IN ({_em(PATROCINADORES)})", name="patrocinador"
-        ),
+        CheckConstraint(f"patrocinador IN ({_em(PATROCINADORES)})", name="patrocinador"),
         CheckConstraint(f"beneficio_tipo IN ({_em(BENEFICIOS)})", name="beneficio"),
         CheckConstraint("beneficio_valor > 0", name="beneficio_valor"),
         CheckConstraint("ends_at > starts_at", name="periodo_valido"),

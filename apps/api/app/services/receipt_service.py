@@ -180,11 +180,10 @@ def como_html(r: dict) -> str:
 
     linhas = "".join(_linha(item) for item in r["linhas"])
 
-    endereco = e(
-        ", ".join(
-            x for x in [est.get("endereco"), est.get("cidade"), est.get("estado")] if x
-        )
-    ) or "&mdash;"
+    endereco = (
+        e(", ".join(x for x in [est.get("endereco"), est.get("cidade"), est.get("estado")] if x))
+        or "&mdash;"
+    )
 
     bloco_recarga = ""
     if rec:

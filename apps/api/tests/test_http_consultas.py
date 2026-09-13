@@ -98,9 +98,7 @@ async def test_preco_das_estacoes_sai_em_uma_consulta_so(
     )
 
 
-async def test_precos_continuam_corretos_por_estacao(
-    api, como_motorista, db, ponto, tarifa
-):
+async def test_precos_continuam_corretos_por_estacao(api, como_motorista, db, ponto, tarifa):
     """Uma consulta so nao pode significar preco trocado entre estacoes."""
     await _mais_um_site_com_tarifa(db, "Outro Site")
 

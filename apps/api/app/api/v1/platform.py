@@ -69,7 +69,10 @@ async def contratar(
         raise HTTPException(status_code=409, detail=str(erro)) from erro
 
     await aud.registrar(
-        db, "contrato.criado", "site_subscription", entidade_id=site_id,
+        db,
+        "contrato.criado",
+        "site_subscription",
+        entidade_id=site_id,
         depois={"plano": str(codigo)},
     )
     await db.commit()
@@ -77,9 +80,7 @@ async def contratar(
 
 
 @router.post("/contract/terminate")
-async def rescindir(
-    db: DbSession, _: OperatorUser, site_id: ScopedSiteId, aud: Auditor
-) -> dict:
+async def rescindir(db: DbSession, _: OperatorUser, site_id: ScopedSiteId, aud: Auditor) -> dict:
     """Pede a rescisao. Dentro do prazo minimo, emite a multa junto.
 
     Nao e' DELETE: nao apaga nem encerra no ato. O contrato corre ate o fim do
@@ -100,9 +101,7 @@ async def rescindir(
 
 
 @router.post("/invoices/{cobranca_id}/settle")
-async def dar_baixa(
-    cobranca_id: uuid.UUID, db: DbSession, _: AdminUser, aud: Auditor
-) -> dict:
+async def dar_baixa(cobranca_id: uuid.UUID, db: DbSession, _: AdminUser, aud: Auditor) -> dict:
     """Baixa MANUAL, e so' de admin.
 
     Nao ha integracao bancaria: a cobranca nasce aberta e alguem da rede confirma
@@ -115,7 +114,10 @@ async def dar_baixa(
         raise HTTPException(status_code=404, detail=str(erro)) from erro
 
     await aud.registrar(
-        db, "cobranca_da_plataforma.baixada", "platform_invoice", entidade_id=cobranca.id,
+        db,
+        "cobranca_da_plataforma.baixada",
+        "platform_invoice",
+        entidade_id=cobranca.id,
         depois={
             "competencia": cobranca.competencia.isoformat(),
             "total_brl": float(cobranca.total_brl),

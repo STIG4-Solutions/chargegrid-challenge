@@ -133,13 +133,21 @@ PLANOS_DA_PLATAFORMA = [
         "essencial",
         "Essencial",
         "Para quem esta comecando: mensalidade baixa, taxa maior por transacao.",
-        149.00, 35.00, 2, 3.5, 12,
+        149.00,
+        35.00,
+        2,
+        3.5,
+        12,
     ),
     (
         "rede",
         "Rede",
         "Para operacao com varios pontos: mensalidade maior, taxa menor.",
-        499.00, 20.00, 8, 1.5, 12,
+        499.00,
+        20.00,
+        8,
+        1.5,
+        12,
     ),
 ]
 
@@ -201,23 +209,111 @@ FUSO_DO_SITE = ZoneInfo("America/Sao_Paulo")
 # pesos relativos de um sorteio.
 PERFIS_HORARIOS = {
     "corporativo": (
-        0.1, 0.1, 0.1, 0.1, 0.1, 0.2, 0.6, 1.8, 3.2, 3.0, 2.2, 1.6,
-        1.4, 1.5, 1.6, 1.8, 2.4, 3.4, 3.0, 1.6, 0.8, 0.4, 0.2, 0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.2,
+        0.6,
+        1.8,
+        3.2,
+        3.0,
+        2.2,
+        1.6,
+        1.4,
+        1.5,
+        1.6,
+        1.8,
+        2.4,
+        3.4,
+        3.0,
+        1.6,
+        0.8,
+        0.4,
+        0.2,
+        0.1,
     ),
     "shopping": (
-        0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.2, 0.4, 0.8, 1.2, 1.8, 2.4,
-        2.8, 2.6, 2.4, 2.6, 3.0, 3.4, 3.6, 3.4, 2.8, 1.8, 0.8, 0.3,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.2,
+        0.4,
+        0.8,
+        1.2,
+        1.8,
+        2.4,
+        2.8,
+        2.6,
+        2.4,
+        2.6,
+        3.0,
+        3.4,
+        3.6,
+        3.4,
+        2.8,
+        1.8,
+        0.8,
+        0.3,
     ),
     # Estrada tem movimento cedo e no comeco da tarde, e quase nada de
     # madrugada - quem viaja a noite nao para para carregar por opcao.
     "rodovia": (
-        0.3, 0.2, 0.2, 0.2, 0.3, 0.8, 1.8, 2.6, 2.8, 2.6, 2.4, 2.2,
-        2.0, 2.4, 2.6, 2.4, 2.2, 2.0, 1.8, 1.4, 1.0, 0.8, 0.6, 0.4,
+        0.3,
+        0.2,
+        0.2,
+        0.2,
+        0.3,
+        0.8,
+        1.8,
+        2.6,
+        2.8,
+        2.6,
+        2.4,
+        2.2,
+        2.0,
+        2.4,
+        2.6,
+        2.4,
+        2.2,
+        2.0,
+        1.8,
+        1.4,
+        1.0,
+        0.8,
+        0.6,
+        0.4,
     ),
     # Predio residencial: o carro chega a noite e passa a madrugada plugado.
     "condominio": (
-        0.6, 0.4, 0.3, 0.2, 0.2, 0.2, 0.4, 0.8, 0.9, 0.7, 0.6, 0.6,
-        0.7, 0.7, 0.7, 0.8, 1.0, 1.6, 2.8, 3.6, 3.4, 2.6, 1.6, 0.9,
+        0.6,
+        0.4,
+        0.3,
+        0.2,
+        0.2,
+        0.2,
+        0.4,
+        0.8,
+        0.9,
+        0.7,
+        0.6,
+        0.6,
+        0.7,
+        0.7,
+        0.7,
+        0.8,
+        1.0,
+        1.6,
+        2.8,
+        3.6,
+        3.4,
+        2.6,
+        1.6,
+        0.9,
     ),
 }
 
@@ -280,22 +376,46 @@ SITES = [
         "lab-fiap-eco-station",
         "LAB FIAP Eco Station",
         "Av. Lins de Vasconcelos, 1264 - Aclimacao, Sao Paulo",
-        "Sao Paulo", "SP", -23.568500, -46.632200,
-        "corporativo", 9.0, 75.0, 75.0, DIAS_DE_HISTORICO, CHARGE_POINTS,
+        "Sao Paulo",
+        "SP",
+        -23.568500,
+        -46.632200,
+        "corporativo",
+        9.0,
+        75.0,
+        75.0,
+        DIAS_DE_HISTORICO,
+        CHARGE_POINTS,
     ),
     (
         "shopping-morumbi-g3",
         "Shopping Morumbi - Piso G3",
         "Av. Roque Petroni Junior, 1089 - Jardim das Acacias, Sao Paulo",
-        "Sao Paulo", "SP", -23.622700, -46.698900,
-        "shopping", 13.0, 120.0, 110.0, DIAS_DE_HISTORICO, CHARGE_POINTS,
+        "Sao Paulo",
+        "SP",
+        -23.622700,
+        -46.698900,
+        "shopping",
+        13.0,
+        120.0,
+        110.0,
+        DIAS_DE_HISTORICO,
+        CHARGE_POINTS,
     ),
     (
         "posto-anhanguera-km-68",
         "Posto Anhanguera km 68",
         "Rodovia Anhanguera, km 68 - Jundiai",
-        "Jundiai", "SP", -23.185600, -46.897300,
-        "rodovia", 15.0, 180.0, 170.0, DIAS_DE_HISTORICO, PONTOS_RODOVIA,
+        "Jundiai",
+        "SP",
+        -23.185600,
+        -46.897300,
+        "rodovia",
+        15.0,
+        180.0,
+        170.0,
+        DIAS_DE_HISTORICO,
+        PONTOS_RODOVIA,
     ),
     # Aberto ha quatro meses, de proposito: fica ABAIXO dos 150 dias que o modelo
     # de previsao exige. E' o caso que faz a tela dizer "sem historico suficiente"
@@ -305,8 +425,16 @@ SITES = [
         "residencial-vila-mariana",
         "Residencial Vila Mariana",
         "Rua Domingos de Morais, 2187 - Vila Mariana, Sao Paulo",
-        "Sao Paulo", "SP", -23.601400, -46.638700,
-        "condominio", 5.0, 45.0, 40.0, 118, CHARGE_POINTS[:3],
+        "Sao Paulo",
+        "SP",
+        -23.601400,
+        -46.638700,
+        "condominio",
+        5.0,
+        45.0,
+        40.0,
+        118,
+        CHARGE_POINTS[:3],
     ),
 ]
 
@@ -368,8 +496,19 @@ async def _reservar_codigos(db, sequencia: str, quantidade: int) -> int:
 async def _montar_site(db, especificacao: tuple) -> dict:
     """Cria um site completo: tarifas, pontos e meios de pagamento."""
     (
-        slug, nome, endereco, cidade, uf, lat, lon,
-        carater, sessoes_dia, grid_kw, demanda_kw, dias, pontos,
+        slug,
+        nome,
+        endereco,
+        cidade,
+        uf,
+        lat,
+        lon,
+        carater,
+        sessoes_dia,
+        grid_kw,
+        demanda_kw,
+        dias,
+        pontos,
     ) = especificacao
 
     site = Site(
@@ -484,9 +623,7 @@ async def _montar_site(db, especificacao: tuple) -> dict:
             priority=priority,
             status=ChargePointStatus.OFFLINE,
         )
-        cp.connection = ChargePointConnection(
-            protocol="modbus_tcp", host=None, port=502, unit_id=1
-        )
+        cp.connection = ChargePointConnection(protocol="modbus_tcp", host=None, port=502, unit_id=1)
         db.add(cp)
         criados.append(cp)
     await db.flush()
@@ -579,7 +716,11 @@ def _sessoes_do_site(rng: random.Random, montado: dict, agora: datetime) -> list
 
             for hora in sorted(_sorteia_hora(rng, horas) for _ in range(quantidade)):
                 inicio = datetime(
-                    dia.year, dia.month, dia.day, hora, rng.randrange(60),
+                    dia.year,
+                    dia.month,
+                    dia.day,
+                    hora,
+                    rng.randrange(60),
                     tzinfo=FUSO_DO_SITE,
                 )
                 # O ponto e' um recurso fisico: enquanto um carro esta plugado,
@@ -760,9 +901,14 @@ async def _gravar_historico(db, sessoes: list[dict], agora: datetime) -> int:
         posicao = 0
         linhas_item.append(
             {
-                "id": uuid.uuid4(), "invoice_id": fatura_id, "position": posicao,
-                "kind": "energy", "description": f"Energia — {tarifa_nome}",
-                "quantity": s["kwh"], "unit": "kWh", "unit_price": preco,
+                "id": uuid.uuid4(),
+                "invoice_id": fatura_id,
+                "position": posicao,
+                "kind": "energy",
+                "description": f"Energia — {tarifa_nome}",
+                "quantity": s["kwh"],
+                "unit": "kWh",
+                "unit_price": preco,
                 "amount": energia,
             }
         )
@@ -770,10 +916,15 @@ async def _gravar_historico(db, sessoes: list[dict], agora: datetime) -> int:
             posicao += 1
             linhas_item.append(
                 {
-                    "id": uuid.uuid4(), "invoice_id": fatura_id, "position": posicao,
-                    "kind": "idle", "description": "Taxa de ociosidade",
-                    "quantity": ocioso, "unit": "min",
-                    "unit_price": 0.20 if na_ponta else 0.10, "amount": taxa_ociosa,
+                    "id": uuid.uuid4(),
+                    "invoice_id": fatura_id,
+                    "position": posicao,
+                    "kind": "idle",
+                    "description": "Taxa de ociosidade",
+                    "quantity": ocioso,
+                    "unit": "min",
+                    "unit_price": 0.20 if na_ponta else 0.10,
+                    "amount": taxa_ociosa,
                 }
             )
         if total > subtotal:
@@ -781,9 +932,14 @@ async def _gravar_historico(db, sessoes: list[dict], agora: datetime) -> int:
             complemento = round(total - subtotal, 2)
             linhas_item.append(
                 {
-                    "id": uuid.uuid4(), "invoice_id": fatura_id, "position": posicao,
-                    "kind": "min_charge", "description": "Complemento até o valor mínimo",
-                    "quantity": 1, "unit": "un", "unit_price": complemento,
+                    "id": uuid.uuid4(),
+                    "invoice_id": fatura_id,
+                    "position": posicao,
+                    "kind": "min_charge",
+                    "description": "Complemento até o valor mínimo",
+                    "quantity": 1,
+                    "unit": "un",
+                    "unit_price": complemento,
                     "amount": complemento,
                 }
             )
@@ -850,19 +1006,44 @@ async def _montar_gamificacao(
         # outras duas ficam em andamento de proposito - uma tela em que tudo
         # esta concluido nao mostra a barra de progresso funcionando, e uma em
         # que nada esta nunca chega na recompensa.
-        ("oito-recargas", "Recarregue 8 vezes na campanha",
-         "Oito recargas ate o fim da campanha.", "sessoes", 8, "campanha", 0),
-        ("energia-solar", "50 kWh de energia solar",
-         "Some 50 kWh vindos do sol carregando durante o dia.",
-         "energia_verde_kwh", 50, "mensal", 1),
-        ("fora-de-ponta", "3 recargas fora de ponta",
-         "Carregue fora do horario de pico e ajude a rede.",
-         "sessoes_fora_de_ponta", 3, "semanal", 2),
+        (
+            "oito-recargas",
+            "Recarregue 8 vezes na campanha",
+            "Oito recargas ate o fim da campanha.",
+            "sessoes",
+            8,
+            "campanha",
+            0,
+        ),
+        (
+            "energia-solar",
+            "50 kWh de energia solar",
+            "Some 50 kWh vindos do sol carregando durante o dia.",
+            "energia_verde_kwh",
+            50,
+            "mensal",
+            1,
+        ),
+        (
+            "fora-de-ponta",
+            "3 recargas fora de ponta",
+            "Carregue fora do horario de pico e ajude a rede.",
+            "sessoes_fora_de_ponta",
+            3,
+            "semanal",
+            2,
+        ),
     ]:
         db.add(
             Mission(
-                campaign_id=rede.id, codigo=codigo, titulo=titulo, descricao=descricao,
-                metrica=metrica, alvo=alvo, janela=janela, ordem=ordem,
+                campaign_id=rede.id,
+                codigo=codigo,
+                titulo=titulo,
+                descricao=descricao,
+                metrica=metrica,
+                alvo=alvo,
+                janela=janela,
+                ordem=ordem,
             )
         )
 

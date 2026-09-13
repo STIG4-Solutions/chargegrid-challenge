@@ -148,9 +148,7 @@ async def test_sessao_sem_dono_nao_gera_progresso(db, ponto, tarifa):
     campanha = await _campanha(db)
     await _missao(db, campanha)
 
-    sessao = await session_service.authorize(
-        db, ponto, user=None, auth_method=AuthMethod.RFID
-    )
+    sessao = await session_service.authorize(db, ponto, user=None, auth_method=AuthMethod.RFID)
     await session_service.start(db, sessao, ponto)
     sessao.energy_kwh = 10.0
     sessao.state = SessionState.FINISHED
@@ -196,9 +194,7 @@ async def test_faturar_a_mesma_sessao_duas_vezes_nao_dobra_o_progresso(
 
     fatura = await _sessao_faturada(db, ponto, motorista)
     sessao = (
-        await db.execute(
-            select(ChargingSession).where(ChargingSession.id == fatura.session_id)
-        )
+        await db.execute(select(ChargingSession).where(ChargingSession.id == fatura.session_id))
     ).scalar_one()
 
     await billing_service.bill_session(db, sessao)
@@ -246,13 +242,9 @@ async def test_conclusao_sobrevive_ao_alvo_subir(db, ponto, motorista, tarifa):
     assert float(progresso.valor) == 2.0
 
 
-async def test_campanha_de_desconto_nao_cria_missao_de_progresso(
-    db, ponto, motorista, tarifa
-):
+async def test_campanha_de_desconto_nao_cria_missao_de_progresso(db, ponto, motorista, tarifa):
     """Desconto age na fatura, na hora. Nao ha o que acumular."""
-    campanha = await _campanha(
-        db, beneficio_tipo="desconto_pct", beneficio_valor=Decimal("10")
-    )
+    campanha = await _campanha(db, beneficio_tipo="desconto_pct", beneficio_valor=Decimal("10"))
     missao = await _missao(db, campanha)
 
     await _sessao_faturada(db, ponto, motorista)
@@ -270,9 +262,7 @@ async def test_desconto_de_campanha_chega_na_fatura(db, ponto, motorista, tarifa
     fatura = await _sessao_faturada(db, ponto, motorista, energia=10.0)
 
     assert float(fatura.discount) > 0
-    assert float(fatura.subtotal) - float(fatura.discount) == pytest.approx(
-        float(fatura.total)
-    )
+    assert float(fatura.subtotal) - float(fatura.discount) == pytest.approx(float(fatura.total))
     assert any(linha.kind == "desconto" for linha in fatura.lines)
 
 
@@ -291,16 +281,10 @@ async def test_campanha_sem_orcamento_nao_desconta(db, ponto, motorista, tarifa)
     assert float(fatura.discount) == 0.0
 
 
-async def test_entre_duas_campanhas_vence_a_melhor_para_o_motorista(
-    db, ponto, motorista, tarifa
-):
+async def test_entre_duas_campanhas_vence_a_melhor_para_o_motorista(db, ponto, motorista, tarifa):
     """Ele nao escolhe, entao a escolha e' a favor dele."""
-    await _campanha(
-        db, nome="Fraca", beneficio_tipo="desconto_pct", beneficio_valor=Decimal("5")
-    )
-    await _campanha(
-        db, nome="Forte", beneficio_tipo="desconto_pct", beneficio_valor=Decimal("25")
-    )
+    await _campanha(db, nome="Fraca", beneficio_tipo="desconto_pct", beneficio_valor=Decimal("5"))
+    await _campanha(db, nome="Forte", beneficio_tipo="desconto_pct", beneficio_valor=Decimal("25"))
 
     fatura = await _sessao_faturada(db, ponto, motorista, energia=10.0)
 
@@ -412,9 +396,7 @@ async def test_frota_combina_com_patrocinio_de_site(db, ponto, motorista, tarifa
     frota = await _frota(db)
     motorista.fleet_id = frota.id
     await db.flush()
-    campanha = await _campanha(
-        db, patrocinador="site", site_id=site.id, fleet_id=frota.id
-    )
+    campanha = await _campanha(db, patrocinador="site", site_id=site.id, fleet_id=frota.id)
     missao = await _missao(db, campanha)
 
     await _sessao_faturada(db, ponto, motorista)

@@ -74,6 +74,7 @@ require_admin = require_roles(UserRole.ADMIN)
 # conta administrativa.
 require_driver = require_roles(UserRole.DRIVER)
 
+
 async def require_fleet_manager(user: DriverUser) -> User:
     """Gestor de frota: um recorte de LEITURA sobre o papel de motorista.
 
@@ -148,9 +149,7 @@ Auditor = Annotated[Auditoria, Depends(get_auditoria)]
 async def get_scoped_site_id(
     db: DbSession,
     user: OperatorUser,
-    site_id: Annotated[
-        uuid.UUID | None, Query(description="admin: escolhe o site da rede")
-    ] = None,
+    site_id: Annotated[uuid.UUID | None, Query(description="admin: escolhe o site da rede")] = None,
 ) -> uuid.UUID:
     """Site em que a requisicao opera.
 
@@ -174,9 +173,7 @@ async def get_scoped_site_id(
         return user.site_id
 
     if user.role == UserRole.ADMIN and site_id is not None:
-        existe = (
-            await db.execute(select(Site.id).where(Site.id == site_id))
-        ).scalar_one_or_none()
+        existe = (await db.execute(select(Site.id).where(Site.id == site_id))).scalar_one_or_none()
         if existe is None:
             raise HTTPException(status_code=404, detail="site não encontrado")
         return existe

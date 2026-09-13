@@ -40,9 +40,7 @@ async def _da_praca(db, campanha_id: uuid.UUID, site_id: uuid.UUID) -> Campaign:
     if campanha.site_id != site_id:
         # Campanha de rede (site_id nulo) e' visivel mas nao editavel por
         # operador de praca: quem paga e' a rede.
-        raise HTTPException(
-            status_code=403, detail="esta campanha não pertence à sua praça"
-        )
+        raise HTTPException(status_code=403, detail="esta campanha não pertence à sua praça")
     return campanha
 
 
@@ -64,11 +62,7 @@ async def frotas(db: DbSession, _: OperatorUser):
     nao ha o que proteger aqui alem do dado pessoal, que ja ficou de fora.
     """
     return (
-        (
-            await db.execute(
-                select(Fleet).where(Fleet.active.is_(True)).order_by(Fleet.name)
-            )
-        )
+        (await db.execute(select(Fleet).where(Fleet.active.is_(True)).order_by(Fleet.name)))
         .scalars()
         .all()
     )
@@ -184,9 +178,7 @@ async def atualizar(
 
 
 @router.get("/{campanha_id}/desempenho", response_model=DesempenhoOut)
-async def desempenho(
-    campanha_id: uuid.UUID, db: DbSession, _: OperatorUser, site_id: ScopedSiteId
-):
+async def desempenho(campanha_id: uuid.UUID, db: DbSession, _: OperatorUser, site_id: ScopedSiteId):
     campanha = (
         await db.execute(
             select(Campaign)
@@ -203,9 +195,7 @@ async def desempenho(
     return await campaign_service.desempenho(db, campanha)
 
 
-@router.delete(
-    "/{campanha_id}", status_code=204, response_model=None, response_class=Response
-)
+@router.delete("/{campanha_id}", status_code=204, response_model=None, response_class=Response)
 async def encerrar(
     campanha_id: uuid.UUID, db: DbSession, _: OperatorUser, site_id: ScopedSiteId, aud: Auditor
 ):

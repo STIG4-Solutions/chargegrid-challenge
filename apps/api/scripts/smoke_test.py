@@ -54,6 +54,7 @@ MOTORISTA = ("joao.silva@email.com", _MOTORISTA_SENHA)
 # por configuracao - que nao e' o que um teste de fumaca deve reportar.
 ADMIN = ("admin@chargegrid.com.br", _ADMIN_SENHA)
 
+
 def _exigir_credenciais() -> None:
     """Checagem na execucao, nao na importacao: o pytest coleta este arquivo
     (o nome casa com *_test.py) e um SystemExit aqui derrubaria a coleta."""
@@ -62,6 +63,7 @@ def _exigir_credenciais() -> None:
             "Defina SEED_OPERATOR_PASSWORD e SEED_DRIVER_PASSWORD (as mesmas que o "
             "seed usou) antes de rodar o teste de fumaca."
         )
+
 
 ATIVOS = {"authorizing", "queued", "starting", "charging", "suspended", "finishing"}
 
@@ -590,8 +592,6 @@ def coerencia_da_tarifa(client: httpx.Client, op: dict) -> None:
         return
     r = client.delete(f"{API}/tariffs/{com_historico}", headers=op)
     check("tarifa com historico e protegida", r.status_code == 409, f"HTTP {r.status_code}")
-
-
 
 
 # ---------------------------------------------------------------------------

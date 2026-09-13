@@ -81,9 +81,7 @@ class PlatformPlan(UUIDMixin, TimestampMixin, Base):
     preco_por_ponto_brl: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0, nullable=False)
     pontos_inclusos: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     # A parte que realmente importa: percentual sobre o que o site faturou.
-    fee_percent_transacao: Mapped[Decimal] = mapped_column(
-        Numeric(6, 3), default=0, nullable=False
-    )
+    fee_percent_transacao: Mapped[Decimal] = mapped_column(Numeric(6, 3), default=0, nullable=False)
 
     meses_minimos: Mapped[int] = mapped_column(Integer, default=12, nullable=False)
     ativo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -102,9 +100,7 @@ class SiteSubscription(UUIDMixin, TimestampMixin, Base):
         CheckConstraint(
             "estado <> 'encerrada' OR encerra_em IS NOT NULL", name="encerramento_completo"
         ),
-        CheckConstraint(
-            "multa_percentual >= 0 AND multa_percentual <= 100", name="multa_ate_cem"
-        ),
+        CheckConstraint("multa_percentual >= 0 AND multa_percentual <= 100", name="multa_ate_cem"),
         # Um contrato vivo por site. Encerrados nao contam: o estabelecimento
         # pode voltar depois, e barrar isso o obrigaria a apagar o historico.
         Index(
@@ -190,9 +186,7 @@ class PlatformInvoice(UUIDMixin, TimestampMixin, Base):
     # A base de calculo, guardada junto: sem ela, conferir a taxa exigiria
     # reprocessar o mes inteiro de faturas do site.
     pontos_cobrados: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    faturamento_base_brl: Mapped[Decimal] = mapped_column(
-        Numeric(12, 2), default=0, nullable=False
-    )
+    faturamento_base_brl: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, nullable=False)
 
     estado: Mapped[str] = mapped_column(String(12), default="aberta", nullable=False)
 

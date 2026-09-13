@@ -69,9 +69,7 @@ async def test_o_site_vem_do_escopo_e_nao_do_corpo(api, como_operador_do_site, s
 
 async def test_cashback_sem_missao_e_recusado(api, como_operador_do_site):
     """Cashback sem missao nao premia ninguem: nao ha o que cumprir."""
-    r = await api.post(
-        "/api/v1/campaigns", json=_corpo(missoes=[]), headers=como_operador_do_site
-    )
+    r = await api.post("/api/v1/campaigns", json=_corpo(missoes=[]), headers=como_operador_do_site)
     assert r.status_code == 422
     assert "missão" in r.text or "missao" in r.text
 

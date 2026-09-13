@@ -137,8 +137,7 @@ def main() -> int:
     print("\n2. Construindo features...")
     ds = alvo_em_razao(construir_treino(painel, estacoes))
     print(
-        f"   {len(ds):,} linhas | {len(FEATURES)} features | "
-        f"{ds['location_id'].nunique()} estacoes"
+        f"   {len(ds):,} linhas | {len(FEATURES)} features | {ds['location_id'].nunique()} estacoes"
     )
     if len(ds) < MINIMO_DE_LINHAS:
         raise SystemExit(

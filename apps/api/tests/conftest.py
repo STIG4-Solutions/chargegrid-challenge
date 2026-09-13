@@ -253,7 +253,6 @@ def agora() -> datetime:
     return datetime.now(UTC)
 
 
-
 # ------------------------------------------------------------------ camada HTTP
 #
 # Ate aqui todo teste chamava servico ou handler direto, passando o usuario como

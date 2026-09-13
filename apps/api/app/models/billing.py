@@ -188,9 +188,7 @@ class WalletEntry(UUIDMixin, TimestampMixin, Base):
         #
         # O estorno fica de fora da exigencia de proposito: ele nasce de uma
         # fatura, e a fatura E' a justificativa.
-        CheckConstraint(
-            "origem <> 'ajuste' OR motivo IS NOT NULL", name="ajuste_com_motivo"
-        ),
+        CheckConstraint("origem <> 'ajuste' OR motivo IS NOT NULL", name="ajuste_com_motivo"),
     )
 
     user_id: Mapped[uuid.UUID] = mapped_column(

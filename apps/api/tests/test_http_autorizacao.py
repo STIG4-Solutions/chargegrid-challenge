@@ -49,9 +49,7 @@ async def test_sem_token_nao_entra(api, rota):
 
 
 async def test_token_invalido_nao_entra(api):
-    r = await api.get(
-        "/api/v1/app/stations", headers={"Authorization": "Bearer nao-e-um-jwt"}
-    )
+    r = await api.get("/api/v1/app/stations", headers={"Authorization": "Bearer nao-e-um-jwt"})
     assert r.status_code == 401
 
 
@@ -66,9 +64,7 @@ async def test_operador_nao_escreve_pelo_app(api, como_operador):
 
 
 async def test_operador_nao_credita_carteira_pelo_app(api, como_operador):
-    r = await api.post(
-        "/api/v1/app/wallet/topup", headers=como_operador, json={"amount": "100.00"}
-    )
+    r = await api.post("/api/v1/app/wallet/topup", headers=como_operador, json={"amount": "100.00"})
     assert r.status_code == 403, r.text
 
 

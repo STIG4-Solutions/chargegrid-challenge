@@ -64,12 +64,14 @@ async def test_reamostragem_cobre_a_janela_inteira(api, como_operador, db, ponto
     await _amostras(db, ponto, sessao.id, 1000)
 
     completa = (
-        await api.get(f"{CAB}/{sessao.id}/telemetry?minutes=1440&max_points=5000",
-                      headers=como_operador)
+        await api.get(
+            f"{CAB}/{sessao.id}/telemetry?minutes=1440&max_points=5000", headers=como_operador
+        )
     ).json()
     reduzida = (
-        await api.get(f"{CAB}/{sessao.id}/telemetry?minutes=1440&max_points=50",
-                      headers=como_operador)
+        await api.get(
+            f"{CAB}/{sessao.id}/telemetry?minutes=1440&max_points=50", headers=como_operador
+        )
     ).json()
 
     assert len(completa) == 1000
@@ -86,8 +88,9 @@ async def test_serie_continua_em_ordem_cronologica(api, como_operador, db, ponto
     await _amostras(db, ponto, sessao.id, 600)
 
     pontos = (
-        await api.get(f"{CAB}/{sessao.id}/telemetry?minutes=1440&max_points=60",
-                      headers=como_operador)
+        await api.get(
+            f"{CAB}/{sessao.id}/telemetry?minutes=1440&max_points=60", headers=como_operador
+        )
     ).json()
     marcas = [p["recorded_at"] for p in pontos]
     assert marcas == sorted(marcas), "a reamostragem embaralhou a serie"

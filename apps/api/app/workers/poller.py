@@ -213,9 +213,7 @@ def start_workers() -> list[asyncio.Task]:
     # A fila de push e' drenada por worker, e nao no momento em que o evento e'
     # gravado: um servico externo lento ou fora do ar travaria a transicao de
     # estado da sessao - o carro deixaria de ser liberado porque a Expo caiu.
-    tarefas.append(
-        asyncio.create_task(_loop("push", _enviar_push, settings.push_interval_s))
-    )
+    tarefas.append(asyncio.create_task(_loop("push", _enviar_push, settings.push_interval_s)))
     # Sem medidor fisico, um worker sintetiza a curva do dia na mesma tabela.
     # Com METER_SOURCE=push, so' entram leituras enviadas por POST.
     if virtual_meter.habilitado():

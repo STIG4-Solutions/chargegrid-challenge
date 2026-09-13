@@ -87,9 +87,7 @@ async def test_pagar_com_a_carteira_deixa_a_linha_do_debito(db, site, motorista)
     Era exatamente este o buraco: `_charge_wallet` subtraia do saldo e seguia.
     """
     fatura = await _fatura(db, site, motorista, total=30)
-    await payment_service.charge_invoice(
-        db, fatura, PaymentMethodKind.WALLET, payer=motorista
-    )
+    await payment_service.charge_invoice(db, fatura, PaymentMethodKind.WALLET, payer=motorista)
 
     debito = (
         (
@@ -112,9 +110,7 @@ async def test_o_razao_fecha_com_o_saldo_depois_de_credito_e_debito(db, site, mo
         db, motorista, Decimal("40.00"), idempotency_key=uuid.uuid4().hex
     )
     fatura = await _fatura(db, site, motorista, total=55)
-    await payment_service.charge_invoice(
-        db, fatura, PaymentMethodKind.WALLET, payer=motorista
-    )
+    await payment_service.charge_invoice(db, fatura, PaymentMethodKind.WALLET, payer=motorista)
 
     saldo = await _saldo(db, motorista)
     assert saldo == Decimal("85.00"), "100 + 40 - 55"
@@ -130,9 +126,7 @@ async def test_saldo_insuficiente_nao_deixa_linha_nenhuma(db, site, motorista):
     """
     fatura = await _fatura(db, site, motorista, total=500)
     with pytest.raises(PaymentError):
-        await payment_service.charge_invoice(
-            db, fatura, PaymentMethodKind.WALLET, payer=motorista
-        )
+        await payment_service.charge_invoice(db, fatura, PaymentMethodKind.WALLET, payer=motorista)
 
     pagamentos = (
         (
@@ -241,9 +235,7 @@ async def test_banco_recusa_origem_desconhecida(db, motorista):
 async def test_extrato_traduz_a_origem(db, site, motorista):
     """`cashback` cru nao diz nada a quem recebeu o dinheiro."""
     fatura = await _fatura(db, site, motorista, total=12)
-    await payment_service.charge_invoice(
-        db, fatura, PaymentMethodKind.WALLET, payer=motorista
-    )
+    await payment_service.charge_invoice(db, fatura, PaymentMethodKind.WALLET, payer=motorista)
 
     extrato = await wallet_service.extrato(db, motorista.id)
     debito = next(m for m in extrato["movimentos"] if m["origem"] == "pagamento")
@@ -462,7 +454,7 @@ async def test_mesma_chave_nao_ajusta_duas_vezes(db, motorista, administrador):
 
 
 async def test_o_extrato_explica_o_ajuste(db, motorista, administrador):
-    """"Ajuste R$ 50,00" sem explicacao e' o que a coluna `motivo` existe para
+    """ "Ajuste R$ 50,00" sem explicacao e' o que a coluna `motivo` existe para
     impedir - entao ela precisa chegar na tela, e nao so' no banco."""
     await wallet_service.ajustar(
         db, motorista, Decimal("50.00"), "Compensacao de recarga interrompida", autor=administrador

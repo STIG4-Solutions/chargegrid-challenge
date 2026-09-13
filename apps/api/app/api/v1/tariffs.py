@@ -364,9 +364,7 @@ async def charge_invoice(
 
 
 @router.post("/invoices/{invoice_id}/refund", response_model=PaymentOut)
-async def refund_invoice(
-    invoice_id: uuid.UUID, db: DbSession, admin: AdminUser, aud: Auditor
-):
+async def refund_invoice(invoice_id: uuid.UUID, db: DbSession, admin: AdminUser, aud: Auditor):
     """Estorna a fatura: devolve o que foi cobrado.
 
     ADMIN, e nao operador nem motorista. Devolver dinheiro e' decisao da rede -

@@ -63,9 +63,7 @@ LOTE = 50
 # ---------------------------------------------------------------- elegibilidade
 
 
-async def _vigentes(
-    db: AsyncSession, sessao: ChargingSession, momento: datetime
-) -> list[Campaign]:
+async def _vigentes(db: AsyncSession, sessao: ChargingSession, momento: datetime) -> list[Campaign]:
     """Campanhas ativas, dentro do periodo e cujo escopo cobre esta sessao.
 
     O escopo e' decidido AQUI, numa clausula so'. Havia uma segunda checagem em
@@ -157,9 +155,7 @@ async def _agregar(
         select(
             func.count().label("sessoes"),
             func.coalesce(func.sum(ChargingSession.energy_kwh), 0).label("energia_kwh"),
-            func.coalesce(func.sum(ChargingSession.green_energy_kwh), 0).label(
-                "energia_verde_kwh"
-            ),
+            func.coalesce(func.sum(ChargingSession.green_energy_kwh), 0).label("energia_verde_kwh"),
             func.coalesce(func.sum(Invoice.total), 0).label("valor_brl"),
             func.count(func.distinct(func.date(local))).label("dias_distintos"),
             func.count().filter(~na_ponta).label("sessoes_fora_de_ponta"),
@@ -430,9 +426,7 @@ async def _creditar(db: AsyncSession, recompensa: Reward, campanha: Campaign) ->
     contra credito duplo sem precisar de tabela de trava nova.
     """
     dono = (
-        await db.execute(
-            select(User).where(User.id == recompensa.user_id).with_for_update()
-        )
+        await db.execute(select(User).where(User.id == recompensa.user_id).with_for_update())
     ).scalar_one()
 
     saldo = Decimal(str(dono.wallet_balance)) + Decimal(str(recompensa.valor_brl))

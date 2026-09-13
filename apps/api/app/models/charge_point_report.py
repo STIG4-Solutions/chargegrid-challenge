@@ -57,9 +57,7 @@ class ChargePointReport(UUIDMixin, TimestampMixin, Base):
             "charge_point_id",
             postgresql_where=text("resolved_at IS NULL"),
         ),
-        CheckConstraint(
-            "categoria IN ('" + "', '".join(CATEGORIAS) + "')", name="categoria"
-        ),
+        CheckConstraint("categoria IN ('" + "', '".join(CATEGORIAS) + "')", name="categoria"),
         # Resolver exige dizer quando. Sem isso um registro com `resolucao`
         # preenchida e sem responsavel se declara resolvido por ninguem.
         CheckConstraint(

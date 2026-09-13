@@ -45,7 +45,9 @@ def sender(monkeypatch):
 @pytest.fixture
 async def aparelho(db, motorista):
     d = PushDevice(
-        id=uuid.uuid4(), user_id=motorista.id, token="ExponentPushToken[abc12345]",
+        id=uuid.uuid4(),
+        user_id=motorista.id,
+        token="ExponentPushToken[abc12345]",
         platform="android",
     )
     db.add(d)
@@ -58,10 +60,18 @@ async def sessao(db, site, ponto, motorista, agora):
     from app.models.session import ChargingSession
 
     s = ChargingSession(
-        id=uuid.uuid4(), code="SES-9001", site_id=site.id, charge_point_id=ponto.id,
-        user_id=motorista.id, state=SessionState.FINISHED,
-        started_at=agora - timedelta(hours=1), ended_at=agora,
-        duration_s=3600, energy_kwh=18.5, estimated_cost=25.90, idle_minutes=0,
+        id=uuid.uuid4(),
+        code="SES-9001",
+        site_id=site.id,
+        charge_point_id=ponto.id,
+        user_id=motorista.id,
+        state=SessionState.FINISHED,
+        started_at=agora - timedelta(hours=1),
+        ended_at=agora,
+        duration_s=3600,
+        energy_kwh=18.5,
+        estimated_cost=25.90,
+        idle_minutes=0,
     )
     db.add(s)
     await db.flush()
@@ -70,8 +80,11 @@ async def sessao(db, site, ponto, motorista, agora):
 
 def _evento(sessao, tipo, **kw):
     return SessionEvent(
-        id=uuid.uuid4(), session_id=sessao.id, occurred_at=datetime.now(UTC),
-        event_type=tipo, **kw,
+        id=uuid.uuid4(),
+        session_id=sessao.id,
+        occurred_at=datetime.now(UTC),
+        event_type=tipo,
+        **kw,
     )
 
 
@@ -165,8 +178,10 @@ async def test_motorista_sem_aparelho_nao_trava_a_fila(db, sessao, sender):
 async def test_dois_aparelhos_recebem_os_dois(db, sessao, motorista, aparelho, sender):
     db.add(
         PushDevice(
-            id=uuid.uuid4(), user_id=motorista.id,
-            token="ExponentPushToken[segundo99]", platform="ios",
+            id=uuid.uuid4(),
+            user_id=motorista.id,
+            token="ExponentPushToken[segundo99]",
+            platform="ios",
         )
     )
     db.add(_evento(sessao, "state_change", to_state=str(SessionState.FINISHED)))
@@ -224,11 +239,13 @@ async def test_encerramento_notifica_uma_vez_so(db, sessao, aparelho, sender):
     BILLED nunca pode ser o primeiro estado terminal: a maquina so permite
     `finished -> billed`, entao quem chega la ja foi avisado.
     """
-    db.add_all([
-        _evento(sessao, "state_change", to_state=str(SessionState.FINISHING)),
-        _evento(sessao, "state_change", to_state=str(SessionState.FINISHED)),
-        _evento(sessao, "state_change", to_state=str(SessionState.BILLED)),
-    ])
+    db.add_all(
+        [
+            _evento(sessao, "state_change", to_state=str(SessionState.FINISHING)),
+            _evento(sessao, "state_change", to_state=str(SessionState.FINISHED)),
+            _evento(sessao, "state_change", to_state=str(SessionState.BILLED)),
+        ]
+    )
     await db.flush()
 
     r = await ns.enviar_pendentes(db)
@@ -282,9 +299,7 @@ async def test_remocao_ao_sair(api, como_motorista, aparelho):
     r = await api.delete(f"/api/v1/app/push-devices/{aparelho.token}", headers=como_motorista)
     assert r.status_code == 204
     # De novo: sair da conta nao pode falhar por um token que ja nao existe.
-    de_novo = await api.delete(
-        f"/api/v1/app/push-devices/{aparelho.token}", headers=como_motorista
-    )
+    de_novo = await api.delete(f"/api/v1/app/push-devices/{aparelho.token}", headers=como_motorista)
     assert de_novo.status_code == 204
 
 
@@ -306,26 +321,46 @@ async def fatura(db, site, sessao, motorista, agora):
     from app.models.enums import PaymentMethodKind, PaymentStatus
 
     inv = Invoice(
-        id=uuid.uuid4(), code="INV-7001", site_id=site.id, session_id=sessao.id,
-        user_id=motorista.id, status=InvoiceStatus.PAID, currency="BRL",
-        subtotal=25.90, discount=0, total=25.90,
-        processing_fee=1.04, net_amount=24.86,
-        issued_on=agora.date(), paid_at=agora,
+        id=uuid.uuid4(),
+        code="INV-7001",
+        site_id=site.id,
+        session_id=sessao.id,
+        user_id=motorista.id,
+        status=InvoiceStatus.PAID,
+        currency="BRL",
+        subtotal=25.90,
+        discount=0,
+        total=25.90,
+        processing_fee=1.04,
+        net_amount=24.86,
+        issued_on=agora.date(),
+        paid_at=agora,
         tariff_snapshot={"name": "Tarifa Ponta"},
     )
     db.add(inv)
     await db.flush()
-    db.add_all([
-        InvoiceLine(
-            id=uuid.uuid4(), invoice_id=inv.id, position=0, kind="energy",
-            description="Energia · Fora de ponta", quantity=18.5, unit="kWh",
-            unit_price=1.40, amount=25.90,
-        ),
-        Payment(
-            id=uuid.uuid4(), invoice_id=inv.id, method=PaymentMethodKind.WALLET,
-            status=PaymentStatus.CAPTURED, amount=25.90,
-        ),
-    ])
+    db.add_all(
+        [
+            InvoiceLine(
+                id=uuid.uuid4(),
+                invoice_id=inv.id,
+                position=0,
+                kind="energy",
+                description="Energia · Fora de ponta",
+                quantity=18.5,
+                unit="kWh",
+                unit_price=1.40,
+                amount=25.90,
+            ),
+            Payment(
+                id=uuid.uuid4(),
+                invoice_id=inv.id,
+                method=PaymentMethodKind.WALLET,
+                status=PaymentStatus.CAPTURED,
+                amount=25.90,
+            ),
+        ]
+    )
     await db.flush()
     return inv
 

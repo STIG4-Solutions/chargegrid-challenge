@@ -284,9 +284,7 @@ class PixProvider(PaymentProvider):
         if resposta.status_code >= 400:
             # Sem eco do corpo: resposta de erro de autenticacao costuma repetir
             # o que foi enviado, e o que foi enviado e' o segredo.
-            raise PaymentError(
-                f"PSP recusou as credenciais do Pix (HTTP {resposta.status_code})"
-            )
+            raise PaymentError(f"PSP recusou as credenciais do Pix (HTTP {resposta.status_code})")
         dados = resposta.json()
         token = dados.get("access_token")
         if not token:

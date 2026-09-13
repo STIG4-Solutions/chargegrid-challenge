@@ -23,9 +23,7 @@ async def test_estacoes_trazem_vagas_conectores_e_preco(api, como_motorista, pon
     assert e["max_kw"] > 0
 
 
-async def test_qr_resolve_o_ponto_e_diz_a_que_estacao_pertence(
-    api, como_motorista, ponto, site
-):
+async def test_qr_resolve_o_ponto_e_diz_a_que_estacao_pertence(api, como_motorista, ponto, site):
     r = await api.get(f"{CAB}/charge-points/by-code/{ponto.code}", headers=como_motorista)
     assert r.status_code == 200, r.text
     corpo = r.json()
@@ -56,9 +54,7 @@ async def test_veiculo_criado_aparece_na_lista_do_dono(api, como_motorista):
 
 
 async def test_veiculo_de_um_motorista_nao_vaza_para_outro(api, como_motorista, db):
-    await api.post(
-        f"{CAB}/vehicles", headers=como_motorista, json={"model": "So meu"}
-    )
+    await api.post(f"{CAB}/vehicles", headers=como_motorista, json={"model": "So meu"})
 
     from app.core.security import create_access_token
     from app.models.enums import UserRole
@@ -97,9 +93,7 @@ async def test_agendamento_recusa_janela_invertida(api, como_motorista, ponto):
     assert r.status_code == 422
 
 
-async def test_agendamento_criado_aparece_com_contexto_da_estacao(
-    api, como_motorista, ponto, site
-):
+async def test_agendamento_criado_aparece_com_contexto_da_estacao(api, como_motorista, ponto, site):
     inicio = datetime.now(UTC) + timedelta(hours=3)
     r = await api.post(
         f"{CAB}/reservations",

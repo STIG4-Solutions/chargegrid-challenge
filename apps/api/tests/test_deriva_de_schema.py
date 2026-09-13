@@ -140,6 +140,5 @@ async def test_nenhum_nome_esta_perto_do_limite_do_postgres(db):
     apertados = [(n, tam) for n, tam in linhas if tam > teto]
     assert not apertados, (
         f"nomes a menos de {FOLGA_MINIMA} caracteres do limite de "
-        f"{LIMITE_DE_IDENTIFICADOR}:\n  "
-        + "\n  ".join(f"{n} ({tam})" for n, tam in apertados)
+        f"{LIMITE_DE_IDENTIFICADOR}:\n  " + "\n  ".join(f"{n} ({tam})" for n, tam in apertados)
     )

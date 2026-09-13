@@ -197,9 +197,7 @@ async def test_falha_terminal_tem_prioridade_alta(db, ponto, site):
     ).scalar_one()
 
     for _ in range(2):
-        await telemetry_service.ingest(
-            db, com_conexao, _leitura(faults=["Falha de aterramento"])
-        )
+        await telemetry_service.ingest(db, com_conexao, _leitura(faults=["Falha de aterramento"]))
 
     r = await ms.pontos_em_atencao(db, site.id, dias=30)
     assert r["pontos"][0]["prioridade"] == "alta"

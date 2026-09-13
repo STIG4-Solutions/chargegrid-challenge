@@ -135,9 +135,7 @@ async def contratar(
 ) -> SiteSubscription:
     plano = (
         await db.execute(
-            select(PlatformPlan).where(
-                PlatformPlan.codigo == codigo, PlatformPlan.ativo.is_(True)
-            )
+            select(PlatformPlan).where(PlatformPlan.codigo == codigo, PlatformPlan.ativo.is_(True))
         )
     ).scalar_one_or_none()
     if plano is None:
@@ -187,9 +185,7 @@ async def rescindir(db: AsyncSession, site_id: uuid.UUID) -> dict:
 
     hoje = date.today()
     restantes = meses_restantes(hoje, contrato.minimo_ate)
-    multa = multa_por_rescisao(
-        contrato.plan.preco_mensal_brl, restantes, contrato.multa_percentual
-    )
+    multa = multa_por_rescisao(contrato.plan.preco_mensal_brl, restantes, contrato.multa_percentual)
 
     contrato.estado = "em_aviso_previo"
     contrato.encerra_em = contrato.renova_em
@@ -259,9 +255,7 @@ async def _base_de_calculo(
     fim = mes_seguinte(competencia)
     pontos = (
         await db.execute(
-            select(func.count())
-            .select_from(ChargePoint)
-            .where(ChargePoint.site_id == site_id)
+            select(func.count()).select_from(ChargePoint).where(ChargePoint.site_id == site_id)
         )
     ).scalar_one()
 
@@ -307,9 +301,7 @@ async def _emitir(
         assinatura = money(Decimal(str(plano.preco_mensal_brl)))
         excedentes = max(0, pontos - plano.pontos_inclusos)
         pontos_brl = money(Decimal(str(plano.preco_por_ponto_brl)) * excedentes)
-        transacao = money(
-            faturado * Decimal(str(plano.fee_percent_transacao)) / Decimal("100")
-        )
+        transacao = money(faturado * Decimal(str(plano.fee_percent_transacao)) / Decimal("100"))
 
     hoje = date.today()
     cobranca = PlatformInvoice(
@@ -428,13 +420,17 @@ async def ultimo_do_site(db: AsyncSession, site_id: uuid.UUID) -> SiteSubscripti
     if vigente is not None:
         return vigente
     return (
-        await db.execute(
-            select(SiteSubscription)
-            .where(SiteSubscription.site_id == site_id)
-            .order_by(SiteSubscription.starts_on.desc())
-            .limit(1)
+        (
+            await db.execute(
+                select(SiteSubscription)
+                .where(SiteSubscription.site_id == site_id)
+                .order_by(SiteSubscription.starts_on.desc())
+                .limit(1)
+            )
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
 
 
 async def marcar_vencidas(db: AsyncSession) -> dict:

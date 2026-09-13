@@ -105,8 +105,12 @@ async def test_motoristas_diferentes_no_mesmo_site_convivem(db, ponto, segundo_p
     await _sessao_crua(db, segundo_ponto, user_id=outro_id)
 
     ativas = (
-        await db.execute(
-            select(ChargingSession).where(ChargingSession.state == SessionState.CHARGING)
+        (
+            await db.execute(
+                select(ChargingSession).where(ChargingSession.state == SessionState.CHARGING)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(ativas) == 2

@@ -139,28 +139,23 @@ class PontoEmAtencao:
         }
 
 
-async def pontos_em_atencao(
-    db: AsyncSession, site_id: uuid.UUID, *, dias: int = 30
-) -> dict:
+async def pontos_em_atencao(db: AsyncSession, site_id: uuid.UUID, *, dias: int = 30) -> dict:
     """Ranking de pontos por recorrencia de falha no periodo."""
     desde = datetime.now(UTC) - timedelta(days=dias)
 
     linhas = (
-        (
-            await db.execute(
-                select(ChargePointFault, ChargePoint)
-                .join(ChargePoint, ChargePoint.id == ChargePointFault.charge_point_id)
-                .where(
-                    ChargePoint.site_id == site_id,
-                    ChargePointFault.first_seen_at >= desde,
-                    # Um ciclo isolado e' ruido do barramento, nao sintoma.
-                    ChargePointFault.ciclos >= CICLOS_MINIMOS,
-                )
-                .order_by(ChargePointFault.first_seen_at)
+        await db.execute(
+            select(ChargePointFault, ChargePoint)
+            .join(ChargePoint, ChargePoint.id == ChargePointFault.charge_point_id)
+            .where(
+                ChargePoint.site_id == site_id,
+                ChargePointFault.first_seen_at >= desde,
+                # Um ciclo isolado e' ruido do barramento, nao sintoma.
+                ChargePointFault.ciclos >= CICLOS_MINIMOS,
             )
+            .order_by(ChargePointFault.first_seen_at)
         )
-        .all()
-    )
+    ).all()
 
     por_ponto: dict[uuid.UUID, PontoEmAtencao] = {}
     agrupado: dict[tuple[uuid.UUID, str], SintomaDoPonto] = {}
@@ -168,9 +163,7 @@ async def pontos_em_atencao(
     for falha, ponto in linhas:
         alvo = por_ponto.setdefault(
             ponto.id,
-            PontoEmAtencao(
-                charge_point_id=ponto.id, code=ponto.code, name=ponto.name, episodios=0
-            ),
+            PontoEmAtencao(charge_point_id=ponto.id, code=ponto.code, name=ponto.name, episodios=0),
         )
         alvo.episodios += 1
 
@@ -216,9 +209,7 @@ async def pontos_em_atencao(
     for reporte, ponto in reportes:
         alvo = por_ponto.setdefault(
             ponto.id,
-            PontoEmAtencao(
-                charge_point_id=ponto.id, code=ponto.code, name=ponto.name, episodios=0
-            ),
+            PontoEmAtencao(charge_point_id=ponto.id, code=ponto.code, name=ponto.name, episodios=0),
         )
         chave = (ponto.id, reporte.categoria)
         grupo = por_categoria.get(chave)
@@ -243,9 +234,7 @@ async def pontos_em_atencao(
             grupo.ultimo_relato = reporte.descricao
 
     ordem = {"alta": 0, "media": 1, "baixa": 2}
-    pontos = sorted(
-        por_ponto.values(), key=lambda p: (ordem[p.prioridade], -p.episodios)
-    )
+    pontos = sorted(por_ponto.values(), key=lambda p: (ordem[p.prioridade], -p.episodios))
 
     return {
         "dias": dias,
