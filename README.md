@@ -305,6 +305,7 @@ npm run verify:api                         # 17 cenários do SDK com fetch simul
 npm run verify:dashboard                   # 119 cenários da lógica do painel, sem navegador
 npm run verify:mobile                      # 49 cenários da lógica do app, sem simulador
 npm run test:dashboard                     # 63 testes de renderização (vitest + jsdom)
+npm run test:mobile                        # 13 testes de renderização do app (jest-expo + RNTL)
 npm run typecheck                          # tipos do SDK e do app contra o contrato
 npm run build                              # dashboard
 cd apps/api && python -m pytest -q          # 725 testes (precisa do Postgres)
@@ -360,8 +361,12 @@ podiam estar todas certas e a tela ainda mentir: bastava o card ignorar `fonte` 
 "energia prevista" um número que é média móvel. São 52 testes em `apps/dashboard/tests`, com
 vitest e jsdom.
 
-Nenhum dos três cobre renderização no app: isso exigiria react-native rodando em Node. É limite
-conhecido e anotado, não esquecimento.
+O `test:mobile` fecha o que era o último buraco: renderização no app. Ele roda **jest-expo mais
+RNTL** sobre as telas de verdade, e a combinação React 19 + RN 0.86 + Expo 57 funciona — com uma
+diferença que custa tempo de quem não souber: na **RNTL 14 o `render` e o `fireEvent` devolvem
+Promise**. Sem `await`, a asserção roda antes do re-render e o teste falha dizendo que o botão
+continua apagado, o que é verdade naquele instante. `tests/util.tsx` registra isso e monta o
+`SafeAreaProvider` que o app tem na raiz.
 
 A divisão não é arbitrária: lógica pura no `verify`, decisão de apresentação no `test`. Só o
 segundo precisa de DOM, e é por isso que ele veio depois.

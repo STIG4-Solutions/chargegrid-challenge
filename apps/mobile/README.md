@@ -308,6 +308,22 @@ solares". Sem isso a tela diria "3 de 5 energia_verde_kwh", que é o nome da col
 da coisa. Missões que o motorista ainda não começou aparecem com barra zerada — quem acabou de
 instalar o app é justamente quem mais precisa ver o que há para ganhar.
 
+## Testes
+
+    npm run verify:mobile   # lógica pura, sem simulador
+    npm run test:mobile     # renderização, com jest-expo + RNTL
+
+A divisão é a mesma do painel: `verify` cobre o que decide **o que vai para o
+servidor**; `test` cobre **o que a pessoa vê** — botão que não desabilita, seção
+que renderiza vazia, erro do servidor que não aparece.
+
+**A RNTL 14 é assíncrona.** `render` e `fireEvent` devolvem Promise, e sem
+`await` a asserção roda antes do re-render: o teste falha dizendo que o botão
+continua apagado, o que é verdade naquele instante e não é o defeito. Vale para
+`changeText` e `press` também. `tests/util.tsx` traz o render com
+`SafeAreaProvider` — sem ele, `useSafeAreaInsets` estoura, porque no aparelho o
+provedor vem de `App.tsx`.
+
 **Criar conta pelo app, e não por SQL.** `POST /auth/register` existia desde
 sempre — testado por ninguém, e sem tela: o app só sabia entrar, então virar
 cliente do ChargeGrid exigia que alguém inserisse a linha no banco. A rota

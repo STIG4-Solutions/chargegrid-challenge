@@ -10,9 +10,9 @@
 // devolve *vazio* quando nada mudou, que é a regra que impede um PATCH de
 // reescrever o cadastro inteiro a cada correção de placa.
 //
-// O que NÃO dá para cobrir aqui é renderização: toque, foco, teclado numérico.
-// Isso exigiria react-native em Node. Limite conhecido, anotado — não
-// esquecimento.
+// Renderização NÃO se cobre aqui — mas passou a ser coberta: `npm run
+// test:mobile` roda jest-expo mais RNTL sobre as telas. A divisão é a mesma do
+// painel: lógica pura neste arquivo, o que a pessoa vê no outro.
 import { build } from 'esbuild'
 import { mkdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
