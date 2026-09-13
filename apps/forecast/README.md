@@ -130,6 +130,22 @@ reatualizado sem conflito. **Não** vieram:
 `banco.py`, `treinar.py` e `exportar.py` são deste projeto: leem Postgres em vez
 de CSV e escrevem na tabela em vez de um arquivo.
 
+Essa divisão é a mesma que o `ruff.toml` daqui usa: **`pipeline/` fica fora do
+lint**. Reformatar a cópia produziria exatamente o conflito que ela existe para
+evitar, e o diff seria contra código que não é nosso para corrigir — o mesmo
+motivo pelo qual o `apps/api` deixa `alembic/versions` de fora. Medido: sob a
+régua do projeto o `pipeline/` tem duas violações (`E741` e `I001`), então a
+exclusão evita divergir do upstream por duas linhas, não esconde bagunça.
+
+O arquivo de configuração não é cosmético. Sem ele o ruff não encontrava
+configuração nenhuma neste diretório e usava o conjunto padrão da **versão
+instalada**, que cresce a cada release. Medido no mesmo código, sem config:
+**1 erro** com ruff 0.6.8 (o piso que o `apps/api` pede) e **48** com a 0.16.7.
+O lint não estava frouxo nem rigoroso — estava indefinido. Com `select` explícito e a versão presa
+em `requirements.txt`, duas máquinas cobram a mesma coisa.
+
+    npm run forecast:lint
+
 ## Estado atual do modelo — leia antes de confiar no número
 
 O backtest que o artefato carrega — três meses, e é de onde saem os números que

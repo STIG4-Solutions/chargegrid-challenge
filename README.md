@@ -310,8 +310,17 @@ npm run build                              # dashboard
 cd apps/api && python -m pytest -q          # 689 testes (precisa do Postgres)
 cd apps/api && python -m ruff check .
 cd apps/api && python -m scripts.smoke_test # 116 cenários ponta a ponta (API no ar)
+npm run forecast:test                      # 4 testes do pipeline de previsão
+npm run forecast:lint                      # ruff no código de previsão que é deste projeto
 cd apps/mobile && npx expo export --platform android --output-dir .expo-bundle
 ```
+
+As duas últimas linhas de previsão existem porque o `apps/forecast` ficava **fora
+do alcance de qualquer comando daqui**. O lint era o caso pior: sem `ruff.toml`
+no diretório, o ruff caía no conjunto padrão da versão instalada — que cresce de
+versão para versão —, então o escopo do lint dependia de qual ruff a máquina
+tinha. Agora a régua é a mesma do `apps/api` (`select = ["E", "F", "I", "UP",
+"B"]`), e `pipeline/` fica de fora por ser cópia literal do projeto de modelagem.
 
 O `verify:api` roda contra um armazenamento **assíncrono de propósito** — o do React Native.
 Se passa nele, passa no `localStorage` síncrono da web.

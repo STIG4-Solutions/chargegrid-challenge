@@ -1,0 +1,23 @@
+# Mesma regua do `apps/api`, aplicada ao codigo que e' DESTE projeto.
+#
+# Sem este arquivo o ruff nao achava configuracao nenhuma aqui e caia no
+# conjunto padrao da VERSAO INSTALADA - que cresce de versao para versao. O
+# resultado nao era "48 problemas de estilo": era um lint cujo escopo dependia
+# de qual ruff a maquina tinha. Com `select` explicito, duas maquinas cobram a
+# mesma coisa.
+#
+# E' `ruff.toml` e nao `pyproject.toml` de proposito: `apps/forecast` nao e'
+# pacote instalavel - as dependencias vem de `requirements.txt`, e criar um
+# pyproject so' para hospedar cinco linhas de lint sugeriria o contrario.
+line-length = 100
+target-version = "py311"
+
+# `pipeline/` e' copia literal do `src/` do projeto de modelagem, e existe assim
+# para poder ser reatualizado sem conflito (ver README). Reformatar aqui
+# produziria exatamente o conflito que a copia evita, e o diff seria contra
+# codigo que nao e' nosso para corrigir. Mesmo motivo pelo qual o `apps/api`
+# deixa `alembic/versions` de fora.
+extend-exclude = ["pipeline"]
+
+[lint]
+select = ["E", "F", "I", "UP", "B"]

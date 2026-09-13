@@ -32,6 +32,7 @@
     "forecast": "npm run forecast:train && npm run forecast:export",
     "forecast:train": "docker compose --env-file apps/api/.env --profile forecast run --rm --build forecast python treinar.py",
     "forecast:export": "docker compose --env-file apps/api/.env --profile forecast run --rm forecast python exportar.py",
-    "forecast:test": "docker compose --env-file apps/api/.env --profile forecast run --rm forecast python -m pytest tests -q"
+    "forecast:test": "docker compose --env-file apps/api/.env --profile forecast run --rm forecast python -m pytest tests -q",
+    "forecast:lint": "docker compose --env-file apps/api/.env --profile forecast run --rm --no-deps forecast ruff check ."
   }
 }

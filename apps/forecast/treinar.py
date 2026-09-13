@@ -42,13 +42,13 @@ import pandas as pd  # noqa: E402
 import sklearn  # noqa: E402
 
 from banco import carregar, conectar, resumo  # noqa: E402
+from pipeline import train as _train  # noqa: E402
 from pipeline.features import (  # noqa: E402
     CATEGORICAS,
     FEATURES,
     alvo_em_razao,
     construir_treino,
 )
-from pipeline import train as _train  # noqa: E402
 from pipeline.schema import validar_painel  # noqa: E402
 from pipeline.train import QUANTIS, VERSAO_PIPELINE, backtest, treinar_um  # noqa: E402
 
