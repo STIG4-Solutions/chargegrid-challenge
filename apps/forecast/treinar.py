@@ -151,14 +151,19 @@ def main() -> int:
     #
     # Existe por uma pergunta que ficou sem resposta: o WAPE mensal saiu 8,31
     # de manha e 9,94 a tarde, com a MESMA janela, as mesmas 1.647 linhas, os
-    # mesmos parametros e a MESMA regua (7,61 nas duas). Deu para provar que o
-    # treino e' deterministico - execucoes seguidas batem - e que a ordem das
-    # categorias nao influi; nao deu para provar se os DADOS mudaram.
+    # mesmos parametros e a MESMA regua (7,61 nas duas).
     #
-    # Sem isto a pergunta e' irrespondivel depois do fato: o banco de
-    # desenvolvimento nao guarda versao. Com o hash gravado ao lado da
-    # metrica, a proxima vez que o numero se mexer a comparacao responde
-    # sozinha - hash igual aponta para o ambiente, hash diferente para o banco.
+    # A reinvestigacao posterior derrubou as hipoteses, uma a uma: o treino e'
+    # deterministico, nao depende de `num_threads`, `pipeline/train.py` nao
+    # mudou entre as corridas, e a procedencia gravada e' confiavel. Inclusive a
+    # mais forte - "o banco mudou" - CAIU: deslocar a janela em dois dias mexe
+    # na regua, entao regua identica prova dado identico. O README de forecast
+    # traz a tabela.
+    #
+    # Nao ha o que reinvestigar de novo: o seed consome UM `random.Random(42)`
+    # em sequencia com a janela ancorada em `now()`, entao o banco daquela manha
+    # nao volta nem re-executando o mesmo seed. Este hash e' para a PROXIMA vez:
+    # hash igual aponta para o ambiente, hash diferente para o banco.
     impressao = hashlib.sha256(
         ds.sort_values(["location_id", "date", "horizonte"])[FEATURES + ["y_ratio"]]
         .to_csv(index=False)
