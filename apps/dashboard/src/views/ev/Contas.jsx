@@ -91,7 +91,19 @@ export function NovaConta({ sites, aoCriar }) {
     <div className="card" style={{ marginTop: 16, display: 'grid', gap: 12 }}>
       <div className="card-title">Nova conta</div>
 
-      <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+      {/*
+        Os cinco campos numa linha só. `auto-fit` com mínimo de 160px mantém a
+        linha em tela larga e quebra sozinho no notebook — cinco campos fixos
+        num monitor estreito viram cinco campos ilegíveis.
+      */}
+      <div
+        style={{
+          display: 'grid',
+          gap: 8,
+          gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+          alignItems: 'end'
+        }}
+      >
         <label>
           Nome
           <input value={campos.nome} onChange={campo('nome')} placeholder="Maria Souza" />
@@ -111,25 +123,26 @@ export function NovaConta({ sites, aoCriar }) {
             <option value="admin">Administrador</option>
           </select>
         </label>
-      </div>
 
-      {/*
-        O seletor de praça só aparece para operador, e não é cosmética: admin é
-        global, e oferecer a praça a ele sugeriria que ficaria restrito a ela.
-      */}
-      {campos.papel === 'operator' && (
-        <label>
-          Praça
-          <select value={campos.siteId} onChange={campo('siteId')}>
-            <option value="">selecione…</option>
-            {sites.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
+        {/*
+          A praça entra na MESMA linha, e continua só para operador: admin é
+          global, e oferecer a praça a ele sugeriria que ficaria restrito a ela.
+          Some quando o papel é admin, e a linha passa a ter quatro colunas.
+        */}
+        {campos.papel === 'operator' && (
+          <label>
+            Praça
+            <select value={campos.siteId} onChange={campo('siteId')}>
+              <option value="">selecione…</option>
+              {sites.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
 
       {problema && <div className="muted">{problema}</div>}
       {criar.error && <div className="error">{criar.error.detail}</div>}
