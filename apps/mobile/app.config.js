@@ -44,7 +44,12 @@ function arquivoDoFirebase() {
 module.exports = () => {
   const chaveDoMapa = process.env.GOOGLE_MAPS_API_KEY ?? ''
   const googleServices = arquivoDoFirebase()
-  const apiPadrao = `${dominios.protocolo}://${dominios.api}`
+  // `EXPO_PUBLIC_ENV=staging npx eas build ...` congela o endereco de staging no
+  // APK. Sem isto, um APK gerado a partir da branch `staging` sairia apontando
+  // para PRODUCAO - e o app instalado nao le configuracao do servidor, entao o
+  // engano so' apareceria com o motorista ja' usando o ambiente errado.
+  const ambiente = process.env.EXPO_PUBLIC_ENV === 'staging' ? dominios.staging : null
+  const apiPadrao = `${dominios.protocolo}://${ambiente?.api ?? dominios.api}`
 
   return {
     ...base.expo,

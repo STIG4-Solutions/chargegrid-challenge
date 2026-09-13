@@ -309,6 +309,7 @@ npm run test:mobile                        # 13 testes de renderização do app 
 npm run typecheck                          # tipos do SDK e do app contra o contrato
 npm run format:check                       # Prettier no lado JS (`npm run format` corrige)
 npm run build                              # dashboard
+npm run build:staging                      # dashboard apontando para api.staging.stig4.com
 cd apps/api && python -m pytest -q          # 725 testes (precisa do Postgres)
 cd apps/api && python -m ruff check .
 cd apps/api && python -m ruff format --check .

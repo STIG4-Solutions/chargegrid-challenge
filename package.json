@@ -14,6 +14,7 @@
     "dev:dashboard": "npm run dev -w @chargegrid/dashboard",
     "dev:mobile": "npm start -w @chargegrid/mobile",
     "build": "npm run build:dashboard",
+    "build:staging": "npm run build:staging -w @chargegrid/dashboard",
     "build:dashboard": "npm run build -w @chargegrid/dashboard",
     "preview": "npm run preview:dashboard",
     "preview:dashboard": "npm run preview -w @chargegrid/dashboard",
