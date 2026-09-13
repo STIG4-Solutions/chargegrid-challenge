@@ -47,9 +47,9 @@ test('formulario em branco nao reclama de nada', async () => {
   // cobrar. A mensagem so' aparece depois que a pessoa comeca a escrever.
   await renderNaTela(<SignUpScreen aoVoltar={nada} />)
   expect(screen.queryByText(/Escreva seu nome/)).toBeNull()
-  expect(screen.getByRole('button', { name: 'Criar conta' }).props.accessibilityState.disabled).toBe(
-    true
-  )
+  expect(
+    screen.getByRole('button', { name: 'Criar conta' }).props.accessibilityState.disabled
+  ).toBe(true)
 })
 
 test('formulario incompleto mostra a pendencia e mantem o botao apagado', async () => {
@@ -57,9 +57,9 @@ test('formulario incompleto mostra a pendencia e mantem o botao apagado', async 
   await fireEvent.changeText(screen.getByPlaceholderText('Maria Souza'), 'Maria Souza')
 
   expect(screen.getByText(/Confira o e-mail/)).toBeTruthy()
-  expect(screen.getByRole('button', { name: 'Criar conta' }).props.accessibilityState.disabled).toBe(
-    true
-  )
+  expect(
+    screen.getByRole('button', { name: 'Criar conta' }).props.accessibilityState.disabled
+  ).toBe(true)
 })
 
 test('completo, o botao acende', async () => {

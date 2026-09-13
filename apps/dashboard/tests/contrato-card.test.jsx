@@ -28,9 +28,7 @@ describe('o aviso de cobrança vencida', () => {
   })
 
   it('mostra quanto e desde quando', () => {
-    render(
-      <AvisoDeAtraso atraso={{ cobrancas: 2, total_brl: 349, desde: '2026-08-03' }} />
-    )
+    render(<AvisoDeAtraso atraso={{ cobrancas: 2, total_brl: 349, desde: '2026-08-03' }} />)
     expect(screen.getByRole('alert')).toHaveTextContent('2 cobranças vencidas')
     expect(screen.getByRole('alert')).toHaveTextContent('R$ 349,00')
     expect(screen.getByRole('alert')).toHaveTextContent('03/08/2026')
@@ -102,18 +100,14 @@ describe('cobrança herdada de contrato anterior', () => {
   // que ela pode misturar contratos — e aí a linha precisa dizer de qual é.
 
   it('a herdada é marcada', () => {
-    render(
-      <Cobrancas linhas={[{ ...COBRANCA, contrato_anterior: true }]} aoDarBaixa={() => {}} />
-    )
+    render(<Cobrancas linhas={[{ ...COBRANCA, contrato_anterior: true }]} aoDarBaixa={() => {}} />)
     expect(screen.getByText('contrato anterior')).toBeInTheDocument()
   })
 
   it('a do contrato vigente não é', () => {
     // Carimbar todas seria ruído: a cobrança emitida ontem apareceria como
     // herdada, e a marca deixaria de significar qualquer coisa.
-    render(
-      <Cobrancas linhas={[{ ...COBRANCA, contrato_anterior: false }]} aoDarBaixa={() => {}} />
-    )
+    render(<Cobrancas linhas={[{ ...COBRANCA, contrato_anterior: false }]} aoDarBaixa={() => {}} />)
     expect(screen.queryByText('contrato anterior')).not.toBeInTheDocument()
   })
 

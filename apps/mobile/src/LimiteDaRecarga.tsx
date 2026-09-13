@@ -122,7 +122,13 @@ export function LimiteDaRecarga({
 
 const s = StyleSheet.create({
   bloco: { gap: espaco.sm },
-  titulo: { color: cores.textoFraco, fontSize: 12, fontWeight: '700', letterSpacing: 0.3, textTransform: 'uppercase' },
+  titulo: {
+    color: cores.textoFraco,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase'
+  },
   linha: { flexDirection: 'row', flexWrap: 'wrap', gap: espaco.xs },
   chip: {
     paddingVertical: 6,

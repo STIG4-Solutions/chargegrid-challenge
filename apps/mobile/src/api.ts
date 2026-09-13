@@ -36,8 +36,7 @@ function baseUrlDeDesenvolvimento(): string | null {
  */
 const apiPadrao = (Constants.expoConfig?.extra?.apiPadrao as string | undefined) ?? ''
 
-export const API_URL =
-  process.env.EXPO_PUBLIC_API_URL || baseUrlDeDesenvolvimento() || apiPadrao
+export const API_URL = process.env.EXPO_PUBLIC_API_URL || baseUrlDeDesenvolvimento() || apiPadrao
 
 /**
  * Base das URLs impressas nos adesivos de QR, de config/domains.json.

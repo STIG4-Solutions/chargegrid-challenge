@@ -37,5 +37,8 @@
     "forecast:export": "docker compose --env-file apps/api/.env --profile forecast run --rm forecast python exportar.py",
     "forecast:test": "docker compose --env-file apps/api/.env --profile forecast run --rm --build forecast python -m pytest tests -q",
     "forecast:lint": "docker compose --env-file apps/api/.env --profile forecast run --rm --build --no-deps forecast sh -c \"ruff check . && ruff format --check .\""
+  },
+  "devDependencies": {
+    "prettier": "^3.9.6"
   }
 }

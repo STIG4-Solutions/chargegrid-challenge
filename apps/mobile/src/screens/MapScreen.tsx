@@ -97,8 +97,8 @@ export default function MapScreen({ navigation }: PropsAba<'Mapa'>) {
         <View style={[s.mapa, s.mapaAusente]}>
           <Text style={s.mapaAusenteTitulo}>Mapa indisponível</Text>
           <Text style={s.mapaAusenteTexto}>
-            Falta a chave do Google Maps em app.json ({'android.config.googleMaps.apiKey'}).
-            As estações estão listadas abaixo.
+            Falta a chave do Google Maps em app.json ({'android.config.googleMaps.apiKey'}). As
+            estações estão listadas abaixo.
           </Text>
         </View>
       )}
@@ -115,9 +115,7 @@ export default function MapScreen({ navigation }: PropsAba<'Mapa'>) {
             tintColor={cores.acento}
           />
         }
-        ListHeaderComponent={
-          estacoes.error ? <Aviso mensagem={estacoes.error.detail} /> : null
-        }
+        ListHeaderComponent={estacoes.error ? <Aviso mensagem={estacoes.error.detail} /> : null}
         ListEmptyComponent={
           !estacoes.error ? (
             <Aviso tom="info" mensagem="Nenhuma estacao por perto no momento." />
@@ -203,7 +201,12 @@ const s = StyleSheet.create({
     padding: espaco.md,
     gap: espaco.xs
   },
-  cardTopo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: espaco.sm },
+  cardTopo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: espaco.sm
+  },
   cardNome: { color: cores.texto, fontSize: 16, fontWeight: '700', flexShrink: 1 },
   cardEndereco: { color: cores.textoFraco, fontSize: 12 },
   cardMeta: { color: cores.textoFraco, fontSize: 12, marginTop: 2 }

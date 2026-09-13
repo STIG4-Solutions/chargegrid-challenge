@@ -46,10 +46,9 @@ export function AvisoDeAtraso({ atraso }) {
           {quantas} — {brl(atraso.total_brl)}
         </strong>
         <p className="muted">
-          A mais antiga venceu em{' '}
-          {new Date(`${atraso.desde}T12:00:00`).toLocaleDateString('pt-BR')}. Enquanto houver
-          cobrança vencida o contrato não renova sozinho. As recargas continuam funcionando
-          normalmente.
+          A mais antiga venceu em {new Date(`${atraso.desde}T12:00:00`).toLocaleDateString('pt-BR')}
+          . Enquanto houver cobrança vencida o contrato não renova sozinho. As recargas continuam
+          funcionando normalmente.
         </p>
       </div>
     </div>
@@ -73,7 +72,12 @@ function Planos({ aoContratar }) {
   const contratar = useAction((codigo) => platform.subscribe(codigo), { onSuccess: aoContratar })
 
   return (
-    <Async loading={planos.loading} error={planos.error} data={planos.data} onRetry={planos.refetch}>
+    <Async
+      loading={planos.loading}
+      error={planos.error}
+      data={planos.data}
+      onRetry={planos.refetch}
+    >
       {planos.data && (
         <div className="grid grid-2">
           {planos.data.map((p) => (
@@ -110,9 +114,7 @@ function Planos({ aoContratar }) {
               </button>
             </div>
           ))}
-          {contratar.error && (
-            <div className="async-error compact">{contratar.error.detail}</div>
-          )}
+          {contratar.error && <div className="async-error compact">{contratar.error.detail}</div>}
         </div>
       )}
     </Async>
@@ -288,8 +290,8 @@ function Contrato({ d, aoMudar }) {
                 {multa > 0 ? (
                   <>
                     Rescindir agora gera uma cobrança de <strong>{brl(multa)}</strong> — são{' '}
-                    {num(d.multa_percentual, 0)}% das {restantes} mensalidades que faltam para o
-                    fim da fidelidade. O serviço continua até{' '}
+                    {num(d.multa_percentual, 0)}% das {restantes} mensalidades que faltam para o fim
+                    da fidelidade. O serviço continua até{' '}
                     {new Date(`${d.renova_em}T12:00:00`).toLocaleDateString('pt-BR')}.
                   </>
                 ) : (
@@ -329,8 +331,8 @@ function Contrato({ d, aoMudar }) {
         {/* Declarado, e não escondido: não há integração bancária. Uma cobrança
             que parecesse liquidada sem liquidação seria pior que a limitação. */}
         <div className="card-sub">
-          A baixa é manual — não há liquidação automática. A GoodWe confirma o recebimento e
-          marca a cobrança como paga.
+          A baixa é manual — não há liquidação automática. A GoodWe confirma o recebimento e marca a
+          cobrança como paga.
         </div>
         <div style={{ marginTop: 16 }}>
           <Cobrancas linhas={d.cobrancas} aoDarBaixa={aoMudar} />

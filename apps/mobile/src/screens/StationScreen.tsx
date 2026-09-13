@@ -9,9 +9,15 @@ import {
   type PontoDaEstacao,
   type SessaoDetalhada
 } from '@chargegrid/sdk'
-import { Aviso, Botao, Carregando, Etiqueta , useRecuoInferior } from '../components'
+import { Aviso, Botao, Carregando, Etiqueta, useRecuoInferior } from '../components'
 import { cores, espaco, raio } from '../theme'
-import { LimiteDaRecarga, SEM_LIMITE, comoParametros, validar, type Limite } from '../LimiteDaRecarga'
+import {
+  LimiteDaRecarga,
+  SEM_LIMITE,
+  comoParametros,
+  validar,
+  type Limite
+} from '../LimiteDaRecarga'
 import { QuandoComecar } from '../QuandoComecar'
 import { ReportarProblema } from '../ReportarProblema'
 import type { Props } from '../navigation'
@@ -19,9 +25,7 @@ import type { Props } from '../navigation'
 /** O ponto lido no QR vai para o topo: o motorista escaneou aquele, nao a lista. */
 function ordenar(pontos: PontoDaEstacao[], destaque?: string): PontoDaEstacao[] {
   if (!destaque) return pontos
-  return [...pontos].sort((a, b) =>
-    a.code === destaque ? -1 : b.code === destaque ? 1 : 0
-  )
+  return [...pontos].sort((a, b) => (a.code === destaque ? -1 : b.code === destaque ? 1 : 0))
 }
 
 export default function StationScreen({ route, navigation }: Props<'Estacao'>) {
@@ -32,11 +36,9 @@ export default function StationScreen({ route, navigation }: Props<'Estacao'>) {
     navigation.setOptions({ title: nome })
   }, [navigation, nome])
 
-  const pontos = useApi<PontoDaEstacao[]>(
-    () => app.stationChargePoints(siteId),
-    [siteId],
-    { pollMs: 10000 }
-  )
+  const pontos = useApi<PontoDaEstacao[]>(() => app.stationChargePoints(siteId), [siteId], {
+    pollMs: 10000
+  })
   const ativa = useApi<SessaoDetalhada | null>(() => app.activeSession(), [])
 
   // O limite vale para a proxima recarga, seja qual ponto o motorista escolher:
@@ -161,7 +163,12 @@ const s = StyleSheet.create({
     padding: espaco.md,
     gap: espaco.md
   },
-  cardTopo: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: espaco.sm },
+  cardTopo: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: espaco.sm
+  },
   cardIdent: { gap: 2, flexShrink: 1 },
   cardNome: { color: cores.texto, fontSize: 16, fontWeight: '700' },
   cardMeta: { color: cores.textoFraco, fontSize: 12 }

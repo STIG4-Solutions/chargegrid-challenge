@@ -56,10 +56,7 @@ export function problemaNaEdicao(campos: CamposDoVeiculo): string | null {
  * Devolve `{}` quando nada mudou, e é isso que deixa o botão calado em vez de
  * gravar uma alteração que não existe.
  */
-export function corpoDaEdicao(
-  original: Veiculo,
-  campos: CamposDoVeiculo
-): Record<string, unknown> {
+export function corpoDaEdicao(original: Veiculo, campos: CamposDoVeiculo): Record<string, unknown> {
   const corpo: Record<string, unknown> = {}
 
   const modelo = campos.modelo.trim()

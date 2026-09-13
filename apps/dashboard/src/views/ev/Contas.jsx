@@ -38,9 +38,9 @@ export default function Contas() {
       <div className="panel">
         <div className="card-title">Contas de operação</div>
         <div className="card-sub">
-          Operadores e administradores. Não há apagar: as referências de auditoria e faturamento
-          são <code>SET NULL</code>, então apagar a conta apagaria o vínculo do rastro dela.
-          Desligar tira o acesso e preserva quem fez o quê.
+          Operadores e administradores. Não há apagar: as referências de auditoria e faturamento são{' '}
+          <code>SET NULL</code>, então apagar a conta apagaria o vínculo do rastro dela. Desligar
+          tira o acesso e preserva quem fez o quê.
         </div>
       </div>
 
@@ -54,11 +54,7 @@ export default function Contas() {
         empty="Nenhuma conta de operação cadastrada."
       >
         {contas.data && (
-          <Linhas
-            contas={contas.data}
-            meuId={user?.id}
-            aoMudar={() => void contas.refetch()}
-          />
+          <Linhas contas={contas.data} meuId={user?.id} aoMudar={() => void contas.refetch()} />
         )}
       </Async>
     </div>

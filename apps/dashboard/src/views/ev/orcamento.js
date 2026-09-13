@@ -33,7 +33,9 @@ function mudou(a, b) {
  */
 export function alteracoesDoOrcamento(rascunho, base, chaves) {
   return Object.fromEntries(
-    chaves.filter((campo) => mudou(rascunho[campo], base[campo])).map((campo) => [campo, rascunho[campo]])
+    chaves
+      .filter((campo) => mudou(rascunho[campo], base[campo]))
+      .map((campo) => [campo, rascunho[campo]])
   )
 }
 
@@ -46,7 +48,5 @@ export function alteracoesDoOrcamento(rascunho, base, chaves) {
  * senão salva achando que o estado é o que ele leu cinco minutos atrás.
  */
 export function mudouPorBaixo(atual, base, chaves, alteracoes) {
-  return chaves.filter(
-    (campo) => !(campo in alteracoes) && mudou(atual[campo], base[campo])
-  )
+  return chaves.filter((campo) => !(campo in alteracoes) && mudou(atual[campo], base[campo]))
 }

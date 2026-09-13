@@ -31,20 +31,17 @@ export default function CentroDeCusto({ aoAtribuir }: { aoAtribuir?: () => void 
   const sugestoes = centrosEmUso(lista)
   const pendentes = semArea(lista)
 
-  const salvar = useAction(
-    (id: string, centro: string | null) => app.setCostCenter(id, centro),
-    {
-      onSuccess: () => {
-        setEditando(null)
-        setTexto('')
-        void veiculos.refetch()
-        // O relatório agrupa pelo centro ATUAL do carro: sem recarregá-lo, o
-        // aviso de "sem centro de custo" continuaria cobrando o que acabou de
-        // ser resolvido.
-        aoAtribuir?.()
-      }
+  const salvar = useAction((id: string, centro: string | null) => app.setCostCenter(id, centro), {
+    onSuccess: () => {
+      setEditando(null)
+      setTexto('')
+      void veiculos.refetch()
+      // O relatório agrupa pelo centro ATUAL do carro: sem recarregá-lo, o
+      // aviso de "sem centro de custo" continuaria cobrando o que acabou de
+      // ser resolvido.
+      aoAtribuir?.()
     }
-  )
+  })
 
   if (!veiculos.loading && lista.length === 0) return null
 
@@ -52,15 +49,10 @@ export default function CentroDeCusto({ aoAtribuir }: { aoAtribuir?: () => void 
     <View style={s.secao}>
       <View style={s.cabecalho}>
         <Text style={s.titulo}>Carros da frota</Text>
-        {pendentes > 0 && (
-          <Text style={s.contador}>
-            {pendentes} sem área
-          </Text>
-        )}
+        {pendentes > 0 && <Text style={s.contador}>{pendentes} sem área</Text>}
       </View>
       <Text style={s.ajuda}>
-        A área do carro vale para o mês inteiro, inclusive para as recargas já
-        faturadas.
+        A área do carro vale para o mês inteiro, inclusive para as recargas já faturadas.
       </Text>
 
       {veiculos.error && <Aviso mensagem={veiculos.error.detail} />}
@@ -83,9 +75,7 @@ export default function CentroDeCusto({ aoAtribuir }: { aoAtribuir?: () => void 
             >
               <View style={s.identidade}>
                 <Text style={s.modelo}>{v.modelo}</Text>
-                <Text style={s.meta}>
-                  {[v.placa, v.motorista].filter(Boolean).join(' · ')}
-                </Text>
+                <Text style={s.meta}>{[v.placa, v.motorista].filter(Boolean).join(' · ')}</Text>
               </View>
               <Text style={[s.area, !v.centro_de_custo && s.areaVazia]}>
                 {v.centro_de_custo ?? 'sem área'}

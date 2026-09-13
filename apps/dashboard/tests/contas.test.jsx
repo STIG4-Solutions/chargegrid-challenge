@@ -62,9 +62,7 @@ describe('a tabela de contas', () => {
   })
 
   it('conta desligada oferece religar, e não desligar', () => {
-    render(
-      <Linhas contas={[{ ...OPERADOR, is_active: false }]} meuId="outro" aoMudar={() => {}} />
-    )
+    render(<Linhas contas={[{ ...OPERADOR, is_active: false }]} meuId="outro" aoMudar={() => {}} />)
     expect(screen.getByRole('button', { name: 'Religar' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Desligar' })).not.toBeInTheDocument()
     expect(screen.getByText('Desligada')).toBeInTheDocument()
@@ -78,9 +76,7 @@ describe('a tabela de contas', () => {
   it('papel desconhecido não apaga a linha', () => {
     // A API pode ganhar um papel antes do painel. Cair aqui derrubaria a
     // tabela inteira por causa de uma linha — justamente a linha nova.
-    render(
-      <Linhas contas={[{ ...OPERADOR, role: 'auditor' }]} meuId="outro" aoMudar={() => {}} />
-    )
+    render(<Linhas contas={[{ ...OPERADOR, role: 'auditor' }]} meuId="outro" aoMudar={() => {}} />)
     expect(screen.getByText('maria@empresa.com')).toBeInTheDocument()
     expect(screen.getByText('auditor')).toBeInTheDocument()
   })

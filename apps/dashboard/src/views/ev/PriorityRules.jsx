@@ -109,12 +109,19 @@ function Lista({ regras, onMudou }) {
 
   return (
     <div className="card">
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          gap: 12
+        }}
+      >
         <div>
           <h3 style={{ margin: '0 0 4px', fontSize: 15 }}>Regras de prioridade</h3>
           <p className="muted" style={{ margin: '0 0 16px', fontSize: 13 }}>
-            Quando a potência não dá para todos, as faixas maiores são servidas primeiro. A
-            primeira regra que casa decide — por isso a ordem importa.
+            Quando a potência não dá para todos, as faixas maiores são servidas primeiro. A primeira
+            regra que casa decide — por isso a ordem importa.
           </p>
         </div>
         {!editando && (
@@ -124,12 +131,18 @@ function Lista({ regras, onMudou }) {
         )}
       </div>
 
-      {erro && (
-        <p style={{ color: 'var(--sems-red)', fontSize: 13, margin: '0 0 12px' }}>{erro}</p>
-      )}
+      {erro && <p style={{ color: 'var(--sems-red)', fontSize: 13, margin: '0 0 12px' }}>{erro}</p>}
 
       {editando && (
-        <form onSubmit={salvar} style={{ marginBottom: 16, padding: 12, border: '1px solid var(--borda, rgba(127,127,127,0.25))', borderRadius: 6 }}>
+        <form
+          onSubmit={salvar}
+          style={{
+            marginBottom: 16,
+            padding: 12,
+            border: '1px solid var(--borda, rgba(127,127,127,0.25))',
+            borderRadius: 6
+          }}
+        >
           <div className="grid grid-3" style={{ gap: 12, marginBottom: 12 }}>
             <label style={{ fontSize: 13 }}>
               Nome
@@ -152,7 +165,9 @@ function Lista({ regras, onMudou }) {
                 onChange={(e) => setEditando({ ...editando, prioridade: Number(e.target.value) })}
                 style={{ width: '100%' }}
               />
-              <span className="muted" style={{ fontSize: 11 }}>maior = servido primeiro</span>
+              <span className="muted" style={{ fontSize: 11 }}>
+                maior = servido primeiro
+              </span>
             </label>
             <label style={{ fontSize: 13 }}>
               Ordem
@@ -163,10 +178,11 @@ function Lista({ regras, onMudou }) {
                 onChange={(e) => setEditando({ ...editando, ordem: Number(e.target.value) })}
                 style={{ width: '100%' }}
               />
-              <span className="muted" style={{ fontSize: 11 }}>menor decide antes</span>
+              <span className="muted" style={{ fontSize: 11 }}>
+                menor decide antes
+              </span>
             </label>
           </div>
-
           <div className="grid grid-3" style={{ gap: 12, marginBottom: 12 }}>
             <label style={{ fontSize: 13 }}>
               Aplica-se a
@@ -194,11 +210,12 @@ function Lista({ regras, onMudou }) {
                   placeholder={editando.criterio_tipo === 'ponto' ? 'CP-01, CP-02' : 'TYPE2, CCS2'}
                   style={{ width: '100%' }}
                 />
-                <span className="muted" style={{ fontSize: 11 }}>separe por vírgula</span>
+                <span className="muted" style={{ fontSize: 11 }}>
+                  separe por vírgula
+                </span>
               </label>
             )}
           </div>
-
           <div className="grid grid-3" style={{ gap: 12, marginBottom: 12 }}>
             <label style={{ fontSize: 13 }}>
               Vale a partir de
@@ -228,10 +245,9 @@ function Lista({ regras, onMudou }) {
             </label>
           </div>
           <p className="muted" style={{ fontSize: 11, margin: '0 0 12px' }}>
-            Deixe os dois horários vazios para valer o dia inteiro. Janela que cruza a
-            meia-noite (22:00 → 06:00) é aceita e cobre a virada.
+            Deixe os dois horários vazios para valer o dia inteiro. Janela que cruza a meia-noite
+            (22:00 → 06:00) é aceita e cobre a virada.
           </p>
-
           <button className="btn" type="submit" disabled={salvando}>
             {salvando ? 'Salvando…' : 'Salvar'}
           </button>{' '}
@@ -269,7 +285,9 @@ function Lista({ regras, onMudou }) {
                   <td>
                     {CRITERIOS[r.criterio_tipo] || r.criterio_tipo}
                     {r.criterio_valor && (
-                      <div className="muted" style={{ fontSize: 12 }}>{r.criterio_valor}</div>
+                      <div className="muted" style={{ fontSize: 12 }}>
+                        {r.criterio_valor}
+                      </div>
                     )}
                   </td>
                   <td>
@@ -316,8 +334,7 @@ function Previa({ d, hora, setHora }) {
       </p>
 
       <label style={{ fontSize: 13, display: 'block', marginBottom: 12 }}>
-        Horário{' '}
-        <input type="time" value={hora} onChange={(e) => setHora(e.target.value)} />{' '}
+        Horário <input type="time" value={hora} onChange={(e) => setHora(e.target.value)} />{' '}
         {hora && (
           <button className="btn" onClick={() => setHora('')}>
             Voltar para agora
@@ -342,7 +359,9 @@ function Previa({ d, hora, setHora }) {
                 <tr key={p.code}>
                   <td>
                     <strong>{p.code}</strong>
-                    <div className="muted" style={{ fontSize: 12 }}>{p.name}</div>
+                    <div className="muted" style={{ fontSize: 12 }}>
+                      {p.name}
+                    </div>
                   </td>
                   <td>
                     {p.regra || <span className="muted">nenhuma — vale o valor do ponto</span>}

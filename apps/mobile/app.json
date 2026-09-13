@@ -27,11 +27,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0D0D0F"
       },
-      "permissions": [
-        "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION",
-        "CAMERA"
-      ],
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION", "CAMERA"],
       "config": {
         "_comentario": "A chave do Google Maps NAO mora aqui: este arquivo e' versionado num repositorio publico. Ela e' injetada por app.config.js a partir de GOOGLE_MAPS_API_KEY. Veja o README."
       }

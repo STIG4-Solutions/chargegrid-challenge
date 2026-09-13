@@ -48,10 +48,7 @@ export default function LoginScreen({ aoCriarConta }: { aoCriarConta: () => void
   const bordas = useSafeAreaInsets()
 
   return (
-    <KeyboardAvoidingView
-      style={s.tela}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <KeyboardAvoidingView style={s.tela} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView
         contentContainerStyle={[
           s.conteudo,

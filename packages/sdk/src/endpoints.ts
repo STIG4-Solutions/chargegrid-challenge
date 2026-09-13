@@ -21,7 +21,6 @@ function chaveDeIdempotencia(): string {
   return `${Date.now().toString(36)}-${sequencia.toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 }
 
-
 // ---- autenticação (os dois clientes) ----------------------------------------
 export const auth = {
   login: (email: string, senha: string) =>
@@ -80,8 +79,7 @@ export const power = {
   /** Sites que o usuario pode escolher no seletor (operador ve so o proprio). */
   visibleSites: () => api.get<Record<string, unknown>[]>('/power/sites'),
   /** As pracas lado a lado. So admin. */
-  portfolio: (dias = 30) =>
-    api.get<Record<string, unknown>>('/power/sites/portfolio', { dias }),
+  portfolio: (dias = 30) => api.get<Record<string, unknown>>('/power/sites/portfolio', { dias }),
   /** Regras de prioridade nomeadas do site. */
   /**
    * Quanto o site deve VENDER no proximo mes, em kWh e em reais.
@@ -126,7 +124,9 @@ export const sessions = {
     api.post<T.SessaoDetalhada>(`/sessions/${id}/stop`, dados),
   preview: (id: string) => api.get<T.Precificacao>(`/sessions/${id}/preview`),
   telemetry: (id: string, minutes = 120) =>
-    api.get<Array<Record<string, number | string | null>>>(`/sessions/${id}/telemetry`, { minutes }),
+    api.get<Array<Record<string, number | string | null>>>(`/sessions/${id}/telemetry`, {
+      minutes
+    }),
   bill: (id: string) => api.post<Record<string, unknown>>(`/sessions/${id}/bill`)
 }
 
@@ -248,8 +248,7 @@ export const app = {
   /** Plano do proprio motorista, com franquia restante e proxima cobranca. */
   subscription: () => api.get<Record<string, unknown>>('/app/subscription'),
   /** Assina e cobra a primeira mensalidade da carteira. 402 = sem saldo. */
-  subscribe: (codigo: string) =>
-    api.post<Record<string, unknown>>('/app/subscription', { codigo }),
+  subscribe: (codigo: string) => api.post<Record<string, unknown>>('/app/subscription', { codigo }),
   /** Cancela a renovacao. O mes ja pago continua valendo ate o fim. */
   unsubscribe: () => api.del<void>('/app/subscription'),
   /** Missoes vigentes com o progresso de quem esta pedindo. */
@@ -289,8 +288,7 @@ export const app = {
   myReports: (chargePointId: string) =>
     api.get<T.MeuReporte[]>(`/app/charge-points/${chargePointId}/reports`),
   /** Relatorio mensal da frota, por centro de custo. So gestor. */
-  fleetReport: (mes: string) =>
-    api.get<Record<string, unknown>>('/app/fleet/report', { mes }),
+  fleetReport: (mes: string) => api.get<Record<string, unknown>>('/app/fleet/report', { mes }),
   /** Carros da frota e seus centros de custo. So gestor. */
   fleetVehicles: () => api.get<T.VeiculoDaFrota[]>('/app/fleet/vehicles'),
   /** Define (ou limpa, com null) a area do carro. Vazio ou so espaco limpa. */
@@ -308,14 +306,13 @@ export const app = {
   receipt: (invoiceId: string) =>
     api.get<Record<string, unknown>>(`/app/invoices/${invoiceId}/receipt`),
   /** O documento em HTML, pronto para virar PDF no aparelho. */
-  receiptHtml: (invoiceId: string) =>
-    api.getText(`/app/invoices/${invoiceId}/receipt.html`),
+  receiptHtml: (invoiceId: string) => api.getText(`/app/invoices/${invoiceId}/receipt.html`),
   /** Quando compensa comecar: compara agora com o melhor horario a frente. */
   whenToStart: (chargePointId: string, kwh = 30, horas = 12) =>
-    api.get<Record<string, unknown>>(
-      `/app/charge-points/${chargePointId}/when-to-start`,
-      { kwh, horas }
-    ),
+    api.get<Record<string, unknown>>(`/app/charge-points/${chargePointId}/when-to-start`, {
+      kwh,
+      horas
+    }),
   mySessions: (limit = 20) => api.get<T.Sessao[]>('/app/sessions', { limit }),
   activeSession: () => api.get<T.SessaoDetalhada | null>('/app/sessions/active'),
   sessionPreview: (id: string) => api.get<T.Precificacao>(`/app/sessions/${id}/preview`),

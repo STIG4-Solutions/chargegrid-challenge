@@ -51,13 +51,8 @@ for (const [entrada, destino] of [
 }
 
 const { alteracoesDoOrcamento, mudouPorBaixo } = await import(pathToFileURL(saida).href)
-const {
-  rotuloDaCategoria,
-  problemaNaResolucao,
-  idadeEmPalavras,
-  diasEmAberto,
-  RESOLUCAO_MINIMA
-} = await import(pathToFileURL(saidaManutencao).href)
+const { rotuloDaCategoria, problemaNaResolucao, idadeEmPalavras, diasEmAberto, RESOLUCAO_MINIMA } =
+  await import(pathToFileURL(saidaManutencao).href)
 const { rotuloDaAcao, mudancas, comoTexto, abasDaSecao, podeEstornar } = await import(
   pathToFileURL(saidaAuditoria).href
 )
@@ -76,12 +71,13 @@ const {
   situacaoDaCampanha,
   alteracoesDaCampanha,
   corpoDaCampanha
-} =
-  await import(pathToFileURL(saidaCampanha).href)
-const { bandaConfiavel, superaARegua, temBanda, escalaDaBanda } =
-  await import(pathToFileURL(saidaPrevisao).href)
-const { mesesRestantes, multaPorRescisao, pontosExcedentes, proximaCobranca } =
-  await import(pathToFileURL(saidaContrato).href)
+} = await import(pathToFileURL(saidaCampanha).href)
+const { bandaConfiavel, superaARegua, temBanda, escalaDaBanda } = await import(
+  pathToFileURL(saidaPrevisao).href
+)
+const { mesesRestantes, multaPorRescisao, pontosExcedentes, proximaCobranca } = await import(
+  pathToFileURL(saidaContrato).href
+)
 
 let falhas = 0
 const check = (nome, cond, extra = '') => {
@@ -141,7 +137,9 @@ check(
 // 4. Booleano compara como booleano, não como número.
 check(
   'desligar o solar e detectado',
-  mesmo(alteracoesDoOrcamento({ ...base, allow_pv_kw: false }, base, CHAVES), { allow_pv_kw: false })
+  mesmo(alteracoesDoOrcamento({ ...base, allow_pv_kw: false }, base, CHAVES), {
+    allow_pv_kw: false
+  })
 )
 
 // 4b. O caso que exige o desvio de booleano — e que o cenário acima NÃO
@@ -194,10 +192,7 @@ check(
 )
 
 // 9. Servidor parado: nada a avisar.
-check(
-  'sem mudanca alheia, sem aviso',
-  mesmo(mudouPorBaixo(base, base, CHAVES, meu), [])
-)
+check('sem mudanca alheia, sem aviso', mesmo(mudouPorBaixo(base, base, CHAVES, meu), []))
 
 // ---- formulário de campanha ----
 //
@@ -339,8 +334,14 @@ check(
 //
 // Pintar a barra cheia diria exatamente o oposto do que é: sem teto, e não sem
 // saldo. O operador desligaria uma campanha que ainda está funcionando.
-check('sem orcamento a barra fica vazia, nao cheia', consumoDoOrcamento({ orcamento_brl: 0, consumido_brl: 0 }) === 0)
-check('consumo e proporcional', consumoDoOrcamento({ orcamento_brl: 200, consumido_brl: 50 }) === 25)
+check(
+  'sem orcamento a barra fica vazia, nao cheia',
+  consumoDoOrcamento({ orcamento_brl: 0, consumido_brl: 0 }) === 0
+)
+check(
+  'consumo e proporcional',
+  consumoDoOrcamento({ orcamento_brl: 200, consumido_brl: 50 }) === 25
+)
 check(
   'consumo nao passa de 100 mesmo estourado',
   consumoDoOrcamento({ orcamento_brl: 100, consumido_brl: 250 }) === 100
@@ -381,11 +382,17 @@ check(
 )
 check(
   'orcamento alheio nao viaja no PATCH',
-  !('orcamento_brl' in alteracoesDaCampanha({ ...baseCampanha, nome: 'Outubro' }, baseCampanha, CHAVES_CAMPANHA))
+  !(
+    'orcamento_brl' in
+    alteracoesDaCampanha({ ...baseCampanha, nome: 'Outubro' }, baseCampanha, CHAVES_CAMPANHA)
+  )
 )
 check(
   'string do input numerico nao vira alteracao fantasma',
-  mesmo(alteracoesDaCampanha({ ...baseCampanha, orcamento_brl: '1000' }, baseCampanha, CHAVES_CAMPANHA), {})
+  mesmo(
+    alteracoesDaCampanha({ ...baseCampanha, orcamento_brl: '1000' }, baseCampanha, CHAVES_CAMPANHA),
+    {}
+  )
 )
 check(
   'desativar a campanha e detectado',
@@ -454,7 +461,10 @@ check(
 // 24. A escala da barra.
 const comBanda = { fonte: 'modelo', kwh_p10: 5215, kwh_p90: 10005, kwh_previsto: 8283 }
 const escala = escalaDaBanda(comBanda)
-check('previsto cai dentro da banda desenhada', escala.previsto > escala.inicio && escala.previsto < escala.fim)
+check(
+  'previsto cai dentro da banda desenhada',
+  escala.previsto > escala.inicio && escala.previsto < escala.fim
+)
 check('a banda sobra dos dois lados', escala.inicio > 0 && escala.fim < 100)
 check('sem banda nao ha escala', escalaDaBanda({ fonte: 'media_movel' }) === null)
 // p10 == p90 seria divisão por zero e a barra sairia com NaN de largura.
@@ -479,7 +489,10 @@ check('prazo vencido nao deixa meses negativos', mesesRestantes(HOJE, '2025-01-0
 check('doze meses inteiros a frente contam doze', mesesRestantes(HOJE, '2027-09-10') === 12)
 
 // 26. O dia importa: dia 20 até dia 10 do mês seguinte não é um mês cheio.
-check('mes incompleto nao conta', mesesRestantes(new Date('2026-09-20T12:00:00Z'), '2026-10-10') === 0)
+check(
+  'mes incompleto nao conta',
+  mesesRestantes(new Date('2026-09-20T12:00:00Z'), '2026-10-10') === 0
+)
 check('mes completo conta', mesesRestantes(HOJE, '2026-10-10') === 1)
 
 // 27. A multa é proporcional ao que faltava.
@@ -599,9 +612,7 @@ check(
 //     exatamente isso que a linha deve mostrar.
 check(
   'campo novo aparece sem antes',
-  mesmo(mudancas({}, { nome: 'Setembro' }), [
-    { campo: 'nome', de: undefined, para: 'Setembro' }
-  ])
+  mesmo(mudancas({}, { nome: 'Setembro' }), [{ campo: 'nome', de: undefined, para: 'Setembro' }])
 )
 
 // 29. Objeto igual dos dois lados não polui a lista - comparado por VALOR, e
@@ -609,10 +620,7 @@ check(
 check('objeto igual nao entra no diff', mesmo(mudancas({ cfg: { a: 1 } }, { cfg: { a: 1 } }), []))
 
 // 30. Objeto diferente entra, comparado por valor e não por referência.
-check(
-  'objeto alterado aparece',
-  mudancas({ cfg: { a: 1 } }, { cfg: { a: 2 } }).length === 1
-)
+check('objeto alterado aparece', mudancas({ cfg: { a: 1 } }, { cfg: { a: 2 } }).length === 1)
 
 // 31. `***` vem mascarado do servidor e passa direto: mascarar de novo
 //     esconderia que houve mascaramento, e quem audita precisa ver que ali
@@ -650,7 +658,13 @@ check('fatura ausente nao quebra', podeEstornar(undefined, true) === false)
 //     errar: `get_scoped_site_id` devolve o PRIMEIRO site da rede para quem não
 //     tem `site_id`. O operador não ficaria sem acesso — ficaria com o acesso
 //     da praça de outra pessoa, e nada na tela dele diria isso.
-const OPERADOR = { nome: 'Maria Souza', email: 'maria@empresa.com', senha: 'senha-comprida', papel: 'operator', siteId: 's1' }
+const OPERADOR = {
+  nome: 'Maria Souza',
+  email: 'maria@empresa.com',
+  senha: 'senha-comprida',
+  papel: 'operator',
+  siteId: 's1'
+}
 check('operador com praca pode', problemaNaConta(OPERADOR) === null)
 check('operador SEM praca nao pode', problemaNaConta({ ...OPERADOR, siteId: '' }) !== null)
 check('admin sem praca pode', problemaNaConta({ ...OPERADOR, papel: 'admin', siteId: '' }) === null)
@@ -658,32 +672,46 @@ check('admin sem praca pode', problemaNaConta({ ...OPERADOR, papel: 'admin', sit
 // 35. Os pisos espelham o servidor, e errar para menos é melhor que para mais.
 check('nome curto nao passa', problemaNaConta({ ...OPERADOR, nome: 'M' }) !== null)
 check('email torto nao passa', problemaNaConta({ ...OPERADOR, email: 'maria' }) !== null)
-check('senha curta nao passa',
-  problemaNaConta({ ...OPERADOR, senha: 'x'.repeat(SENHA_MINIMA - 1) }) !== null)
-check('senha no piso passa',
-  problemaNaConta({ ...OPERADOR, senha: 'x'.repeat(SENHA_MINIMA) }) === null)
+check(
+  'senha curta nao passa',
+  problemaNaConta({ ...OPERADOR, senha: 'x'.repeat(SENHA_MINIMA - 1) }) !== null
+)
+check(
+  'senha no piso passa',
+  problemaNaConta({ ...OPERADOR, senha: 'x'.repeat(SENHA_MINIMA) }) === null
+)
 
 // 36. Admin é global: mandar a praça dele sugeriria que ficou restrito a ela.
 check('corpo de operador leva a praca', corpoDaConta(OPERADOR).site_id === 's1')
-check('corpo de admin nao leva praca',
-  corpoDaConta({ ...OPERADOR, papel: 'admin' }).site_id === null)
-check('email vai em minusculas',
-  corpoDaConta({ ...OPERADOR, email: '  Maria@Empresa.COM ' }).email === 'maria@empresa.com')
+check(
+  'corpo de admin nao leva praca',
+  corpoDaConta({ ...OPERADOR, papel: 'admin' }).site_id === null
+)
+check(
+  'email vai em minusculas',
+  corpoDaConta({ ...OPERADOR, email: '  Maria@Empresa.COM ' }).email === 'maria@empresa.com'
+)
 check('senha vai como foi digitada', corpoDaConta(OPERADOR).password === 'senha-comprida')
 
 // 37. O servidor recusa desligar a própria conta com 409. O botão nasce apagado
 //     em vez de a pessoa descobrir depois do clique.
 check('nao desligo a mim mesmo', podeDesligar({ id: 'eu', is_active: true }, 'eu') === false)
 check('desligo outro', podeDesligar({ id: 'outro', is_active: true }, 'eu') === true)
-check('ja desligado nao desliga de novo',
-  podeDesligar({ id: 'outro', is_active: false }, 'eu') === false)
+check(
+  'ja desligado nao desliga de novo',
+  podeDesligar({ id: 'outro', is_active: false }, 'eu') === false
+)
 
 // 38. Admin sem praça é o NORMAL — ele enxerga a rede inteira. Escrever "—"
 //     sugeriria dado faltando, e alguém iria "corrigir".
-check('admin sem praca diz que ve a rede',
-  pracaDaConta({ role: 'admin', site_nome: null }) === 'toda a rede')
-check('operador com praca mostra a praca',
-  pracaDaConta({ role: 'operator', site_nome: 'Shopping' }) === 'Shopping')
+check(
+  'admin sem praca diz que ve a rede',
+  pracaDaConta({ role: 'admin', site_nome: null }) === 'toda a rede'
+)
+check(
+  'operador com praca mostra a praca',
+  pracaDaConta({ role: 'operator', site_nome: 'Shopping' }) === 'Shopping'
+)
 check('papel desconhecido nao apaga a linha', rotuloDoPapel('auditor') === 'auditor')
 check('papel conhecido e traduzido', rotuloDoPapel('operator') === 'Operador')
 

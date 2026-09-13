@@ -20,9 +20,9 @@ export default function Auditoria() {
       <div className="panel">
         <div className="card-title">Trilha de auditoria</div>
         <div className="card-sub">
-          Ações de pessoas que mexem em dinheiro ou em permissão. O que os workers fazem sozinhos
-          — cashback concedido, mensalidade cobrada — fica de fora: são consequências de regra,
-          não decisões de alguém, e encheriam esta lista de linhas sem responsável.
+          Ações de pessoas que mexem em dinheiro ou em permissão. O que os workers fazem sozinhos —
+          cashback concedido, mensalidade cobrada — fica de fora: são consequências de regra, não
+          decisões de alguém, e encheriam esta lista de linhas sem responsável.
         </div>
       </div>
 

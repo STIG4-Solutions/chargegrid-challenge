@@ -60,7 +60,10 @@ function BarraDeOrcamento({ campanha }) {
       <div className="meter" style={{ marginBottom: 4 }}>
         <div
           className="meter-fill"
-          style={{ width: `${pct}%`, background: pct >= 90 ? 'var(--sems-red)' : 'var(--sems-green)' }}
+          style={{
+            width: `${pct}%`,
+            background: pct >= 90 ? 'var(--sems-red)' : 'var(--sems-green)'
+          }}
         />
       </div>
       <div className="muted" style={{ fontSize: 12 }}>
@@ -111,7 +114,15 @@ const VAZIA = {
   beneficio_valor: 5,
   teto_por_recompensa: '',
   orcamento_brl: 500,
-  missoes: [{ codigo: 'tres-recargas', titulo: 'Recarregue 3 vezes', metrica: 'sessoes', alvo: 3, janela: 'mensal' }]
+  missoes: [
+    {
+      codigo: 'tres-recargas',
+      titulo: 'Recarregue 3 vezes',
+      metrica: 'sessoes',
+      alvo: 3,
+      janela: 'mensal'
+    }
+  ]
 }
 
 /**
@@ -174,7 +185,9 @@ function Formulario({ aoCriar, aoFechar }) {
   const mexeNaMissao = (indice, chave) => (evento) =>
     setRascunho((atual) => ({
       ...atual,
-      missoes: atual.missoes.map((m, i) => (i === indice ? { ...m, [chave]: evento.target.value } : m))
+      missoes: atual.missoes.map((m, i) =>
+        i === indice ? { ...m, [chave]: evento.target.value } : m
+      )
     }))
 
   const enviar = () => {
@@ -192,7 +205,12 @@ function Formulario({ aoCriar, aoFechar }) {
       <div className="grid grid-2" style={{ marginTop: 16 }}>
         <div className="form-row">
           <label>Nome</label>
-          <input className="input" value={rascunho.nome} onChange={campo('nome')} placeholder="Setembro Verde" />
+          <input
+            className="input"
+            value={rascunho.nome}
+            onChange={campo('nome')}
+            placeholder="Setembro Verde"
+          />
         </div>
         <div className="form-row">
           <label>Benefício</label>
@@ -204,17 +222,35 @@ function Formulario({ aoCriar, aoFechar }) {
             ))}
           </select>
         </div>
-        <SeletorDeFrota frotas={frotas.data} valor={rascunho.fleet_id} aoMudar={campo('fleet_id')} />
+        <SeletorDeFrota
+          frotas={frotas.data}
+          valor={rascunho.fleet_id}
+          aoMudar={campo('fleet_id')}
+        />
         <div className="form-row">
           <label>Início</label>
-          <input className="input" type="date" value={rascunho.starts_at} onChange={campo('starts_at')} />
+          <input
+            className="input"
+            type="date"
+            value={rascunho.starts_at}
+            onChange={campo('starts_at')}
+          />
         </div>
         <div className="form-row">
           <label>Término</label>
-          <input className="input" type="date" value={rascunho.ends_at} onChange={campo('ends_at')} />
+          <input
+            className="input"
+            type="date"
+            value={rascunho.ends_at}
+            onChange={campo('ends_at')}
+          />
         </div>
         <div className="form-row">
-          <label>{rascunho.beneficio_tipo.endsWith('_pct') ? 'Percentual (%)' : 'Valor por recompensa (R$)'}</label>
+          <label>
+            {rascunho.beneficio_tipo.endsWith('_pct')
+              ? 'Percentual (%)'
+              : 'Valor por recompensa (R$)'}
+          </label>
           <input
             className="input"
             type="number"
@@ -224,7 +260,12 @@ function Formulario({ aoCriar, aoFechar }) {
         </div>
         <div className="form-row">
           <label>Orçamento total (R$)</label>
-          <input className="input" type="number" value={rascunho.orcamento_brl} onChange={campo('orcamento_brl')} />
+          <input
+            className="input"
+            type="number"
+            value={rascunho.orcamento_brl}
+            onChange={campo('orcamento_brl')}
+          />
         </div>
       </div>
 
@@ -233,16 +274,26 @@ function Formulario({ aoCriar, aoFechar }) {
           <div className="card-title" style={{ marginTop: 20, fontSize: 14 }}>
             Missões
           </div>
-          <div className="card-sub">É o que o motorista precisa cumprir para receber o cashback.</div>
+          <div className="card-sub">
+            É o que o motorista precisa cumprir para receber o cashback.
+          </div>
           {rascunho.missoes.map((missao, indice) => (
             <div className="grid grid-4" key={indice} style={{ marginTop: 12 }}>
               <div className="form-row">
                 <label>Título</label>
-                <input className="input" value={missao.titulo} onChange={mexeNaMissao(indice, 'titulo')} />
+                <input
+                  className="input"
+                  value={missao.titulo}
+                  onChange={mexeNaMissao(indice, 'titulo')}
+                />
               </div>
               <div className="form-row">
                 <label>Medir</label>
-                <select className="input" value={missao.metrica} onChange={mexeNaMissao(indice, 'metrica')}>
+                <select
+                  className="input"
+                  value={missao.metrica}
+                  onChange={mexeNaMissao(indice, 'metrica')}
+                >
                   {METRICAS.map((m) => (
                     <option key={m.valor} value={m.valor}>
                       {m.rotulo}
@@ -252,11 +303,20 @@ function Formulario({ aoCriar, aoFechar }) {
               </div>
               <div className="form-row">
                 <label>Alvo</label>
-                <input className="input" type="number" value={missao.alvo} onChange={mexeNaMissao(indice, 'alvo')} />
+                <input
+                  className="input"
+                  type="number"
+                  value={missao.alvo}
+                  onChange={mexeNaMissao(indice, 'alvo')}
+                />
               </div>
               <div className="form-row">
                 <label>Janela</label>
-                <select className="input" value={missao.janela} onChange={mexeNaMissao(indice, 'janela')}>
+                <select
+                  className="input"
+                  value={missao.janela}
+                  onChange={mexeNaMissao(indice, 'janela')}
+                >
                   {JANELAS.map((j) => (
                     <option key={j.valor} value={j.valor}>
                       {j.rotulo}
@@ -285,7 +345,11 @@ function Formulario({ aoCriar, aoFechar }) {
       )}
 
       <div className="flex gap-12" style={{ marginTop: 16 }}>
-        <button className="btn btn-primary" onClick={enviar} disabled={problemas.length > 0 || criar.pending}>
+        <button
+          className="btn btn-primary"
+          onClick={enviar}
+          disabled={problemas.length > 0 || criar.pending}
+        >
           {criar.pending ? 'Salvando…' : 'Criar campanha'}
         </button>
         <button className="btn" onClick={aoFechar}>
@@ -301,7 +365,11 @@ function Lista({ dados, aoMudar }) {
   const encerrar = useAction(campaigns.close, { onSuccess: aoMudar })
 
   if (!dados.length) {
-    return <Empty>Nenhuma campanha ainda. Crie a primeira para dar um motivo de volta ao motorista.</Empty>
+    return (
+      <Empty>
+        Nenhuma campanha ainda. Crie a primeira para dar um motivo de volta ao motorista.
+      </Empty>
+    )
   }
 
   return (
@@ -328,14 +396,13 @@ function Lista({ dados, aoMudar }) {
               // pela posicao - encerrar uma campanha do meio faria a linha
               // expandida saltar para outra.
               <Fragment key={c.id}>
-                <tr
-                  className="clickable"
-                  onClick={() => setAberta(aberta === c.id ? null : c.id)}
-                >
+                <tr className="clickable" onClick={() => setAberta(aberta === c.id ? null : c.id)}>
                   <td>
                     <strong>{c.nome}</strong>
                     <div className="muted" style={{ fontSize: 12 }}>
-                      {c.missoes.length ? `${c.missoes.length} missão(ões)` : 'desconto direto na fatura'}
+                      {c.missoes.length
+                        ? `${c.missoes.length} missão(ões)`
+                        : 'desconto direto na fatura'}
                     </div>
                   </td>
                   <td>{daRede ? 'Rede GoodWe' : 'Esta praça'}</td>
@@ -382,7 +449,8 @@ function Lista({ dados, aoMudar }) {
                             <div key={m.id}>
                               <span className="muted">{m.titulo}</span>
                               <span>
-                                {num(m.alvo, 0)} · {METRICAS.find((x) => x.valor === m.metrica)?.rotulo ?? m.metrica}
+                                {num(m.alvo, 0)} ·{' '}
+                                {METRICAS.find((x) => x.valor === m.metrica)?.rotulo ?? m.metrica}
                               </span>
                             </div>
                           ))}
@@ -417,8 +485,9 @@ export default function Campaigns() {
           <div>
             <div className="card-title">Campanhas</div>
             <div className="card-sub">
-              Desconto sai da margem desta praça e aparece na fatura na hora. Cashback é bancado pela
-              rede, depende de missão cumprida e vira crédito na carteira — dinheiro que só volta aqui.
+              Desconto sai da margem desta praça e aparece na fatura na hora. Cashback é bancado
+              pela rede, depende de missão cumprida e vira crédito na carteira — dinheiro que só
+              volta aqui.
             </div>
           </div>
           {!criando && (
@@ -436,7 +505,12 @@ export default function Campaigns() {
       )}
 
       <div className="panel">
-        <Async loading={lista.loading} error={lista.error} data={lista.data} onRetry={lista.refetch}>
+        <Async
+          loading={lista.loading}
+          error={lista.error}
+          data={lista.data}
+          onRetry={lista.refetch}
+        >
           {lista.data && <Lista dados={lista.data} aoMudar={recarregar} />}
         </Async>
       </div>

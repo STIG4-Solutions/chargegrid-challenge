@@ -46,7 +46,9 @@ export default function EvCharging() {
         <div>
           <h1 className="page-title" style={{ marginBottom: 4 }}>
             Recarga EV
-            <span className="badge badge-red" style={{ verticalAlign: 'middle', marginLeft: 8 }}>Novo</span>
+            <span className="badge badge-red" style={{ verticalAlign: 'middle', marginLeft: 8 }}>
+              Novo
+            </span>
           </h1>
           <p className="muted" style={{ margin: 0 }}>
             Gerencie a potência dos pontos, acompanhe o ciclo das sessões e configure políticas de

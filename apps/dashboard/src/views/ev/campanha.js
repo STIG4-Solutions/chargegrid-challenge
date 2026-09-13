@@ -158,6 +158,8 @@ export function alteracoesDaCampanha(rascunho, base, chaves) {
     return Number(a ?? 0) !== Number(b ?? 0)
   }
   return Object.fromEntries(
-    chaves.filter((campo) => mudou(rascunho[campo], base[campo])).map((campo) => [campo, rascunho[campo]])
+    chaves
+      .filter((campo) => mudou(rascunho[campo], base[campo]))
+      .map((campo) => [campo, rascunho[campo]])
   )
 }

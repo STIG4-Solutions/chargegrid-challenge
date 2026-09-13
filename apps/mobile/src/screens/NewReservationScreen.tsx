@@ -9,7 +9,7 @@ import {
   type PontoDaEstacao,
   type Veiculo
 } from '@chargegrid/sdk'
-import { Aviso, Botao, Carregando , useRecuoInferior } from '../components'
+import { Aviso, Botao, Carregando, useRecuoInferior } from '../components'
 import { quando } from '../format'
 import { cores, espaco, raio } from '../theme'
 import type { Props } from '../navigation'
@@ -66,7 +66,10 @@ export default function NewReservationScreen({ navigation }: Props<'NovoAgendame
   if (estacoes.loading && !estacoes.data) return <Carregando rotulo="Carregando estações..." />
 
   return (
-    <ScrollView style={s.tela} contentContainerStyle={[s.conteudo, { paddingBottom: recuo + espaco.xl }]}>
+    <ScrollView
+      style={s.tela}
+      contentContainerStyle={[s.conteudo, { paddingBottom: recuo + espaco.xl }]}
+    >
       {estacoes.error && <Aviso mensagem={estacoes.error.detail} />}
 
       <Secao titulo="Estação">
@@ -140,7 +143,9 @@ export default function NewReservationScreen({ navigation }: Props<'NovoAgendame
       {agendar.error && <Aviso mensagem={agendar.error.detail} />}
 
       <Botao
-        titulo={ponto ? `Agendar ${ponto.code} · ${quando(inicio.toISOString())}` : 'Escolha uma vaga'}
+        titulo={
+          ponto ? `Agendar ${ponto.code} · ${quando(inicio.toISOString())}` : 'Escolha uma vaga'
+        }
         disabled={!ponto}
         pending={agendar.pending}
         onPress={() => void agendar.run()}

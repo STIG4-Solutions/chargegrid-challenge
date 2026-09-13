@@ -30,8 +30,7 @@ export function mesesRestantes(hoje, minimoAte) {
   // fuso a oeste, elas retrocedem um dia — e a conta perdia um mês inteiro de
   // multa. Foi o que o verificador pegou: doze meses viravam onze.
   let meses =
-    (fim.getUTCFullYear() - agora.getUTCFullYear()) * 12 +
-    (fim.getUTCMonth() - agora.getUTCMonth())
+    (fim.getUTCFullYear() - agora.getUTCFullYear()) * 12 + (fim.getUTCMonth() - agora.getUTCMonth())
   if (fim.getUTCDate() < agora.getUTCDate()) meses -= 1
   return meses
 }

@@ -105,8 +105,8 @@ export function ReportarProblema({
       <View style={s.confirmado}>
         <Text style={s.confirmadoTitulo}>Problema reportado</Text>
         <Text style={s.confirmadoTexto}>
-          A equipe do estabelecimento foi avisada. Obrigado — reportes como o seu são o que faz
-          um defeito ser corrigido antes de pegar a próxima pessoa.
+          A equipe do estabelecimento foi avisada. Obrigado — reportes como o seu são o que faz um
+          defeito ser corrigido antes de pegar a próxima pessoa.
         </Text>
       </View>
     )
@@ -142,11 +142,7 @@ export function ReportarProblema({
         </View>
       )}
 
-      <Botao
-        titulo="Reportar problema"
-        variante="secundario"
-        onPress={() => setAberto(true)}
-      />
+      <Botao titulo="Reportar problema" variante="secundario" onPress={() => setAberto(true)} />
 
       <Modal
         visible={aberto}

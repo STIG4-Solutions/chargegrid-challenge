@@ -18,7 +18,7 @@ export const stations = [
     power: 0.0,
     // ilustração embutida (SVG data URI) — funciona 100% offline
     img:
-      "data:image/svg+xml;utf8," +
+      'data:image/svg+xml;utf8,' +
       encodeURIComponent(
         `<svg xmlns='http://www.w3.org/2000/svg' width='180' height='120' viewBox='0 0 180 120'>
           <rect width='180' height='120' fill='#1b2a3a'/>
@@ -41,4 +41,6 @@ export const brl = (v) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0)
 
 export const num = (v, d = 2) =>
-  new Intl.NumberFormat('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d }).format(v || 0)
+  new Intl.NumberFormat('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d }).format(
+    v || 0
+  )

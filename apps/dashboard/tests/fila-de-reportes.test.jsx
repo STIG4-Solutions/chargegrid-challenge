@@ -51,12 +51,7 @@ describe('a lista', () => {
   })
 
   it('conta quantos estão abertos', () => {
-    render(
-      <FilaDeReportes
-        reportes={[REPORTE, { ...REPORTE, id: 'r2' }]}
-        aoResolver={() => {}}
-      />
-    )
+    render(<FilaDeReportes reportes={[REPORTE, { ...REPORTE, id: 'r2' }]} aoResolver={() => {}} />)
     expect(screen.getByText('2')).toBeInTheDocument()
   })
 })
@@ -95,9 +90,7 @@ describe('fechar um reporte', () => {
   it('o formulário abre só no reporte clicado', () => {
     // Um campo por linha, e não um compartilhado: com o texto vazando entre
     // linhas, o operador fecharia um reporte com a descrição do outro.
-    render(
-      <FilaDeReportes reportes={[REPORTE, { ...REPORTE, id: 'r2' }]} aoResolver={() => {}} />
-    )
+    render(<FilaDeReportes reportes={[REPORTE, { ...REPORTE, id: 'r2' }]} aoResolver={() => {}} />)
     fireEvent.click(screen.getAllByRole('button', { name: 'Resolver' })[0])
 
     expect(screen.getAllByLabelText('O que foi feito')).toHaveLength(1)

@@ -25,9 +25,7 @@ import { cores, espaco, raio } from './theme'
  */
 export function Tela({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
   const bordas = useSafeAreaInsets()
-  return (
-    <View style={[s.telaBase, { paddingTop: bordas.top }, style]}>{children}</View>
-  )
+  return <View style={[s.telaBase, { paddingTop: bordas.top }, style]}>{children}</View>
 }
 
 /** Recuo inferior para listas e rolagens, para o ultimo item nao ficar colado. */
