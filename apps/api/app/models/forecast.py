@@ -17,10 +17,13 @@ O que o job escreve aqui e' o resultado, versionado e auditavel. Tabela vazia
 significa "nao ha previsao", e a tela diz isso em vez de inventar um numero.
 
 AS DUAS COLUNAS DE COBERTURA existem por um motivo especifico. O modelo entrega
-uma faixa p10-p90 que deveria conter o valor real em ~80% das vezes; o backtest
-do retreino com os dados deste banco mediu 62,3%. A faixa e' mais estreita do que
-anuncia, e o README do modelo afirma o contrario. Guardar os dois numeros lado a lado faz a
-divergencia virar dado na linha, e nao nota de rodape que ninguem le.
+uma faixa p10-p90 que deveria conter o valor real em ~80% das vezes, e o
+backtest mede bem menos - 65,2% no retreino atual. A faixa e' mais estreita do
+que anuncia, e o README do modelo afirma o contrario.
+
+O valor MEDIDO muda a cada reseed (ja' foi 62,3% e 66,8%), e e' justamente por
+isso que ele e' COLUNA e nao constante: guardar os dois lado a lado faz a
+divergencia virar dado da linha, e nao nota de rodape que envelhece em silencio.
 """
 
 from __future__ import annotations

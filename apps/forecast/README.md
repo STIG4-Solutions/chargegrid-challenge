@@ -82,6 +82,24 @@ categorias não influi; **não** ficou provado o que mudou. O banco de
 desenvolvimento não guarda versão, então a pergunta virou irrespondível depois
 do fato.
 
+**Reinvestigado depois, com o pipeline já estável, e três explicações foram
+descartadas** — o episódio continua aberto, mas o espaço de causas é menor:
+
+| hipótese | como foi testada | veredito |
+|---|---|---|
+| treino não-determinístico | dois treinos seguidos, métricas idênticas ao byte | descartada |
+| sensibilidade a threads | `num_threads` 1, 2, 4 e 8 → WAPE 9,26 nos quatro | descartada |
+| mudança no código do pipeline | `pipeline/train.py` tem **um único commit**, anterior às duas corridas | descartada |
+| procedência registrada errada | `--ate` e `reproduzir_com` nasceram às 03:50, antes da corrida das 06:41 | descartada |
+| o banco mudou entre as corridas | deslocar a janela em 2 dias move a régua (9,06 → 9,45 → 9,07): régua idêntica em 7,61% **prova dado idêntico** | descartada |
+
+Sobra um episódio cujas premissas verificáveis todas se sustentam e cuja
+observação as contradiz — e a razão de ser irrespondível agora é precisa: o seed
+consome **um único `random.Random(42)` em sequência**, com a janela ancorada em
+`now()`. O banco daquela manhã não é reconstruível nem re-executando o mesmo
+seed, porque `now()` andou. A instrumentação abaixo existe para que isso não se
+repita, não para explicar o que passou.
+
 Por isso `treinar.py` passou a gravar `impressao_do_treino` — um SHA-256 das
 features e do alvo — junto da métrica. Na próxima vez que o número se mexer, a
 comparação responde sozinha: hash igual aponta para o ambiente, hash diferente
@@ -123,27 +141,27 @@ e traz dentro o comando que o refaz:
 | WAPE mensal do modelo | **9,26%** |
 | WAPE mensal da média móvel de 28 dias | **9,07%** |
 | WAPE diário do modelo | 25,94% |
-| Cobertura da faixa p10–p90 | **62,3%** (deveria ser ~80%) |
+| Cobertura da faixa p10–p90 | **65,2%** (deveria ser ~80%) |
 
 Estes números mudam quando o banco muda — e é para isso que a evidência é
 versionada. Se a tabela divergir de `metricas_atual.json`, o arquivo manda.
 
 Três meses são doze estação-meses, e a diferença caberia no ruído de amostragem —
 por isso a derrota foi remedida em 3, 6 e 12 meses. Ela se repete nos três
-(8,31/7,61 · 8,11/7,75 · 11,95/9,61), e nas três estações. Não é azar de recorte.
+(9,26/9,07 · 9,52/8,97 · 11,03/9,85), e nas três estações. Não é azar de recorte.
 
 **O modelo não supera a régua no MENSAL — mas ganha no DIÁRIO**, e a diferença
 explica tudo:
 
 | granularidade | modelo | régua |
 |---|---|---|
-| diário | **29,4%** | 34,3% |
-| mensal | 12,0% | **9,6%** |
+| diário | **28,9%** | 34,7% |
+| mensal | 11,03% | **9,85%** |
 
 Medido sobre 36 estação-meses fora da amostra — a janela de doze meses, que é por
 que estes números não são os da tabela acima. O modelo aprende o dia a dia — no
-`lab-fiap-eco-station`, onde o fim de semana é 4× mais fraco, ele erra 33,6%
-contra 52,8% da régua. Mas no total do mês essa vantagem se dissolve: somando 30
+`lab-fiap-eco-station`, onde o fim de semana é 4× mais fraco, ele erra 37,3%
+contra 51,0% da régua. Mas no total do mês essa vantagem se dissolve: somando 30
 dias, o padrão semanal quase se cancela, e sobra a variância que o modelo
 adiciona.
 
