@@ -1,0 +1,146 @@
+name: CI
+
+# O portao que faltava.
+#
+# Ate' aqui o repositorio tinha DOIS workflows, e os dois so' migravam banco.
+# As mais de 900 verificacoes do projeto rodavam apenas na maquina de quem
+# escrevia o codigo: um PR podia ser aprovado e mesclado com a suite quebrada
+# sem nada acusar - e o merge em `staging` dispara migration em banco real.
+#
+# Este roda ANTES daquilo. Em PR, e' o que se olha para decidir o merge; em
+# push, e' o registro de que o que entrou estava verde.
+
+on:
+  pull_request:
+    branches: [staging, main]
+  push:
+    branches: [staging, main]
+  workflow_dispatch:
+
+# Ao contrario dos workflows de migration, aqui cancelar e' certo: uma execucao
+# superada por um push novo so' gastaria minuto para responder sobre codigo que
+# ninguem vai mesclar. Migration nao se cancela no meio; teste sim.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    name: API · pytest, ruff
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        working-directory: apps/api
+
+    # A suite sobe contra Postgres de verdade, e nao contra sqlite: os testes
+    # exercitam indice parcial, CHECK, `clock_timestamp()` e enum nativo - nada
+    # disso se comporta igual noutro banco, e um verde falso aqui seria pior que
+    # nenhum teste.
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: chargegrid
+          POSTGRES_PASSWORD: ci-nao-e-segredo
+          POSTGRES_DB: chargegrid
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U chargegrid"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # `test` relaxa a guarda de configuracao - ela existe para impedir que
+      # staging e producao subam com segredo publico, e aqui os valores sao
+      # descartaveis de proposito.
+      ENV: test
+      DEBUG: "false"
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: chargegrid
+      POSTGRES_PASSWORD: ci-nao-e-segredo
+      POSTGRES_DB: chargegrid
+      SECRET_KEY: ci-chave-descartavel-com-mais-de-32-caracteres
+      PAYMENT_WEBHOOK_SECRET: ci-webhook-descartavel
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/api/pyproject.toml
+
+      # Do proprio pyproject, e nao de uma lista redigitada aqui: duplicar as
+      # dependencias no YAML e' garantir que elas divirjam do projeto.
+      - name: Install API dependencies
+        run: pip install ".[dev]"
+
+      - name: Lint
+        run: ruff check app tests scripts
+
+      - name: Format
+        run: ruff format --check app tests scripts
+
+      # As migrations rodam aqui dentro, pela fixture `preparar_banco` do
+      # conftest: ela cria `chargegrid_test` e aplica `alembic upgrade head`.
+      # Uma migration que nao aplica derruba a suite inteira, que e' o aviso
+      # certo antes de ela chegar num banco real.
+      - name: Tests
+        run: pytest -q
+
+  web:
+    name: Painel, app e SDK
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+
+      # `npm ci` na RAIZ: e' um monorepo com workspaces, e instalar por pasta
+      # deixaria `@chargegrid/sdk` sem resolucao.
+      - name: Install
+        run: npm ci
+
+      - name: Types
+        run: npm run typecheck
+
+      - name: Format
+        run: npm run format:check
+
+      - name: Verify · SDK
+        run: npm run verify:api
+
+      - name: Verify · painel
+        run: npm run verify:dashboard
+
+      - name: Verify · app
+        run: npm run verify:mobile
+
+      - name: Render · painel
+        run: npm run test:dashboard
+
+      - name: Render · app
+        run: npm run test:mobile
+
+      # Por ultimo, e nao por menos importante: `tsc` aceita coisa que o bundler
+      # recusa, e um build quebrado so' apareceria na hora de publicar.
+      - name: Build
+        run: npm run build

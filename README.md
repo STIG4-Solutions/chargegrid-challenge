@@ -381,6 +381,11 @@ continua apagado, o que é verdade naquele instante. `tests/util.tsx` registra i
 A divisão não é arbitrária: lógica pura no `verify`, decisão de apresentação no `test`. Só o
 segundo precisa de DOM, e é por isso que ele veio depois.
 
+Desde `ci.yml`, tudo isto roda em **PR e push para `staging` e `main`** — em dois
+jobs, API (com Postgres 18 de serviço) e web. Antes dele o repositório tinha só
+workflows de migration: as verificações existiam e nada as cobrava, num fluxo em
+que o merge em `staging` aplica migration em banco real.
+
 **Teste de mutação é o padrão de aceite**: reverter a guarda e confirmar que o teste quebra.
 Não é cerimônia — ele já encontrou quatro guardas decorativas neste projeto, incluindo um
 `max(0, ...)` que era código morto e uma checagem de escopo duplicada que o SQL já fazia.
