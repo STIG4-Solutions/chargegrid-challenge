@@ -981,11 +981,31 @@ def contrato_da_plataforma(client: httpx.Client, op: dict, drv: dict) -> None:
 
     cobrancas = c.get("cobrancas", [])
     check("cobrancas emitidas", len(cobrancas) > 0, f"{len(cobrancas)}")
-    competencias = [b["competencia"] for b in cobrancas]
+    # A UNIQUE do banco e' (contrato, competencia), e e' essa a invariante: o
+    # MESMO contrato nao e' faturado duas vezes no mesmo mes.
+    #
+    # Contar so' `competencia` era equivalente enquanto a lista vinha de um
+    # contrato so'. Deixou de ser: ela passou a ter escopo de SITE, para a
+    # divida nao sumir quando o estabelecimento assina de novo, e ai duas
+    # cobrancas da mesma competencia vindas de contratos diferentes sao
+    # CORRETAS - o seed produz exatamente isso, com o contrato encerrado e o
+    # ativo cobrando 2026-09.
+    #
+    # `contrato_anterior` e' o que separa os dois grupos. Com mais de um
+    # contrato encerrado a checagem fica aproximada, e isso e' o limite dela -
+    # o que ela continua pegando e' a regressao que importa: a mesma cobranca
+    # emitida duas vezes para o contrato que esta' correndo.
+    pares = [(b["competencia"], b["contrato_anterior"]) for b in cobrancas]
     check(
-        "nenhuma competencia faturada duas vezes",
-        len(competencias) == len(set(competencias)),
-        f"{len(set(competencias))} competencia(s)",
+        "nenhum contrato faturado duas vezes na mesma competencia",
+        len(pares) == len(set(pares)),
+        f"{len(pares)} cobranca(s) em {len(set(pares))} par(es) contrato/competencia",
+    )
+    check(
+        "a divida do contrato anterior continua na lista",
+        any(b["contrato_anterior"] for b in cobrancas),
+        "o seed encerra um contrato e assina outro; sem escopo de site, "
+        "a cobranca do encerrado sumiria da tela",
     )
 
     aberta = next((b for b in cobrancas if b["estado"] != "paga"), None)
