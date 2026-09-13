@@ -25,7 +25,7 @@
     "verify:dashboard": "npm run verify -w @chargegrid/dashboard",
     "verify:mobile": "npm run verify -w @chargegrid/mobile",
     "test:dashboard": "npm run test -w @chargegrid/dashboard",
-    "gen:openapi": "docker compose --env-file apps/api/.env run --rm --build --no-deps api python -m scripts.exportar_openapi",
+    "gen:openapi": "docker compose --env-file apps/api/.env run --rm --no-deps -v \"./apps/api:/app\" api python -m scripts.exportar_openapi",
     "gen:contrato": "npm run gen:openapi && npm run gen:types",
     "gen:types": "npm run gen:types -w @chargegrid/sdk",
     "infra:up": "docker compose --env-file apps/api/.env up --build -d",

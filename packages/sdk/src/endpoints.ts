@@ -179,7 +179,23 @@ export const admin = {
     }),
   /** Quem fez o que, com dinheiro e com permissao. */
   auditTrail: (limit = 100, action?: string, entity?: string) =>
-    api.get<T.LinhaDeAuditoria[]>('/audit', { limit, action, entity })
+    api.get<T.LinhaDeAuditoria[]>('/audit', { limit, action, entity }),
+
+  // ---- contas de operacao ----------------------------------------------
+  //
+  // Motorista NAO aparece aqui: ele se cadastra sozinho pelo app, e sao
+  // milhares. Esta e' a lista de quem opera a rede.
+
+  /** Operadores e admins, com a praca de cada um. Traz os desligados. */
+  users: (inativas = true) => api.get<T.ContaDeOperacao[]>('/users', { inativas }),
+  /** Cria operador (exige `site_id`) ou admin. So admin da rede. */
+  createUser: (dados: T.ContaNova) => api.post<T.ContaDeOperacao>('/users', dados),
+  /**
+   * Liga ou desliga o acesso. Nao ha apagar: as FKs de auditoria e faturamento
+   * sao SET NULL, entao apagar a conta apaga o vinculo do rastro dela.
+   */
+  setUserActive: (userId: string, ativa: boolean) =>
+    api.patch<T.ContaDeOperacao>(`/users/${userId}`, { is_active: ativa })
 }
 
 export const campaigns = {

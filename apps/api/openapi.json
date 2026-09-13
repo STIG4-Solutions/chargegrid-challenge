@@ -184,6 +184,165 @@
         ]
       }
     },
+    "/api/v1/users": {
+      "get": {
+        "tags": [
+          "contas"
+        ],
+        "summary": "Listar Contas",
+        "description": "As contas de operacao, com a praca de cada uma.\n\nTraz as inativas por padrao: a lista existe para administrar acesso, e uma\nconta desligada e' justamente a que alguem pode precisar religar. Esconde-la\nfaria a tela parecer que ela nao existe, e a tentativa de recriar bateria\nno e-mail unico.",
+        "operationId": "listar_contas_api_v1_users_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "inativas",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "incluir contas desligadas",
+              "default": true,
+              "title": "Inativas"
+            },
+            "description": "incluir contas desligadas"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ContaOut"
+                  },
+                  "title": "Response Listar Contas Api V1 Users Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "contas"
+        ],
+        "summary": "Criar Conta",
+        "description": "Cria operador ou admin.\n\nOPERADOR EXIGE `site_id`, e a guarda e' de seguranca, nao de formulario.\n`get_scoped_site_id` devolve o PRIMEIRO site cadastrado quando o usuario nao\ntem um - entao um operador criado sem praca nao ficaria sem acesso: ficaria\ncom acesso a praca de outra pessoa, sem nada indicando isso na tela dele.",
+        "operationId": "criar_conta_api_v1_users_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContaNovaIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContaOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/{user_id}": {
+      "patch": {
+        "tags": [
+          "contas"
+        ],
+        "summary": "Mudar Acesso",
+        "description": "Liga ou desliga o acesso.\n\nUMA guarda: ninguem desliga a propria conta. Um clique distraido tiraria o\nproprio acesso, e religar exigiria outro admin - ou o banco.\n\nE NAO ha guarda de \"ultimo admin ativo\", embora ela pareca obrigatoria aqui.\nFoi escrita e removida: e' INALCANCAVEL. Quem chama esta rota e' um admin\nATIVO - `get_current_user` recusa conta desligada com 401 -, entao desligar\nOUTRO admin sempre deixa pelo menos o proprio solicitante de pe', e desligar\na si mesmo esbarra na guarda acima antes de chegar la'. A regra que ela\ntentava impor ja' e' consequencia desta, e um `if` que nunca roda parece\nprotecao sem proteger nada.",
+        "operationId": "mudar_acesso_api_v1_users__user_id__patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "User Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContaAtivaIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContaOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/power/overview": {
       "get": {
         "tags": [
@@ -6698,6 +6857,142 @@
           "CHAdeMO"
         ],
         "title": "ConnectorType"
+      },
+      "ContaAtivaIn": {
+        "properties": {
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "is_active"
+        ],
+        "title": "ContaAtivaIn",
+        "description": "Ligar ou desligar uma conta. Nao ha apagar."
+      },
+      "ContaNovaIn": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "full_name": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 2,
+            "title": "Full Name"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "title": "Password"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "operator",
+              "admin"
+            ],
+            "title": "Role"
+          },
+          "site_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "full_name",
+          "password",
+          "role"
+        ],
+        "title": "ContaNovaIn",
+        "description": "Conta de operacao criada por um admin da rede.\n\nExiste separada de `RegistroPublicoIn` porque as duas rotas respondem a\nperguntas opostas: aquela e' publica e NAO pode escolher papel; esta e'\nautenticada, restrita a admin, e escolher o papel e' a razao dela existir.\nUm schema so' para as duas obrigaria a rota publica a ignorar campos - que\nfoi exatamente o arranjo fragil que a 0027 desfez.\n\n`role` nao aceita `driver`: motorista se cadastra sozinho pelo app, e criar\num daqui produziria uma conta sem senha escolhida pelo dono dela."
+      },
+      "ContaOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "role": {
+            "$ref": "#/components/schemas/UserRole"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "site_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site Id"
+          },
+          "site_nome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site Nome"
+          },
+          "last_login_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Login At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "email",
+          "full_name",
+          "role",
+          "is_active",
+          "site_id",
+          "site_nome",
+          "last_login_at"
+        ],
+        "title": "ContaOut",
+        "description": "O que a tela de contas mostra.\n\nDeliberadamente menos que `UserOut`: saldo de carteira, telefone e documento\nsao dados do MOTORISTA, e nao tem o que fazer numa tela sobre quem opera a\nrede. `last_login_at` entra porque e' a pergunta que essa tela responde e\nnenhuma outra - conta criada e nunca usada.\n\nHerda `ORMModel` para ENTRAR na guarda de `test_cobertura_de_schema`: aquela\nvarredura so' enxerga subclasses de `ORMModel`, entao um schema de resposta\nem `BaseModel` escaparia tanto da tabela de omissoes quanto da checagem de\ncampo sigiloso - e este aqui carrega colunas de `User`."
       },
       "DesempenhoOut": {
         "properties": {

@@ -24,6 +24,7 @@ const saidaPrevisao = join(cache, 'previsao.mjs')
 const saidaContrato = join(cache, 'contrato.mjs')
 const saidaManutencao = join(cache, 'manutencao.mjs')
 const saidaAuditoria = join(cache, 'auditoria.mjs')
+const saidaContas = join(cache, 'contas.mjs')
 
 // Só os módulos puros entram. Importar um `.jsx` puxaria React e o SDK inteiro
 // para dentro do Node — e o que se quer verificar não depende de nenhum deles.
@@ -37,7 +38,8 @@ for (const [entrada, destino] of [
   ['src/views/ev/previsao.js', saidaPrevisao],
   ['src/views/ev/contrato.js', saidaContrato],
   ['src/views/ev/manutencao.js', saidaManutencao],
-  ['src/views/ev/auditoria.js', saidaAuditoria]
+  ['src/views/ev/auditoria.js', saidaAuditoria],
+  ['src/views/ev/contas.js', saidaContas]
 ]) {
   await build({
     entryPoints: [join(raiz, entrada)],
@@ -59,6 +61,15 @@ const {
 const { rotuloDaAcao, mudancas, comoTexto, abasDaSecao, podeEstornar } = await import(
   pathToFileURL(saidaAuditoria).href
 )
+const {
+  SENHA_MINIMA,
+  corpoDaConta,
+  podeDesligar,
+  pracaDaConta,
+  problemaNaConta,
+  rotuloDoPapel,
+  ultimoAcesso
+} = await import(pathToFileURL(saidaContas).href)
 const {
   problemasDaCampanha,
   consumoDoOrcamento,
@@ -633,6 +644,62 @@ check('admin estorna fatura paga', podeEstornar({ status: 'paid' }, true) === tr
 check('fatura em aberto nao estorna', podeEstornar({ status: 'open' }, true) === false)
 check('fatura ausente nao quebra', podeEstornar(undefined, true) === false)
 
+// ---------------------------------------------------------------- contas
+//
+// 34. Operador sem praça é a regra menos óbvia desta tela e a mais cara de
+//     errar: `get_scoped_site_id` devolve o PRIMEIRO site da rede para quem não
+//     tem `site_id`. O operador não ficaria sem acesso — ficaria com o acesso
+//     da praça de outra pessoa, e nada na tela dele diria isso.
+const OPERADOR = { nome: 'Maria Souza', email: 'maria@empresa.com', senha: 'senha-comprida', papel: 'operator', siteId: 's1' }
+check('operador com praca pode', problemaNaConta(OPERADOR) === null)
+check('operador SEM praca nao pode', problemaNaConta({ ...OPERADOR, siteId: '' }) !== null)
+check('admin sem praca pode', problemaNaConta({ ...OPERADOR, papel: 'admin', siteId: '' }) === null)
+
+// 35. Os pisos espelham o servidor, e errar para menos é melhor que para mais.
+check('nome curto nao passa', problemaNaConta({ ...OPERADOR, nome: 'M' }) !== null)
+check('email torto nao passa', problemaNaConta({ ...OPERADOR, email: 'maria' }) !== null)
+check('senha curta nao passa',
+  problemaNaConta({ ...OPERADOR, senha: 'x'.repeat(SENHA_MINIMA - 1) }) !== null)
+check('senha no piso passa',
+  problemaNaConta({ ...OPERADOR, senha: 'x'.repeat(SENHA_MINIMA) }) === null)
+
+// 36. Admin é global: mandar a praça dele sugeriria que ficou restrito a ela.
+check('corpo de operador leva a praca', corpoDaConta(OPERADOR).site_id === 's1')
+check('corpo de admin nao leva praca',
+  corpoDaConta({ ...OPERADOR, papel: 'admin' }).site_id === null)
+check('email vai em minusculas',
+  corpoDaConta({ ...OPERADOR, email: '  Maria@Empresa.COM ' }).email === 'maria@empresa.com')
+check('senha vai como foi digitada', corpoDaConta(OPERADOR).password === 'senha-comprida')
+
+// 37. O servidor recusa desligar a própria conta com 409. O botão nasce apagado
+//     em vez de a pessoa descobrir depois do clique.
+check('nao desligo a mim mesmo', podeDesligar({ id: 'eu', is_active: true }, 'eu') === false)
+check('desligo outro', podeDesligar({ id: 'outro', is_active: true }, 'eu') === true)
+check('ja desligado nao desliga de novo',
+  podeDesligar({ id: 'outro', is_active: false }, 'eu') === false)
+
+// 38. Admin sem praça é o NORMAL — ele enxerga a rede inteira. Escrever "—"
+//     sugeriria dado faltando, e alguém iria "corrigir".
+check('admin sem praca diz que ve a rede',
+  pracaDaConta({ role: 'admin', site_nome: null }) === 'toda a rede')
+check('operador com praca mostra a praca',
+  pracaDaConta({ role: 'operator', site_nome: 'Shopping' }) === 'Shopping')
+check('papel desconhecido nao apaga a linha', rotuloDoPapel('auditor') === 'auditor')
+check('papel conhecido e traduzido', rotuloDoPapel('operator') === 'Operador')
+
+// 39. "nunca entrou" é a informação que esta tela existe para dar.
+check('sem acesso diz nunca entrou', ultimoAcesso(null) === 'nunca entrou')
+check('data invalida nao vira Invalid Date', ultimoAcesso('nao-e-data') === 'nunca entrou')
+check('data valida e formatada', /\d{2}\/\d{2}\/\d{4}/.test(ultimoAcesso('2026-09-01T10:00:00Z')))
+
+// 40. A aba de contas é de ADMIN, como a de auditoria: a rota recusa operador,
+//     e aba que só devolve 403 é pior que aba nenhuma.
+const abasAdmin = abasDaSecao([], { rede: false, isAdmin: true }).map((a) => a.to)
+const abasOperador = abasDaSecao([], { rede: false, isAdmin: false }).map((a) => a.to)
+check('admin ve a aba de contas', abasAdmin.includes('/ev/users'))
+check('operador nao ve a aba de contas', !abasOperador.includes('/ev/users'))
+
+rmSync(saidaContas, { force: true })
 rmSync(saida, { force: true })
 rmSync(saidaCampanha, { force: true })
 rmSync(saidaManutencao, { force: true })

@@ -103,6 +103,71 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Listar Contas
+         * @description As contas de operacao, com a praca de cada uma.
+         *
+         *     Traz as inativas por padrao: a lista existe para administrar acesso, e uma
+         *     conta desligada e' justamente a que alguem pode precisar religar. Esconde-la
+         *     faria a tela parecer que ela nao existe, e a tentativa de recriar bateria
+         *     no e-mail unico.
+         */
+        get: operations["listar_contas_api_v1_users_get"];
+        put?: never;
+        /**
+         * Criar Conta
+         * @description Cria operador ou admin.
+         *
+         *     OPERADOR EXIGE `site_id`, e a guarda e' de seguranca, nao de formulario.
+         *     `get_scoped_site_id` devolve o PRIMEIRO site cadastrado quando o usuario nao
+         *     tem um - entao um operador criado sem praca nao ficaria sem acesso: ficaria
+         *     com acesso a praca de outra pessoa, sem nada indicando isso na tela dele.
+         */
+        post: operations["criar_conta_api_v1_users_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/users/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Mudar Acesso
+         * @description Liga ou desliga o acesso.
+         *
+         *     UMA guarda: ninguem desliga a propria conta. Um clique distraido tiraria o
+         *     proprio acesso, e religar exigiria outro admin - ou o banco.
+         *
+         *     E NAO ha guarda de "ultimo admin ativo", embora ela pareca obrigatoria aqui.
+         *     Foi escrita e removida: e' INALCANCAVEL. Quem chama esta rota e' um admin
+         *     ATIVO - `get_current_user` recusa conta desligada com 401 -, entao desligar
+         *     OUTRO admin sempre deixa pelo menos o proprio solicitante de pe', e desligar
+         *     a si mesmo esbarra na guarda acima antes de chegar la'. A regra que ela
+         *     tentava impor ja' e' consequencia desta, e um `if` que nunca roda parece
+         *     protecao sem proteger nada.
+         */
+        patch: operations["mudar_acesso_api_v1_users__user_id__patch"];
+        trace?: never;
+    };
     "/api/v1/power/overview": {
         parameters: {
             query?: never;
@@ -2081,6 +2146,82 @@ export interface components {
          */
         ConnectorType: "Type 2" | "CCS2" | "CHAdeMO";
         /**
+         * ContaAtivaIn
+         * @description Ligar ou desligar uma conta. Nao ha apagar.
+         */
+        ContaAtivaIn: {
+            /** Is Active */
+            is_active: boolean;
+        };
+        /**
+         * ContaNovaIn
+         * @description Conta de operacao criada por um admin da rede.
+         *
+         *     Existe separada de `RegistroPublicoIn` porque as duas rotas respondem a
+         *     perguntas opostas: aquela e' publica e NAO pode escolher papel; esta e'
+         *     autenticada, restrita a admin, e escolher o papel e' a razao dela existir.
+         *     Um schema so' para as duas obrigaria a rota publica a ignorar campos - que
+         *     foi exatamente o arranjo fragil que a 0027 desfez.
+         *
+         *     `role` nao aceita `driver`: motorista se cadastra sozinho pelo app, e criar
+         *     um daqui produziria uma conta sem senha escolhida pelo dono dela.
+         */
+        ContaNovaIn: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+            /** Full Name */
+            full_name: string;
+            /** Password */
+            password: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "operator" | "admin";
+            /** Site Id */
+            site_id?: string | null;
+        };
+        /**
+         * ContaOut
+         * @description O que a tela de contas mostra.
+         *
+         *     Deliberadamente menos que `UserOut`: saldo de carteira, telefone e documento
+         *     sao dados do MOTORISTA, e nao tem o que fazer numa tela sobre quem opera a
+         *     rede. `last_login_at` entra porque e' a pergunta que essa tela responde e
+         *     nenhuma outra - conta criada e nunca usada.
+         *
+         *     Herda `ORMModel` para ENTRAR na guarda de `test_cobertura_de_schema`: aquela
+         *     varredura so' enxerga subclasses de `ORMModel`, entao um schema de resposta
+         *     em `BaseModel` escaparia tanto da tabela de omissoes quanto da checagem de
+         *     campo sigiloso - e este aqui carrega colunas de `User`.
+         */
+        ContaOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+            /** Full Name */
+            full_name: string;
+            role: components["schemas"]["UserRole"];
+            /** Is Active */
+            is_active: boolean;
+            /** Site Id */
+            site_id: string | null;
+            /** Site Nome */
+            site_nome: string | null;
+            /** Last Login At */
+            last_login_at: string | null;
+        };
+        /**
          * DesempenhoOut
          * @description O que o operador precisa para decidir se a campanha vale.
          *
@@ -3629,6 +3770,106 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserOut"];
+                };
+            };
+        };
+    };
+    listar_contas_api_v1_users_get: {
+        parameters: {
+            query?: {
+                /** @description incluir contas desligadas */
+                inativas?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContaOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    criar_conta_api_v1_users_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContaNovaIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContaOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mudar_acesso_api_v1_users__user_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContaAtivaIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContaOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

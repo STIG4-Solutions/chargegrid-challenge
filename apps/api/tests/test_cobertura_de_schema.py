@@ -65,6 +65,18 @@ OMISSOES = {
         "last_login_at": INTERNO,
         "updated_at": AUDITORIA,
     },
+    (User, A.ContaOut): {
+        # A tela de contas administra ACESSO. O que fica de fora nao e' descuido:
+        # e' dado de motorista, e motorista nao aparece nesta lista.
+        "hashed_password": "NUNCA expor - e o segredo da conta",
+        "wallet_balance": "saldo e' do motorista; conta de operacao nao tem carteira",
+        "phone": "contato do motorista, nao de quem opera",
+        "document": "CPF do motorista; administrar acesso nao precisa dele",
+        "fleet_id": "vinculo de frota e' do motorista corporativo",
+        "fleet_manager": "idem - quem gerencia frota e' motorista, e nao entra nesta lista",
+        "created_at": AUDITORIA,
+        "updated_at": AUDITORIA,
+    },
     (Vehicle, A.VehicleOut): {
         "user_id": "a rota so' devolve os carros do proprio usuario",
         "created_at": AUDITORIA,

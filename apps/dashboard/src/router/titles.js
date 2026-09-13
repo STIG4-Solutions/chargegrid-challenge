@@ -12,6 +12,7 @@ export const titles = {
   '/ev/tariff': 'Tarifação & Pagamento',
   '/ev/campaigns': 'Campanhas',
   '/ev/contract': 'Plano & Contrato',
+  '/ev/users': 'Contas de operação',
   '/ev/audit': 'Auditoria'
 }
 

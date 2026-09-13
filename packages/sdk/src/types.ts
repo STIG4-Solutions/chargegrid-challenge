@@ -13,6 +13,10 @@ type S = components['schemas']
 export type TokenPairOut = S['TokenPair']
 export type Usuario = S['UserOut']
 export type PapelUsuario = S['UserRole']
+/** Uma conta de operacao: quem opera a rede, e nao quem carrega o carro. */
+export type ContaDeOperacao = S['ContaOut']
+/** Corpo da criacao de conta. `role` aqui e' escolhido - ao contrario do cadastro publico. */
+export type ContaNova = S['ContaNovaIn']
 /** Corpo do cadastro publico. Sem `role` e sem `site_id`, por contrato. */
 export type RegistroPublico = S['RegistroPublicoIn']
 

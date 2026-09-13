@@ -74,7 +74,12 @@ export function abasDaSecao(modulos, { rede, isAdmin }) {
   return [
     ...modulos,
     ...(rede ? [{ to: '/ev/portfolio', label: 'Visão de Rede' }] : []),
-    ...(isAdmin ? [{ to: '/ev/audit', label: 'Auditoria' }] : [])
+    ...(isAdmin
+      ? [
+          { to: '/ev/users', label: 'Contas' },
+          { to: '/ev/audit', label: 'Auditoria' }
+        ]
+      : [])
   ]
 }
 
