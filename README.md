@@ -307,6 +307,7 @@ npm run verify:mobile                      # 49 cenários da lógica do app, sem
 npm run test:dashboard                     # 63 testes de renderização (vitest + jsdom)
 npm run test:mobile                        # 13 testes de renderização do app (jest-expo + RNTL)
 npm run typecheck                          # tipos do SDK e do app contra o contrato
+npm run format:check                       # Prettier no lado JS (`npm run format` corrige)
 npm run build                              # dashboard
 cd apps/api && python -m pytest -q          # 725 testes (precisa do Postgres)
 cd apps/api && python -m ruff check .
@@ -326,6 +327,14 @@ que nada acusasse. Uma das divergências não era cosmética: `RatingOut.descont
 existia na API e não no contrato, então o desconto da prévia era invisível para
 todo cliente tipado. `npm run gen:contrato` refaz os dois elos, e
 `test_contrato_openapi.py` recusa o arquivo fora de sincronia.
+
+O `format:check` é a contraparte JS do `ruff format --check`, e a configuração
+**ratifica** o estilo em vez de trocá-lo: os padrões do Prettier iriam contra o
+código em três pontos, então foram medidos antes de configurar — 0 linhas com
+ponto-e-vírgula, 49 aspas simples contra 0 duplas, 62 literais sem vírgula final
+contra 0 com. Ficam de fora o que é **gerado** (`schema.ts`, `openapi.json` — este
+último tem os bytes assertados por teste, e reindentá-lo quebraria a suíte da API
+a partir do painel), o Markdown (prosa quebrada à mão) e o YAML.
 
 O `ruff format --check` entrou depois do `ruff check`, e não junto com ele por
 acaso: o projeto passou muito tempo com o primeiro limpo e o segundo nunca
