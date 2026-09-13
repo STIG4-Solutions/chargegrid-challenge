@@ -22,6 +22,7 @@ import PriorityRules from './views/ev/PriorityRules.jsx'
 import Portfolio from './views/ev/Portfolio.jsx'
 import Campaigns from './views/ev/Campaigns.jsx'
 import Contract from './views/ev/Contract.jsx'
+import Auditoria from './views/ev/Auditoria.jsx'
 
 export default function App() {
   const { status } = useAuth()
@@ -64,6 +65,7 @@ export default function App() {
               <Route path="portfolio" element={<Portfolio />} />
               <Route path="campaigns" element={<Campaigns />} />
               <Route path="contract" element={<Contract />} />
+              <Route path="audit" element={<Auditoria />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/station_monitor" replace />} />

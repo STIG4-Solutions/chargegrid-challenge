@@ -713,6 +713,12 @@ que perde o registro do que aconteceu.
 assunto de operador de praça. Sem essa rota, o dado existiria no banco e a pergunta continuaria
 dependendo de alguém com acesso a produção.
 
+No painel é a aba **Auditoria**, que só aparece para admin. A tabela mostra o que *mudou* — o
+par antes/depois casado por chave — e não o retrato de cada lado: quem audita quer a diferença.
+O `***` que o servidor mascarou passa direto, porque esconder a máscara esconderia que ali
+existia um segredo. Estornar uma fatura fica na linha dela, em **Tarifação & Pagamento**, e só
+para admin e só em fatura paga.
+
 ### 10. Previsão de demanda
 
 A API apenas **lê** `site_forecasts`. Quem escreve é `apps/forecast`, fora deste processo: um
@@ -878,7 +884,12 @@ O escopo vem do **JOIN com o ponto**: `charge_point_reports` não tem `site_id`,
 devolveria a reclamação do vizinho. Reporte de outra praça responde **404**, e não 403 — dizer
 "existe, mas não é seu" já entrega que ele existe.
 
-A lista traz o e-mail de quem reportou **e nada além dele**. O reporte já é uma reclamação;
+**E quem reportou fica sabendo.** `ReportarProblema`, no app, lista os próprios reportes daquele
+ponto com o desfecho — "Em análise" ou a resolução que o estabelecimento escreveu. Sem isso o
+ciclo não fechava de verdade: a API devolvia `resolvido` desde sempre e nenhuma tela chamava
+`myReports`, então o motorista mandava o problema e nunca ficava sabendo se alguém olhou.
+
+A lista do operador traz o e-mail de quem reportou **e nada além dele**. O reporte já é uma reclamação;
 enriquecer a linha com o resto do cadastro exporia o motorista a quem ele reclamou.
 
 No painel, a fila fica na aba **Gerenciamento de potência**, abaixo da manutenção preditiva —

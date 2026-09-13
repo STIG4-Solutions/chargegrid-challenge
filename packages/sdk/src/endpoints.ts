@@ -150,6 +150,27 @@ export const payments = {
 // Gestao pelo operador. O `site_id` NAO viaja no corpo: o servidor o tira do
 // escopo do token, e mandar um daqui so' criaria a impressao de que a tela
 // escolhe quem paga.
+/**
+ * O que so' admin pode: devolver dinheiro, corrigir saldo e ler a trilha.
+ *
+ * Bloco proprio porque o criterio e' o mesmo nas tres - mexer no dinheiro de
+ * terceiro, ou ler quem mexeu. O servidor recusa as tres para operador; a tela
+ * as esconde pelo mesmo motivo.
+ */
+export const admin = {
+  /** Estorna a fatura. Carteira volta na hora; PSP, pelo provedor. */
+  refundInvoice: (invoiceId: string) => api.post<T.Pagamento>(`/invoices/${invoiceId}/refund`, {}),
+  /** Correcao manual de saldo. O motivo e' obrigatorio, e vai para o extrato. */
+  adjustWallet: (userId: string, valor: number, motivo: string) =>
+    api.post<T.ExtratoDaCarteira>(`/wallets/${userId}/adjust`, {
+      valor: valor.toFixed(2),
+      motivo
+    }),
+  /** Quem fez o que, com dinheiro e com permissao. */
+  auditTrail: (limit = 100, action?: string, entity?: string) =>
+    api.get<T.LinhaDeAuditoria[]>('/audit', { limit, action, entity })
+}
+
 export const campaigns = {
   /** Campanhas desta praca, mais as de rede que agem sobre ela. */
   list: () => api.get<T.Campanha[]>('/campaigns'),
@@ -232,9 +253,14 @@ export const app = {
     chargePointId: string,
     dados: { categoria: string; descricao?: string; session_id?: string }
   ) => api.post<Record<string, unknown>>(`/app/charge-points/${chargePointId}/reports`, dados),
-  /** Os reportes que ESTE motorista fez neste ponto. */
+  /**
+   * Os reportes que ESTE motorista fez neste ponto, com o desfecho.
+   *
+   * E' o que fecha o ciclo de quem reportou: sem isto ele manda o problema e
+   * nunca fica sabendo se alguem olhou.
+   */
   myReports: (chargePointId: string) =>
-    api.get<Record<string, unknown>[]>(`/app/charge-points/${chargePointId}/reports`),
+    api.get<T.MeuReporte[]>(`/app/charge-points/${chargePointId}/reports`),
   /** Relatorio mensal da frota, por centro de custo. So gestor. */
   fleetReport: (mes: string) =>
     api.get<Record<string, unknown>>('/app/fleet/report', { mes }),

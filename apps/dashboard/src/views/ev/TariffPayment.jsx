@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { payments, tariffs as tariffsApi } from '@chargegrid/sdk'
+import { admin, payments, tariffs as tariffsApi } from '@chargegrid/sdk'
 import {
   brl,
   dateTime,
@@ -11,6 +11,8 @@ import {
 } from '@chargegrid/sdk'
 import { useAction, useApi } from '@chargegrid/sdk'
 import { Async, Empty, ErrorState, Spinner } from '../../components/Async.jsx'
+import { useAuth } from '../../auth/AuthContext.jsx'
+import { podeEstornar } from './auditoria.js'
 
 export default function TariffPayment() {
   const tariffs = useApi(() => tariffsApi.list(), [])
@@ -569,6 +571,8 @@ function InvoiceRow({ invoice, onPaid }) {
 
   const payment = invoice.payments?.[0]
   const canCharge = invoice.status === 'open' || invoice.status === 'failed'
+  const { isAdmin } = useAuth()
+  const estorno = useAction(() => admin.refundInvoice(invoice.id), { onSuccess: onPaid })
 
   return (
     <tr>
@@ -608,10 +612,29 @@ function InvoiceRow({ invoice, onPaid }) {
             </button>
           </div>
         ) : (
-          <span className="muted" style={{ fontSize: 12 }}>
-            {invoice.paid_at ? dateTime(invoice.paid_at) : '—'}
-          </span>
+          <div className="flex gap-8 items-center">
+            <span className="muted" style={{ fontSize: 12 }}>
+              {invoice.paid_at ? dateTime(invoice.paid_at) : '—'}
+            </span>
+            {/*
+              Estornar só aparece para admin e só em fatura paga. O servidor
+              recusa nos dois casos; esconder aqui evita um botão que promete o
+              que a API não faz — e "estornar" é a última coisa que deveria
+              parecer disponível por engano.
+            */}
+            {podeEstornar(invoice, isAdmin) && (
+              <button
+                className="btn btn-sm"
+                onClick={() => estorno.run()}
+                disabled={estorno.pending}
+                title="Devolve o valor: carteira volta na hora, PSP pelo provedor"
+              >
+                {estorno.pending ? <Spinner size={12} /> : null} Estornar
+              </button>
+            )}
+          </div>
         )}
+        {estorno.error && <div className="row-error">{estorno.error.detail}</div>}
       </td>
     </tr>
   )

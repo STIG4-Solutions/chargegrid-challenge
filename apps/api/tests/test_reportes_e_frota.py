@@ -614,10 +614,20 @@ async def test_resolucao_curta_demais_e_recusada_pelo_schema(
     assert resposta.status_code == 422
 
 
-async def test_o_app_do_motorista_ve_que_foi_resolvido(
+async def test_a_rota_do_motorista_devolve_o_desfecho(
     api, como_motorista, como_operador_do_site, db, ponto, motorista
 ):
-    """Fecha o ciclo de quem reportou: ele ve que alguem olhou."""
+    """A API entrega a quem reportou o que foi feito.
+
+    O nome anterior dizia "o app do motorista ve que foi resolvido", e isso era
+    mais do que o teste prova: ele exercita a ROTA. Na epoca nenhuma tela
+    chamava `myReports`, entao a afirmacao estava errada - o motorista mandava o
+    problema e nunca ficava sabendo.
+
+    A tela existe agora (`ReportarProblema` lista os proprios reportes com o
+    desfecho), mas quem a cobre nao e' este teste: nao ha harness de React
+    Native aqui. O nome passa a dizer o que ele de fato garante.
+    """
     r = _reporte(ponto, motorista, "cabo_danificado")
     db.add(r)
     await db.flush()

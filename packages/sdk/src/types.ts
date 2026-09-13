@@ -111,6 +111,43 @@ export interface ReporteDoPonto {
   resolucao: string | null
 }
 
+/**
+ * Um reporte do próprio motorista, como o app o vê.
+ *
+ * Escrito à mão: a rota devolve `list[dict]`, sem `response_model`. É um
+ * subconjunto de `ReporteDoPonto` — sem quem reportou (é ele mesmo) e sem o
+ * ponto (ele está olhando para o ponto).
+ */
+export interface MeuReporte {
+  id: string
+  categoria: string
+  descricao: string | null
+  criado_em: string
+  resolvido: boolean
+  /** O que o estabelecimento disse ter feito. Só quando resolvido. */
+  resolucao: string | null
+}
+
+/**
+ * Uma linha da trilha de auditoria.
+ *
+ * Escrita à mão: a rota devolve `list[dict]`. `antes` e `depois` são JSON livre
+ * porque cada ação guarda o que faz sentido para ela — e já chegam com os
+ * valores sigilosos mascarados pelo servidor.
+ */
+export interface LinhaDeAuditoria {
+  id: string
+  quando: string
+  quem: string | null
+  quem_id: string | null
+  acao: string
+  entidade: string
+  entidade_id: string | null
+  antes: Record<string, unknown>
+  depois: Record<string, unknown>
+  ip: string | null
+}
+
 /** Página genérica devolvida pelas listagens. */
 export interface Pagina<T> {
   items: T[]

@@ -303,7 +303,7 @@ npm ls react           # tem que aparecer uma única
 ```bash
 npm run verify:api                         # 17 cenários do SDK com fetch simulado
 npm run verify:dashboard                   # 62 cenários da lógica do painel, sem navegador
-npm run test:dashboard                     # 45 testes de renderização (vitest + jsdom)
+npm run test:dashboard                     # 52 testes de renderização (vitest + jsdom)
 npm run typecheck                          # tipos do SDK e do app contra o contrato
 npm run build                              # dashboard
 cd apps/api && python -m pytest -q          # 538 testes (precisa do Postgres)

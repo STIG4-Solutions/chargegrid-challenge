@@ -11,7 +11,7 @@ import {
   View
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { app } from '@chargegrid/sdk'
+import { app, useApi, type MeuReporte } from '@chargegrid/sdk'
 import { Aviso, Botao } from './components'
 import { cores, espaco, raio } from './theme'
 
@@ -57,6 +57,13 @@ export function ReportarProblema({
   const bordas = useSafeAreaInsets()
   const recuo = Math.max(bordas.bottom, 16)
 
+  // O que ELE ja reportou neste ponto, com o desfecho.
+  //
+  // Sem isto o ciclo nao fechava: o motorista mandava o problema e nunca ficava
+  // sabendo se alguem olhou. A API respondia `resolvido` desde sempre e nenhuma
+  // tela chamava - `myReports` existia no SDK sem consumidor.
+  const meus = useApi<MeuReporte[]>(() => app.myReports(chargePointId), [chargePointId])
+
   const [aberto, setAberto] = useState(false)
   const [categoria, setCategoria] = useState<string | null>(null)
   const [descricao, setDescricao] = useState('')
@@ -83,6 +90,9 @@ export function ReportarProblema({
       })
       setEnviado(true)
       fechar()
+      // A confirmação abaixo some ao remontar a tela; a lista não. Recarregar
+      // aqui faz o reporte recém-enviado aparecer já como "em análise".
+      void meus.refetch({ silent: true })
     } catch (e) {
       setErro((e as { detail?: string })?.detail || 'Não foi possível enviar. Tente de novo.')
     } finally {
@@ -104,6 +114,34 @@ export function ReportarProblema({
 
   return (
     <View>
+      {(meus.data ?? []).length > 0 && (
+        <View style={s.historico}>
+          <Text style={s.historicoTitulo}>O que você reportou aqui</Text>
+          {(meus.data ?? []).map((r) => (
+            <View key={r.id} style={s.linha}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.linhaTitulo}>
+                  {CATEGORIAS.find((c) => c.valor === r.categoria)?.rotulo ?? r.categoria}
+                </Text>
+                {/*
+                  A resolução do estabelecimento aparece inteira. É a única
+                  coisa que diferencia "alguém olhou" de "sumiram com isto" —
+                  e foi ela que o painel passou a exigir para fechar.
+                */}
+                {r.resolvido && r.resolucao ? (
+                  <Text style={s.linhaResolucao}>{r.resolucao}</Text>
+                ) : (
+                  <Text style={s.linhaEspera}>Em análise pelo estabelecimento</Text>
+                )}
+              </View>
+              <Text style={r.resolvido ? s.selo : s.seloEspera}>
+                {r.resolvido ? 'Resolvido' : 'Aberto'}
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
+
       <Botao
         titulo="Reportar problema"
         variante="secundario"
@@ -241,6 +279,19 @@ const s = StyleSheet.create({
     backgroundColor: cores.superficieAlta,
     gap: 4
   },
+  historico: { gap: espaco.xs, marginBottom: espaco.sm },
+  historicoTitulo: {
+    color: cores.textoFraco,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.6
+  },
+  linha: { flexDirection: 'row', alignItems: 'center', gap: espaco.sm },
+  linhaTitulo: { color: cores.texto, fontSize: 13 },
+  linhaResolucao: { color: cores.verde, fontSize: 12 },
+  linhaEspera: { color: cores.textoFraco, fontSize: 12 },
+  selo: { color: cores.verde, fontSize: 11, fontWeight: '700' },
+  seloEspera: { color: cores.ambar, fontSize: 11, fontWeight: '700' },
   confirmadoTitulo: { color: cores.verde, fontSize: 15, fontWeight: '700' },
   confirmadoTexto: { color: cores.texto, fontSize: 13, lineHeight: 19 }
 })

@@ -23,6 +23,7 @@ const saidaCampanha = join(cache, 'campanha.mjs')
 const saidaPrevisao = join(cache, 'previsao.mjs')
 const saidaContrato = join(cache, 'contrato.mjs')
 const saidaManutencao = join(cache, 'manutencao.mjs')
+const saidaAuditoria = join(cache, 'auditoria.mjs')
 
 // Só os módulos puros entram. Importar um `.jsx` puxaria React e o SDK inteiro
 // para dentro do Node — e o que se quer verificar não depende de nenhum deles.
@@ -35,7 +36,8 @@ for (const [entrada, destino] of [
   ['src/views/ev/campanha.js', saidaCampanha],
   ['src/views/ev/previsao.js', saidaPrevisao],
   ['src/views/ev/contrato.js', saidaContrato],
-  ['src/views/ev/manutencao.js', saidaManutencao]
+  ['src/views/ev/manutencao.js', saidaManutencao],
+  ['src/views/ev/auditoria.js', saidaAuditoria]
 ]) {
   await build({
     entryPoints: [join(raiz, entrada)],
@@ -54,6 +56,9 @@ const {
   diasEmAberto,
   RESOLUCAO_MINIMA
 } = await import(pathToFileURL(saidaManutencao).href)
+const { rotuloDaAcao, mudancas, comoTexto, abasDaSecao, podeEstornar } = await import(
+  pathToFileURL(saidaAuditoria).href
+)
 const {
   problemasDaCampanha,
   consumoDoOrcamento,
@@ -552,9 +557,86 @@ check(
 check('data futura nao fica negativa', diasEmAberto('2026-09-13T12:00:00Z', AGORA) === 0)
 check('data invalida nao quebra', diasEmAberto('nao-e-data', AGORA) === null)
 
+// ---- trilha de auditoria ----
+//
+// A trilha era gravada e não tinha leitor. O que estas regras protegem é a
+// leitura: ação impressa como nome de evento, ou um objeto JSON despejado na
+// célula, tornam a tabela ilegível para quem precisa dela.
+
+// 26. Ação traduzida. `carteira.ajustada` é nome de evento.
+check(
+  'acao conhecida sai em portugues',
+  rotuloDaAcao('carteira.ajustada') === 'Saldo corrigido à mão',
+  rotuloDaAcao('carteira.ajustada')
+)
+check('acao desconhecida cai no valor cru', rotuloDaAcao('algo.novo') === 'algo.novo')
+
+// 27. O que interessa a quem audita é o que MUDOU, não o retrato de cada lado.
+//
+// `mesmo` é PREDICADO, não asserção: solto, o resultado se perde e o cenário
+// não verifica nada. Foi o que aconteceu na primeira versão destes três, e o
+// teste de mutação pegou — remover o filtro de `mudancas` não quebrava nada.
+check(
+  'o diff traz so o que mudou',
+  mesmo(mudancas({ saldo: 10, motivo: 'x' }, { saldo: 25, motivo: 'x' }), [
+    { campo: 'saldo', de: 10, para: 25 }
+  ]),
+  JSON.stringify(mudancas({ saldo: 10, motivo: 'x' }, { saldo: 25, motivo: 'x' }))
+)
+
+// 28. Chave só de um lado também aparece: criar campanha não tem "antes", e é
+//     exatamente isso que a linha deve mostrar.
+check(
+  'campo novo aparece sem antes',
+  mesmo(mudancas({}, { nome: 'Setembro' }), [
+    { campo: 'nome', de: undefined, para: 'Setembro' }
+  ])
+)
+
+// 29. Objeto igual dos dois lados não polui a lista - comparado por VALOR, e
+//     não por referência: dois objetos iguais nunca são o mesmo objeto.
+check('objeto igual nao entra no diff', mesmo(mudancas({ cfg: { a: 1 } }, { cfg: { a: 1 } }), []))
+
+// 30. Objeto diferente entra, comparado por valor e não por referência.
+check(
+  'objeto alterado aparece',
+  mudancas({ cfg: { a: 1 } }, { cfg: { a: 2 } }).length === 1
+)
+
+// 31. `***` vem mascarado do servidor e passa direto: mascarar de novo
+//     esconderia que houve mascaramento, e quem audita precisa ver que ali
+//     existia um segredo.
+check('a mascara do servidor e preservada', comoTexto('***') === '***')
+check('nulo vira travessao', comoTexto(null) === '—' && comoTexto(undefined) === '—')
+check('objeto vira json legivel', comoTexto({ a: 1 }) === '{"a":1}')
+
+// 32. A aba de auditoria e' de ADMIN, e nao "de quem ve mais de uma praca". A
+//     rota recusa operador, e aba que sempre volta 403 e' pior que aba nenhuma.
+const MODS = [{ to: '/ev/power', label: 'Potência' }]
+check(
+  'operador nao ve a aba de auditoria',
+  !abasDaSecao(MODS, { rede: true, isAdmin: false }).some((a) => a.to === '/ev/audit')
+)
+check(
+  'admin ve a aba de auditoria',
+  abasDaSecao(MODS, { rede: false, isAdmin: true }).some((a) => a.to === '/ev/audit')
+)
+check(
+  'visao de rede continua sendo por numero de pracas',
+  abasDaSecao(MODS, { rede: true, isAdmin: false }).some((a) => a.to === '/ev/portfolio')
+)
+
+// 33. Estornar: so' admin, e so' fatura paga. Em aberto devolveria dinheiro que
+//     nunca entrou; como operador, devolveria do caixa da rede.
+check('operador nao estorna', podeEstornar({ status: 'paid' }, false) === false)
+check('admin estorna fatura paga', podeEstornar({ status: 'paid' }, true) === true)
+check('fatura em aberto nao estorna', podeEstornar({ status: 'open' }, true) === false)
+check('fatura ausente nao quebra', podeEstornar(undefined, true) === false)
+
 rmSync(saida, { force: true })
 rmSync(saidaCampanha, { force: true })
 rmSync(saidaManutencao, { force: true })
+rmSync(saidaAuditoria, { force: true })
 rmSync(saidaPrevisao, { force: true })
 rmSync(saidaContrato, { force: true })
 console.log(falhas === 0 ? '\nTodos os cenarios passaram.' : `\n${falhas} falha(s).`)

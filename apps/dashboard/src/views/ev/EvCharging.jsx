@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { power, useApi } from '@chargegrid/sdk'
 import SiteSwitcher from '../../components/SiteSwitcher.jsx'
+import { useAuth } from '../../auth/AuthContext.jsx'
+import { abasDaSecao } from './auditoria.js'
 
 // Wrapper da nova seção "Recarga EV": sub-navegação + <Outlet> dos módulos filhos.
 const modules = [
@@ -23,8 +25,11 @@ export default function EvCharging() {
   // o tipo de erro que ninguém percebe, porque a tela parece funcionar.
   const [praca, setPraca] = useState('padrao')
 
+  const { isAdmin } = useAuth()
   const rede = (sites.data?.length ?? 0) > 1
-  const abas = rede ? [...modules, { to: '/ev/portfolio', label: 'Visão de Rede' }] : modules
+  // A aba de auditoria é de ADMIN, e não "de quem vê mais de uma praça": a rota
+  // recusa operador, e uma aba que sempre volta 403 é pior que aba nenhuma.
+  const abas = abasDaSecao(modules, { rede, isAdmin })
 
   return (
     <div>
