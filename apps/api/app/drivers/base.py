@@ -116,3 +116,6 @@ class ChargePointDriver(ABC):
 
     async def push_reservation(self, hour: int, minute: int, duration_min: int) -> CommandResult:
         return CommandResult(ok=False, command="push_reservation", error="nao suportado")
+
+    async def clear_reservation(self) -> CommandResult:
+        return CommandResult(ok=False, command="clear_reservation", error="nao suportado")

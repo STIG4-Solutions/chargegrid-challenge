@@ -158,7 +158,11 @@ OMISSOES = {
         "site_id": ESCOPO,
         "vehicle_id": "o app ja sabe qual carro agendou",
         "cancelled_at": "`status` ja diz que foi cancelado, e a tela nao mostra quando",
-        "pushed_to_hardware": INTERNO,
+        "pushed_to_hardware": (
+            "diz se o equipamento tambem sabe da reserva; ela vale pelo servidor "
+            "de qualquer jeito, e mostrar isso so' levantaria duvida sobre uma "
+            "reserva que esta' de pe'"
+        ),
         "created_at": AUDITORIA,
         "updated_at": AUDITORIA,
     },

@@ -18,7 +18,13 @@ from app.db.session import SessionLocal
 from app.drivers.registry import registry
 from app.models.charge_point import ChargePoint
 from app.models.site import Site
-from app.services import events, power_manager, session_service, telemetry_service
+from app.services import (
+    events,
+    power_manager,
+    reservation_service,
+    session_service,
+    telemetry_service,
+)
 from app.workers import virtual_meter
 
 log = get_logger(__name__)
@@ -70,6 +76,14 @@ async def poll_once() -> dict:
         # Fila nao pode prender o ponto para sempre.
         await session_service.expire_queue(db)
         await db.commit()
+
+        # Aqui, e nao antes: `expirar_reservas_vencidas` acabou de mudar o
+        # estado de algumas reservas, e e' esse estado que decide o que sai do
+        # equipamento. Sincronizar antes retiraria no ciclo seguinte.
+        #
+        # E neste laco, e nao no de push: empurrar reserva e' conversa Modbus
+        # com o ponto, o mesmo assunto do poller, que ja' tem a conexao aberta.
+        await reservation_service.sincronizar(db)
 
         for site_id in touched_sites:
             await _publish_snapshot(db, site_id)

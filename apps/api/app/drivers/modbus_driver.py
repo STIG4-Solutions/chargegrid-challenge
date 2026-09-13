@@ -253,3 +253,12 @@ class ModbusChargePointDriver(ChargePointDriver):
         await self._command("push_reservation_duration", M.RESERVATION_DURATION, duration_min)
         # 1 = valida uma unica vez (reg 10020).
         return await self._command("push_reservation_enable", M.RESERVATION_STATUS, 1)
+
+    async def clear_reservation(self) -> CommandResult:
+        """Zera o reg 10020 e devolve a vaga.
+
+        Sem isto, cancelar no app deixaria o equipamento recusando cartao alheio
+        ate' a janela passar - o motorista desiste da reserva e o ponto continua
+        bloqueado para quem chegasse na frente.
+        """
+        return await self._command("clear_reservation", M.RESERVATION_STATUS, 0)

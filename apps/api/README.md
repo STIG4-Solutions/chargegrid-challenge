@@ -222,6 +222,7 @@ independem do dashboard estar aberto, e são a razão de a tela mudar sozinha.
 | rebalanceador | 15 s | Recalcula o orçamento e escreve os novos tetos nos eletropostos |
 | promoção da fila | 15 s | Energiza quem espera, na ordem, enquanto o orçamento comportar |
 | expiração de agendamento | 5 s | Reserva não usada devolve a potência ao rateio |
+| sincronização de reserva | 5 s | Escreve nos regs 10020-10022 a reserva que entrou na janela de 24 h e apaga a que foi cancelada, consumida ou expirou |
 | expiração da fila | 5 s | Sessão que esperou demais libera o eletroposto |
 | marcação offline | 90 s | Ponto sem leitura recente vira `offline` — não pode aparecer saudável no dashboard |
 
@@ -1268,6 +1269,19 @@ pelo rateio — agendar não segurava capacidade nenhuma. O laço agora fecha: a
 orçamento enquanto a janela corre, é consumida quando a sessão começa (senão a mesma potência
 seria contada duas vezes) e expira sozinha se ninguém aparecer. Mesma regra vale para
 `Tariff.type`, que agora restringe os componentes de preço em vez de ser rótulo.
+
+A mesma régua pegou `Reservation.pushed_to_hardware`, e desta vez o que faltava era o chamador.
+Os registradores 10020-10022 estavam mapeados, `ModbusDriver.push_reservation` escrevia os três, o
+simulador respondia e `COMMANDS` conhecia o nome — **e nada nunca chamou**: a coluna era `false` em
+todas as linhas do banco. A reserva existia só no servidor, então quem chegasse com cartão na
+frente do titular era atendido pelo equipamento. O laço fecha por **reconciliação**, e não por um
+empurrão no `POST /app/reservations`, por três motivos: o reg 10021 guarda **hora:minuto, sem
+data** — o equipamento tem relógio, não calendário, e empurrar hoje uma reserva de terça bloquearia
+a vaga hoje naquele horário, por isso só entra o que começa dentro de 24 h; cancelar precisa
+**retirar**, senão o ponto recusa todo mundo até a janela passar; e carregador que reinicia perde o
+registrador, o que um empurrão único não tem como saber. A reserva continua valendo pelo servidor
+mesmo quando a escrita falha — `pushed_to_hardware` responde "o equipamento também sabe?", e
+`false` agora significa "vale só no software", não "ninguém nunca escreveu".
 
 **A cobertura das janelas tarifárias precisa ser total.** Se algum instante da semana não casar
 com nenhuma janela, a cobrança cai no preço base da tarifa em silêncio. O teste
