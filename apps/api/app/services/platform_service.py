@@ -586,13 +586,32 @@ async def contrato_do_site(db: AsyncSession, site_id: uuid.UUID) -> dict:
     restantes = meses_restantes(hoje, contrato.minimo_ate)
     plano = contrato.plan
 
+    # Escopo de SITE, e nao do contrato exibido.
+    #
+    # `ultimo_do_site` devolve o VIGENTE quando ha' um, entao filtrar por
+    # `contrato.id` fazia a divida do contrato anterior sumir da tela no instante
+    # em que o site assinava de novo. E' o mesmo defeito que `ultimo_do_site`
+    # existe para impedir, entrando por outra porta: em vez de encerrar e sumir
+    # com a divida, bastava RECONTRATAR e sumir com ela.
+    #
+    # Quem deve continua devendo a rede, e nao ao contrato que assinou na epoca.
+    do_site = (
+        select(PlatformInvoice)
+        .join(SiteSubscription, SiteSubscription.id == PlatformInvoice.site_subscription_id)
+        .where(SiteSubscription.site_id == site_id)
+    )
+
     cobrancas = (
         (
             await db.execute(
-                select(PlatformInvoice)
-                .where(PlatformInvoice.site_subscription_id == contrato.id)
-                .order_by(PlatformInvoice.competencia.desc())
-                .limit(12)
+                do_site.order_by(
+                    PlatformInvoice.competencia.desc(),
+                    # Desempate: a UNIQUE e' (contrato, competencia), entao dois
+                    # contratos do mesmo site PODEM ter a mesma competencia -
+                    # recontratar no meio do mes basta. Sem isto a ordem entre as
+                    # duas linhas ficaria por conta do banco.
+                    SiteSubscription.starts_on.desc(),
+                ).limit(12)
             )
         )
         .scalars()
@@ -610,8 +629,10 @@ async def contrato_do_site(db: AsyncSession, site_id: uuid.UUID) -> dict:
                 func.count(PlatformInvoice.id),
                 func.coalesce(func.sum(PlatformInvoice.total_brl), 0),
                 func.min(PlatformInvoice.vence_em),
-            ).where(
-                PlatformInvoice.site_subscription_id == contrato.id,
+            )
+            .join(SiteSubscription, SiteSubscription.id == PlatformInvoice.site_subscription_id)
+            .where(
+                SiteSubscription.site_id == site_id,
                 PlatformInvoice.estado == "vencida",
             )
         )
@@ -665,6 +686,11 @@ async def contrato_do_site(db: AsyncSession, site_id: uuid.UUID) -> dict:
                 "pontos_cobrados": c.pontos_cobrados,
                 "faturamento_base_brl": float(c.faturamento_base_brl),
                 "estado": c.estado,
+                # A lista pode misturar contratos desde que ela passou a ter
+                # escopo de site. Sem este campo, duas competencias iguais de
+                # contratos diferentes ficariam indistinguiveis na tela, e uma
+                # cobranca herdada pareceria do contrato que esta' correndo.
+                "contrato_anterior": c.site_subscription_id != contrato.id,
             }
             for c in cobrancas
         ],

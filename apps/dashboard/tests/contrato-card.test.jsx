@@ -95,3 +95,32 @@ describe('a situação de cada cobrança', () => {
     expect(screen.getByText(/Nenhuma cobrança emitida/)).toBeInTheDocument()
   })
 })
+
+describe('cobrança herdada de contrato anterior', () => {
+  // A lista passou a ter escopo de SITE, e é isso que impede a dívida de sumir
+  // da tela quando o estabelecimento assina outro plano. O efeito colateral é
+  // que ela pode misturar contratos — e aí a linha precisa dizer de qual é.
+
+  it('a herdada é marcada', () => {
+    render(
+      <Cobrancas linhas={[{ ...COBRANCA, contrato_anterior: true }]} aoDarBaixa={() => {}} />
+    )
+    expect(screen.getByText('contrato anterior')).toBeInTheDocument()
+  })
+
+  it('a do contrato vigente não é', () => {
+    // Carimbar todas seria ruído: a cobrança emitida ontem apareceria como
+    // herdada, e a marca deixaria de significar qualquer coisa.
+    render(
+      <Cobrancas linhas={[{ ...COBRANCA, contrato_anterior: false }]} aoDarBaixa={() => {}} />
+    )
+    expect(screen.queryByText('contrato anterior')).not.toBeInTheDocument()
+  })
+
+  it('API antiga, sem o campo, não inventa a marca', () => {
+    // `contrato_anterior` é campo novo. Um painel novo contra uma API antiga
+    // não pode carimbar tudo como herdado por causa de um `undefined`.
+    render(<Cobrancas linhas={[COBRANCA]} aoDarBaixa={() => {}} />)
+    expect(screen.queryByText('contrato anterior')).not.toBeInTheDocument()
+  })
+})

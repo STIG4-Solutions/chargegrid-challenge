@@ -813,3 +813,82 @@ async def test_a_tela_ve_o_encerrado_mas_contratar_nao(db, site):
 
     assert await platform_service.ultimo_do_site(db, site.id) is not None
     assert await platform_service.vigente_do_site(db, site.id) is None
+
+
+# --------------------------------------- recontratar tambem nao some com a divida
+
+
+async def _encerrado_devendo(db, site, total="149.00"):
+    """Site que encerrou um contrato devendo, e ja' pode assinar outro."""
+    contrato = await _em_aviso(db, site)
+    await _cobranca_vencida(db, contrato, dias=40, total=total, mes=1)
+    await platform_service.marcar_vencidas(db)
+    await platform_service.encerrar_vencidos(db)
+    return contrato
+
+
+async def test_recontratar_nao_some_com_a_divida_anterior(db, site):
+    """O mesmo defeito de `encerrar`, entrando por outra porta.
+
+    `contrato_do_site` lia as cobrancas do CONTRATO exibido, e `ultimo_do_site`
+    devolve o vigente quando ha' um. Entao bastava assinar de novo para a divida
+    do contrato anterior sair da tela - quem devia parava de ver o que devia, e
+    desta vez sem nem precisar encerrar nada.
+    """
+    antigo = await _encerrado_devendo(db, site)
+    antes = await platform_service.contrato_do_site(db, site.id)
+    assert antes["em_atraso"]["total_brl"] == 149.0, "cenario nao montou"
+
+    novo = await platform_service.contratar(db, site.id, "essencial")
+
+    depois = await platform_service.contrato_do_site(db, site.id)
+    assert novo.id != antigo.id
+    assert depois["em_atraso"]["cobrancas"] == 1
+    assert depois["em_atraso"]["total_brl"] == 149.0
+
+
+async def test_a_cobranca_herdada_aparece_na_lista(db, site):
+    """Nao so' o agregado: a LINHA tem de continuar na tela.
+
+    Herda tudo que ficou do contrato anterior - o atraso e a multa de rescisao,
+    que `rescindir` emite no mes corrente. As duas sao divida do site, e sumir
+    com a multa seria tao errado quanto sumir com o atraso.
+    """
+    await _encerrado_devendo(db, site)
+    await platform_service.contratar(db, site.id, "essencial")
+
+    visao = await platform_service.contrato_do_site(db, site.id)
+
+    herdadas = {c["total_brl"] for c in visao["cobrancas"] if c["contrato_anterior"]}
+    assert 149.0 in herdadas, "a cobranca vencida do contrato encerrado sumiu da lista"
+    assert 536.4 in herdadas, "a multa de rescisao sumiu junto"
+
+
+async def test_cobranca_do_contrato_vigente_nao_e_marcada_como_anterior(db, site):
+    """O campo tem de SEPARAR, e nao carimbar tudo.
+
+    Marcar toda linha como herdada faria a tela avisar "contrato anterior" na
+    cobranca que acabou de ser emitida - ruido no lugar de informacao.
+    """
+    await _encerrado_devendo(db, site)
+    novo = await platform_service.contratar(db, site.id, "essencial")
+    await _cobranca_vencida(db, novo, dias=2, total="99.00", mes=3)
+
+    visao = await platform_service.contrato_do_site(db, site.id)
+
+    por_valor = {c["total_brl"]: c["contrato_anterior"] for c in visao["cobrancas"]}
+    assert por_valor[99.0] is False
+    assert por_valor[149.0] is True
+
+
+async def test_divida_do_vizinho_nao_entra(db, site, segundo_site):
+    """O escopo virou o SITE, e um JOIN mal escrito somaria a rede inteira."""
+    await _encerrado_devendo(db, site, total="149.00")
+    vizinho = await platform_service.contratar(db, segundo_site.id, "essencial")
+    await _cobranca_vencida(db, vizinho, dias=40, total="777.00", mes=1)
+    await platform_service.marcar_vencidas(db)
+
+    visao = await platform_service.contrato_do_site(db, site.id)
+
+    assert visao["em_atraso"]["total_brl"] == 149.0
+    assert 777.0 not in [c["total_brl"] for c in visao["cobrancas"]]

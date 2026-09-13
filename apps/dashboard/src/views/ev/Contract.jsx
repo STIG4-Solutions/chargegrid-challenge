@@ -162,6 +162,18 @@ export function Cobrancas({ linhas, aoDarBaixa }) {
                   <div className="muted" style={{ fontSize: 12 }}>
                     vence {new Date(`${c.vence_em}T12:00:00`).toLocaleDateString('pt-BR')}
                   </div>
+                  {/*
+                    A lista tem escopo de SITE, então pode misturar contratos —
+                    é o que impede a dívida de sumir quando o site assina de
+                    novo. Sem esta marca, uma cobrança herdada pareceria do
+                    contrato que está correndo, e duas competências iguais de
+                    contratos diferentes ficariam indistinguíveis.
+                  */}
+                  {c.contrato_anterior && (
+                    <div className="muted" style={{ fontSize: 12 }}>
+                      contrato anterior
+                    </div>
+                  )}
                 </td>
                 <td className="text-right">{brl(c.assinatura_brl)}</td>
                 <td className="text-right">
