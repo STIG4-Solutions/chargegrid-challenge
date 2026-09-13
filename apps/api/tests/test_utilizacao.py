@@ -128,7 +128,10 @@ def test_ponto_cheio_mas_sem_consumir_e_bloqueado_e_nao_congestionado():
 
 def test_ociosidade_sem_ocupacao_nao_divide_por_zero():
     p = us.PontoUtilizado(
-        charge_point_id=str(uuid.uuid4()), code="CP-Z", name="Novo", rated_kw=22,
+        charge_point_id=str(uuid.uuid4()),
+        code="CP-Z",
+        name="Novo",
+        rated_kw=22,
         horas_da_janela=24,
     )
     assert p.ociosidade == 0.0
@@ -358,9 +361,7 @@ async def test_sessao_anterior_ao_cadastro_estende_a_janela(db, site, ponto, mot
     assert r["dias_efetivos"] == pytest.approx(10.0, abs=0.05)
 
 
-async def test_janela_completa_quando_o_site_e_mais_velho_que_o_periodo(
-    db, site, ponto, agora
-):
+async def test_janela_completa_quando_o_site_e_mais_velho_que_o_periodo(db, site, ponto, agora):
     site.created_at = agora - timedelta(days=365)
     await db.flush()
 

@@ -50,5 +50,26 @@ services:
              python -m app.seed &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000"
 
+  # Job de previsao. `profiles` o mantem FORA do `up`: ele nao fica de pe' -
+  # roda sob demanda, doze vezes por ano. Existe aqui, e nao so' como linha de
+  # `docker run` no README, porque o que se erra ao copiar aquela linha e'
+  # sempre a mesma coisa: o nome da rede, o caminho do volume, ou o
+  # POSTGRES_HOST que aponta para `localhost` de dentro do container.
+  forecast:
+    profiles: ["forecast"]
+    build:
+      context: ./apps/forecast
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: ./apps/api/.env
+    environment:
+      POSTGRES_HOST: db
+    volumes:
+      # So' os modelos, e por isso o `.dockerignore`: o codigo vem da imagem,
+      # o artefato treinado fica no host. Sem o volume, treinar num container
+      # que se apaga em seguida jogaria fora o que acabou de ser treinado.
+      - ./apps/forecast/modelos:/forecast/modelos
+
 volumes:
   chargegrid_pgdata_v18:

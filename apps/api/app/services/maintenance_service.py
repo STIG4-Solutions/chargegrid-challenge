@@ -18,9 +18,15 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
+from app.core.errors import DomainError, NotFound
+from app.core.logging import get_logger
 from app.models.charge_point import ChargePoint, ChargePointFault
 from app.models.charge_point_report import ChargePointReport
+from app.models.user import User
+
+log = get_logger(__name__)
 
 # Um episodio que durou menos que isto e' ruido de leitura, nao evento.
 CICLOS_MINIMOS = 2
@@ -133,28 +139,23 @@ class PontoEmAtencao:
         }
 
 
-async def pontos_em_atencao(
-    db: AsyncSession, site_id: uuid.UUID, *, dias: int = 30
-) -> dict:
+async def pontos_em_atencao(db: AsyncSession, site_id: uuid.UUID, *, dias: int = 30) -> dict:
     """Ranking de pontos por recorrencia de falha no periodo."""
     desde = datetime.now(UTC) - timedelta(days=dias)
 
     linhas = (
-        (
-            await db.execute(
-                select(ChargePointFault, ChargePoint)
-                .join(ChargePoint, ChargePoint.id == ChargePointFault.charge_point_id)
-                .where(
-                    ChargePoint.site_id == site_id,
-                    ChargePointFault.first_seen_at >= desde,
-                    # Um ciclo isolado e' ruido do barramento, nao sintoma.
-                    ChargePointFault.ciclos >= CICLOS_MINIMOS,
-                )
-                .order_by(ChargePointFault.first_seen_at)
+        await db.execute(
+            select(ChargePointFault, ChargePoint)
+            .join(ChargePoint, ChargePoint.id == ChargePointFault.charge_point_id)
+            .where(
+                ChargePoint.site_id == site_id,
+                ChargePointFault.first_seen_at >= desde,
+                # Um ciclo isolado e' ruido do barramento, nao sintoma.
+                ChargePointFault.ciclos >= CICLOS_MINIMOS,
             )
+            .order_by(ChargePointFault.first_seen_at)
         )
-        .all()
-    )
+    ).all()
 
     por_ponto: dict[uuid.UUID, PontoEmAtencao] = {}
     agrupado: dict[tuple[uuid.UUID, str], SintomaDoPonto] = {}
@@ -162,9 +163,7 @@ async def pontos_em_atencao(
     for falha, ponto in linhas:
         alvo = por_ponto.setdefault(
             ponto.id,
-            PontoEmAtencao(
-                charge_point_id=ponto.id, code=ponto.code, name=ponto.name, episodios=0
-            ),
+            PontoEmAtencao(charge_point_id=ponto.id, code=ponto.code, name=ponto.name, episodios=0),
         )
         alvo.episodios += 1
 
@@ -210,9 +209,7 @@ async def pontos_em_atencao(
     for reporte, ponto in reportes:
         alvo = por_ponto.setdefault(
             ponto.id,
-            PontoEmAtencao(
-                charge_point_id=ponto.id, code=ponto.code, name=ponto.name, episodios=0
-            ),
+            PontoEmAtencao(charge_point_id=ponto.id, code=ponto.code, name=ponto.name, episodios=0),
         )
         chave = (ponto.id, reporte.categoria)
         grupo = por_categoria.get(chave)
@@ -237,9 +234,7 @@ async def pontos_em_atencao(
             grupo.ultimo_relato = reporte.descricao
 
     ordem = {"alta": 0, "media": 1, "baixa": 2}
-    pontos = sorted(
-        por_ponto.values(), key=lambda p: (ordem[p.prioridade], -p.episodios)
-    )
+    pontos = sorted(por_ponto.values(), key=lambda p: (ordem[p.prioridade], -p.episodios))
 
     return {
         "dias": dias,
@@ -247,4 +242,109 @@ async def pontos_em_atencao(
         "total_episodios": sum(p.episodios for p in pontos),
         "total_reportes_abertos": sum(p.reportes_abertos for p in pontos),
         "sem_ocorrencias": not pontos,
+    }
+
+
+# ---------------------------------------------------------------- reportes
+#
+# O motorista reportava e ninguem conseguia resolver. `resolved_at` era LIDO -
+# a resposta do app expoe `resolvido`, e o indice parcial
+# `ix_charge_point_reports_abertos` e' a fila de abertos - e nenhuma rota o
+# escrevia. A fila nunca drenava, e o CHECK `resolucao_completa` mantinha
+# `resolved_by` inalcancavel junto.
+
+
+async def listar_reportes(
+    db: AsyncSession, site_id: uuid.UUID, *, abertos: bool = True, limite: int = 100
+) -> list[dict]:
+    """Os reportes desta praca, do mais novo ao mais antigo.
+
+    ESCOPO PELO PONTO, e nao pelo reporte: `charge_point_reports` nao tem
+    `site_id`, e ler sem o JOIN devolveria a reclamacao do vizinho.
+
+    Traz quem reportou porque o operador precisa poder responder a pessoa - e
+    nao traz nada alem do e-mail: o reporte ja e' uma reclamacao, e enriquecer
+    a linha com o resto do cadastro seria expor o motorista a quem ele
+    reclamou.
+    """
+    autor = aliased(User)
+    resolvedor = aliased(User)
+    consulta = (
+        select(ChargePointReport, ChargePoint, autor.email, resolvedor.email)
+        .join(ChargePoint, ChargePoint.id == ChargePointReport.charge_point_id)
+        .outerjoin(autor, autor.id == ChargePointReport.user_id)
+        .outerjoin(resolvedor, resolvedor.id == ChargePointReport.resolved_by)
+        .where(ChargePoint.site_id == site_id)
+        .order_by(ChargePointReport.created_at.desc())
+        .limit(limite)
+    )
+    if abertos:
+        consulta = consulta.where(ChargePointReport.resolved_at.is_(None))
+
+    return [
+        {
+            "id": str(r.id),
+            "charge_point_id": str(r.charge_point_id),
+            "ponto": cp.code,
+            "categoria": r.categoria,
+            "descricao": r.descricao,
+            "reportado_em": r.created_at.isoformat(),
+            "reportado_por": email_autor,
+            "resolvido": r.resolved_at is not None,
+            "resolvido_em": r.resolved_at.isoformat() if r.resolved_at else None,
+            "resolvido_por": email_resolvedor,
+            "resolucao": r.resolucao,
+        }
+        for r, cp, email_autor, email_resolvedor in (await db.execute(consulta)).all()
+    ]
+
+
+async def resolver_reporte(
+    db: AsyncSession, reporte_id: uuid.UUID, site_id: uuid.UUID, *, por: User, resolucao: str
+) -> dict:
+    """Fecha um reporte, dizendo o que foi feito.
+
+    RESOLUCAO OBRIGATORIA. Fechar sem dizer o que se fez transforma a fila num
+    botao de "sumir com isto": o proximo motorista que reportar o mesmo cabo
+    nao tem como saber que ja olharam, e o relatorio de manutencao perde a
+    unica informacao que o distingue de uma contagem de reclamacoes.
+
+    Fechar duas vezes NAO reescreve o primeiro fechamento. Quem resolveu e
+    quando sao fato consumado - a segunda chamada devolve o que ja estava la',
+    em vez de trocar o responsavel pelo ultimo que clicou.
+    """
+    resolucao = (resolucao or "").strip()
+    if not resolucao:
+        raise DomainError("descreva o que foi feito para fechar o reporte")
+
+    linha = (
+        await db.execute(
+            select(ChargePointReport)
+            .join(ChargePoint, ChargePoint.id == ChargePointReport.charge_point_id)
+            .where(ChargePointReport.id == reporte_id, ChargePoint.site_id == site_id)
+            .execution_options(populate_existing=True)
+        )
+    ).scalar_one_or_none()
+    if linha is None:
+        # 404 tambem quando o reporte existe noutra praca: dizer "existe, mas
+        # nao e' seu" ja entrega que ele existe.
+        raise NotFound("reporte não encontrado")
+
+    if linha.resolved_at is None:
+        linha.resolved_at = datetime.now(UTC)
+        linha.resolved_by = por.id
+        linha.resolucao = resolucao
+        await db.commit()
+        log.info(
+            "reporte.resolvido",
+            reporte=str(linha.id),
+            ponto=str(linha.charge_point_id),
+            por=str(por.id),
+        )
+
+    return {
+        "id": str(linha.id),
+        "resolvido": True,
+        "resolvido_em": linha.resolved_at.isoformat(),
+        "resolucao": linha.resolucao,
     }

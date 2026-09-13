@@ -44,7 +44,7 @@ function arquivoDoFirebase() {
 module.exports = () => {
   const chaveDoMapa = process.env.GOOGLE_MAPS_API_KEY ?? ''
   const googleServices = arquivoDoFirebase()
-    const apiPadrao = `${dominios.protocolo}://${dominios.api}`
+  const apiPadrao = `${dominios.protocolo}://${dominios.api}`
 
   return {
     ...base.expo,
@@ -66,16 +66,16 @@ module.exports = () => {
     extra: {
       ...(base.expo.extra ?? {}),
       mapaConfigurado: chaveDoMapa.length > 0,
-        // O app precisa saber SE pode registrar para push, para nao pedir
-        // permissao num build que nunca vai receber nada - e a recusa de
-        // notificacao e' permanente, entao gastar a unica chance a toa custa caro.
-        pushConfigurado: googleServices !== null,
-        // Endereco de producao, congelado no pacote. EXPO_PUBLIC_API_URL ainda
-        // ganha dele em tempo de build, que e' como o emulador e o aparelho na
-        // rede local apontam para a maquina de desenvolvimento.
-        apiPadrao,
-        // Base das URLs impressas nos adesivos de QR.
-        siteUrl: `${dominios.protocolo}://${dominios.site}`
+      // O app precisa saber SE pode registrar para push, para nao pedir
+      // permissao num build que nunca vai receber nada - e a recusa de
+      // notificacao e' permanente, entao gastar a unica chance a toa custa caro.
+      pushConfigurado: googleServices !== null,
+      // Endereco de producao, congelado no pacote. EXPO_PUBLIC_API_URL ainda
+      // ganha dele em tempo de build, que e' como o emulador e o aparelho na
+      // rede local apontam para a maquina de desenvolvimento.
+      apiPadrao,
+      // Base das URLs impressas nos adesivos de QR.
+      siteUrl: `${dominios.protocolo}://${dominios.site}`
     }
   }
 }

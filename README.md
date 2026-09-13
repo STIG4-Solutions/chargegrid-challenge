@@ -113,21 +113,31 @@ próprio backtest inverte a escolha sem ninguém mexer em código.
 
 **Backend** (sobe Postgres, migra, popula e serve):
 
-O seed gera **dois anos de histórico**: 4 sites, ~17.800 sessões faturadas, campanha com
-missões já em progresso, planos de assinatura e um contrato de plataforma. Não é enfeite —
+O seed gera **dois anos de histórico**: 4 sites, ~17.800 sessões faturadas, campanhas com
+missões já em progresso — uma delas dirigida a uma frota, com dois dos cinco motoristas
+dentro dela —, planos de assinatura e um contrato de plataforma. Não é enfeite —
 o modelo de previsão descarta local com menos de 150 dias de energia, os relatórios de ocupação
 medem janelas de 30 dias, e uma missão de "recarregue 5 vezes este mês" é indemonstrável com
 uma semana de dados. Com poucos dias no banco, as três entregam tela vazia e parecem quebradas.
 
-É determinístico por semente fixa: duas máquinas produzem o mesmo banco, e um artefato de
-previsão treinado numa continua valendo na outra.
+A **forma** é determinística por semente fixa: mesma quantidade de sessões, mesmos perfis
+semanais, mesmos valores. As **datas** não — o histórico é ancorado em `now()`, então máquinas
+que semeiam em dias diferentes têm janelas diferentes. Para previsão isso importa: o artefato é
+reproduzível com `--ate` explícito e o mesmo banco, não entre bancos semeados em dias distintos.
+`apps/forecast/README.md` detalha, incluindo um caso em que a métrica se mexeu e não deu para
+provar por quê.
 
 
 ```bash
 cp apps/api/.env.example apps/api/.env
 # Preencha os valores de apps/api/.env antes de continuar.
 npm run infra:up          # API em http://localhost:8000
+npm run forecast          # treina o modelo e grava a previsão do mês
 ```
+
+O `forecast` é **uma vez por ambiente**: o modelo não vai para o git (2 MB por retreino, diff
+irrevisável), então um clone novo mostra "nenhuma previsão calculada" até esse comando rodar.
+Depois disso, uma vez por mês para exportar e por trimestre para retreinar.
 
 **Dashboard:**
 
@@ -292,15 +302,56 @@ npm ls react           # tem que aparecer uma única
 
 ```bash
 npm run verify:api                         # 17 cenários do SDK com fetch simulado
-npm run verify:dashboard                   # 62 cenários da lógica do painel, sem navegador
-npm run test:dashboard                     # 21 testes de renderização (vitest + jsdom)
+npm run verify:dashboard                   # 119 cenários da lógica do painel, sem navegador
+npm run verify:mobile                      # 49 cenários da lógica do app, sem simulador
+npm run test:dashboard                     # 63 testes de renderização (vitest + jsdom)
+npm run test:mobile                        # 13 testes de renderização do app (jest-expo + RNTL)
 npm run typecheck                          # tipos do SDK e do app contra o contrato
+npm run format:check                       # Prettier no lado JS (`npm run format` corrige)
 npm run build                              # dashboard
-cd apps/api && python -m pytest -q          # 538 testes (precisa do Postgres)
+cd apps/api && python -m pytest -q          # 725 testes (precisa do Postgres)
 cd apps/api && python -m ruff check .
+cd apps/api && python -m ruff format --check .
 cd apps/api && python -m scripts.smoke_test # 116 cenários ponta a ponta (API no ar)
+npm run gen:contrato                       # regera openapi.json e os tipos do SDK
+npm run forecast:test                      # 4 testes do pipeline de previsão
+npm run forecast:lint                      # regra e forma no código de previsão que é deste projeto
 cd apps/mobile && npx expo export --platform android --output-dir .expo-bundle
 ```
+
+**O contrato é gerado, não editado.** `openapi.json` é a fonte de
+`packages/sdk/src/schema.ts` — e portanto dos tipos com que o painel e o app
+foram escritos. Havia `gen:types` para ir do JSON aos tipos e **nada** para ir
+do app ao JSON: o arquivo era mantido à mão, e chegou a divergir em 30 rotas sem
+que nada acusasse. Uma das divergências não era cosmética: `RatingOut.desconto`
+existia na API e não no contrato, então o desconto da prévia era invisível para
+todo cliente tipado. `npm run gen:contrato` refaz os dois elos, e
+`test_contrato_openapi.py` recusa o arquivo fora de sincronia.
+
+O `format:check` é a contraparte JS do `ruff format --check`, e a configuração
+**ratifica** o estilo em vez de trocá-lo: os padrões do Prettier iriam contra o
+código em três pontos, então foram medidos antes de configurar — 0 linhas com
+ponto-e-vírgula, 49 aspas simples contra 0 duplas, 62 literais sem vírgula final
+contra 0 com. Ficam de fora o que é **gerado** (`schema.ts`, `openapi.json` — este
+último tem os bytes assertados por teste, e reindentá-lo quebraria a suíte da API
+a partir do painel), o Markdown (prosa quebrada à mão) e o YAML.
+
+O `ruff format --check` entrou depois do `ruff check`, e não junto com ele por
+acaso: o projeto passou muito tempo com o primeiro limpo e o segundo nunca
+executado — 63 arquivos divergiam do formatador sem que nada reclamasse. As
+exclusões valem para os dois (`alembic/versions` e `apps/forecast/pipeline`).
+
+As duas linhas de previsão existem porque o `apps/forecast` ficava **fora
+do alcance de qualquer comando daqui**. Elas levam `--build` como o
+`forecast:train` sempre levou, e isso não é detalhe de desempenho: o serviço
+copia o código na construção da imagem, então sem `--build` o comando verifica a
+cópia do último build e **passa sobre código que você acabou de quebrar** — um
+portão que diz "tudo certo" é pior que portão nenhum. Foi assim que a primeira
+versão destes dois comandos nasceu, e foi um teste de mutação que pegou. O lint era o caso pior: sem `ruff.toml`
+no diretório, o ruff caía no conjunto padrão da versão instalada — que cresce de
+versão para versão —, então o escopo do lint dependia de qual ruff a máquina
+tinha. Agora a régua é a mesma do `apps/api` (`select = ["E", "F", "I", "UP",
+"B"]`), e `pipeline/` fica de fora por ser cópia literal do projeto de modelagem.
 
 O `verify:api` roda contra um armazenamento **assíncrono de propósito** — o do React Native.
 Se passa nele, passa no `localStorage` síncrono da web.
@@ -309,10 +360,22 @@ O `verify:dashboard` é Node puro mais esbuild, sem runner, e cobre a lógica qu
 que vai para o servidor**: o diff do editor de orçamento, a validação do formulário de
 campanha, a calibração da faixa de previsão e o cálculo da multa de rescisão.
 
-O `test:dashboard` cobre o que aquele não alcança — **o que o operador lê**. As funções puras
+O `verify:mobile` é o mesmo formato aplicado ao app do motorista, que até então não tinha
+verificação automática nenhuma — `tsc --noEmit` era tudo. Typecheck garante que `corpoDaEdicao`
+devolve um objeto; não garante que ele devolve **vazio** quando nada mudou, que é a regra que
+impede uma correção de placa de reescrever o cadastro inteiro.
+
+O `test:dashboard` cobre o que aqueles não alcançam — **o que o operador lê**. As funções puras
 podiam estar todas certas e a tela ainda mentir: bastava o card ignorar `fonte` e chamar de
-"energia prevista" um número que é média móvel. São 21 testes em `apps/dashboard/tests`, com
+"energia prevista" um número que é média móvel. São 52 testes em `apps/dashboard/tests`, com
 vitest e jsdom.
+
+O `test:mobile` fecha o que era o último buraco: renderização no app. Ele roda **jest-expo mais
+RNTL** sobre as telas de verdade, e a combinação React 19 + RN 0.86 + Expo 57 funciona — com uma
+diferença que custa tempo de quem não souber: na **RNTL 14 o `render` e o `fireEvent` devolvem
+Promise**. Sem `await`, a asserção roda antes do re-render e o teste falha dizendo que o botão
+continua apagado, o que é verdade naquele instante. `tests/util.tsx` registra isso e monta o
+`SafeAreaProvider` que o app tem na raiz.
 
 A divisão não é arbitrária: lógica pura no `verify`, decisão de apresentação no `test`. Só o
 segundo precisa de DOM, e é por isso que ele veio depois.

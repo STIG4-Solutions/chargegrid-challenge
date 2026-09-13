@@ -16,14 +16,25 @@ const atalho = (rotulo, email, senha) =>
 
 const DEMO = import.meta.env.DEV
   ? [
-      ...atalho('Operador', import.meta.env.VITE_DEMO_OPERATOR_EMAIL, import.meta.env.VITE_DEMO_OPERATOR_PASSWORD),
-      ...atalho('Admin', import.meta.env.VITE_DEMO_ADMIN_EMAIL, import.meta.env.VITE_DEMO_ADMIN_PASSWORD)
+      ...atalho(
+        'Operador',
+        import.meta.env.VITE_DEMO_OPERATOR_EMAIL,
+        import.meta.env.VITE_DEMO_OPERATOR_PASSWORD
+      ),
+      ...atalho(
+        'Admin',
+        import.meta.env.VITE_DEMO_ADMIN_EMAIL,
+        import.meta.env.VITE_DEMO_ADMIN_PASSWORD
+      )
     ]
   : []
 
 export default function Login() {
   const { login, error: sessionError, clearError } = useAuth()
-  const [form, setForm] = useState({ email: DEMO[0]?.email ?? '', password: DEMO[0]?.password ?? '' })
+  const [form, setForm] = useState({
+    email: DEMO[0]?.email ?? '',
+    password: DEMO[0]?.password ?? ''
+  })
   const [error, setError] = useState(null)
   const [pending, setPending] = useState(false)
 
@@ -95,19 +106,19 @@ export default function Login() {
 
         {/* A flag entra literal na condição: vira `false && …` no build e o bloco some inteiro. */}
         {DEMO.length > 0 && (
-        <div className="login-demo">
-          <span className="muted">Entrar como:</span>
-          {DEMO.map((account) => (
-            <button
-              key={account.email}
-              type="button"
-              className="btn btn-sm"
-              onClick={() => setForm({ email: account.email, password: account.password })}
-            >
-              {account.label}
-            </button>
-          ))}
-        </div>
+          <div className="login-demo">
+            <span className="muted">Entrar como:</span>
+            {DEMO.map((account) => (
+              <button
+                key={account.email}
+                type="button"
+                className="btn btn-sm"
+                onClick={() => setForm({ email: account.email, password: account.password })}
+              >
+                {account.label}
+              </button>
+            ))}
+          </div>
         )}
 
         <div className="muted login-api">API: {getConfig().baseUrl}</div>

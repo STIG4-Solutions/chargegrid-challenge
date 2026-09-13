@@ -93,7 +93,9 @@ describe('vazio', () => {
 
 describe('offline', () => {
   it('explica como subir o backend', () => {
-    render(<Async loading={false} error={{ isOffline: true, detail: 'falha de rede' }} data={null} />)
+    render(
+      <Async loading={false} error={{ isOffline: true, detail: 'falha de rede' }} data={null} />
+    )
     expect(screen.getByText('API indisponível')).toBeInTheDocument()
     expect(screen.getByText('npm run infra:up')).toBeInTheDocument()
   })

@@ -239,6 +239,9 @@ async def motorista(db: AsyncSession):
             idempotency_key=f"teste:abertura:{u.id}",
             provider="fixture",
             origem="ajuste",
+            # Obrigatorio desde a 0025: ajuste sem motivo e' saldo que aparece
+            # sem ninguem saber explicar.
+            motivo="Saldo de abertura do razao",
         )
     )
     await db.flush()
@@ -248,7 +251,6 @@ async def motorista(db: AsyncSession):
 @pytest.fixture
 def agora() -> datetime:
     return datetime.now(UTC)
-
 
 
 # ------------------------------------------------------------------ camada HTTP

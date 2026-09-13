@@ -11,7 +11,7 @@ import {
   type Precificacao,
   type SessaoDetalhada
 } from '@chargegrid/sdk'
-import { Aviso, Botao, Campo, Carregando, Etiqueta , useRecuoInferior } from '../components'
+import { Aviso, Botao, Campo, Carregando, Etiqueta, useRecuoInferior } from '../components'
 import { cores, espaco, raio } from '../theme'
 import type { Props } from '../navigation'
 
@@ -21,11 +21,10 @@ export default function SessionScreen({ navigation }: Props<'Sessao'>) {
   const sessao = useApi<SessaoDetalhada | null>(() => app.activeSession(), [], { pollMs: 5000 })
   const id = sessao.data?.id
 
-  const previa = useApi<Precificacao>(
-    () => app.sessionPreview(id as string),
-    [id],
-    { pollMs: 15000, enabled: Boolean(id) }
-  )
+  const previa = useApi<Precificacao>(() => app.sessionPreview(id as string), [id], {
+    pollMs: 15000,
+    enabled: Boolean(id)
+  })
 
   const encerrar = useAction(() => app.stopSession(id as string), {
     onSuccess: () => navigation.navigate('Abas')
@@ -56,7 +55,10 @@ export default function SessionScreen({ navigation }: Props<'Sessao'>) {
   const naFila = ses.state === 'queued'
 
   return (
-    <ScrollView style={s.tela} contentContainerStyle={[s.conteudo, { paddingBottom: recuo + espaco.xl }]}>
+    <ScrollView
+      style={s.tela}
+      contentContainerStyle={[s.conteudo, { paddingBottom: recuo + espaco.xl }]}
+    >
       <View style={s.cabecalho}>
         <Text style={s.codigo}>{ses.code}</Text>
         <Etiqueta texto={rotulo.label} cor={naFila ? cores.ambar : cores.verde} />
@@ -83,9 +85,7 @@ export default function SessionScreen({ navigation }: Props<'Sessao'>) {
         <Campo rotulo="Duracao" valor={duration(ses.duration_s)} />
         <Campo rotulo="Energia solar" valor={`${num(ses.green_energy_kwh, 2)} kWh`} />
         <Campo rotulo="Ociosidade" valor={`${ses.idle_minutes} min`} />
-        {tetoDaSessao(ses) && (
-          <Campo rotulo="Para automaticamente em" valor={tetoDaSessao(ses)!} />
-        )}
+        {tetoDaSessao(ses) && <Campo rotulo="Para automaticamente em" valor={tetoDaSessao(ses)!} />}
       </View>
 
       <View style={s.bloco}>
@@ -176,6 +176,11 @@ const s = StyleSheet.create({
   linhaValor: { color: cores.texto, fontSize: 13, fontVariant: ['tabular-nums'] },
   total: { borderTopWidth: 1, borderTopColor: cores.borda, paddingTop: espaco.sm },
   totalRotulo: { color: cores.texto, fontSize: 15, fontWeight: '700' },
-  totalValor: { color: cores.texto, fontSize: 15, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  totalValor: {
+    color: cores.texto,
+    fontSize: 15,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums']
+  },
   nota: { color: cores.textoFraco, fontSize: 11, lineHeight: 15 }
 })

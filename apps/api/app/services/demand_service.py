@@ -279,9 +279,7 @@ def _ultrapassagem(pico_kw: float, contratada_kw: float) -> float:
     return max(0.0, pico_kw - contratada_kw * (1 + TOLERANCIA))
 
 
-async def custo_evitado(
-    db: AsyncSession, site: Site, *, dias: int = 30
-) -> CustoEvitado:
+async def custo_evitado(db: AsyncSession, site: Site, *, dias: int = 30) -> CustoEvitado:
     """Quanto o rateio poupou de ultrapassagem no periodo.
 
     A conta compara dois mundos sobre o MESMO historico:
@@ -371,9 +369,7 @@ async def custo_evitado(
         ocupados = {
             s.charge_point_id
             for s in sessoes
-            if s.started_at
-            and s.started_at < fim
-            and (s.ended_at is None or s.ended_at > marca)
+            if s.started_at and s.started_at < fim and (s.ended_at is None or s.ended_at > marca)
         }
         ev_sem_rateio = sum(nominal_por_ponto.get(cp, 0.0) for cp in ocupados)
         sem_rateio = max(0.0, predio + ev_sem_rateio - solar - bateria)
@@ -438,9 +434,7 @@ class SimulacaoDeContrato:
 
     @property
     def atual(self) -> OpcaoDeContrato | None:
-        return min(
-            self.opcoes, key=lambda o: abs(o.demanda_kw - self.atual_kw), default=None
-        )
+        return min(self.opcoes, key=lambda o: abs(o.demanda_kw - self.atual_kw), default=None)
 
     def as_dict(self) -> dict:
         melhor, atual = self.melhor, self.atual
@@ -464,9 +458,7 @@ class SimulacaoDeContrato:
         }
 
 
-async def _picos_por_janela(
-    db: AsyncSession, site_id: uuid.UUID, desde: datetime
-) -> list[float]:
+async def _picos_por_janela(db: AsyncSession, site_id: uuid.UUID, desde: datetime) -> list[float]:
     """Media de cada janela de 15 min - a grandeza que a distribuidora fatura."""
     leituras = (
         (

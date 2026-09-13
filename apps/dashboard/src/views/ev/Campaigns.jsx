@@ -5,6 +5,7 @@ import { Async, Empty } from '../../components/Async.jsx'
 import {
   alteracoesDaCampanha,
   consumoDoOrcamento,
+  corpoDaCampanha,
   ehCashback,
   problemasDaCampanha,
   situacaoDaCampanha
@@ -59,7 +60,10 @@ function BarraDeOrcamento({ campanha }) {
       <div className="meter" style={{ marginBottom: 4 }}>
         <div
           className="meter-fill"
-          style={{ width: `${pct}%`, background: pct >= 90 ? 'var(--sems-red)' : 'var(--sems-green)' }}
+          style={{
+            width: `${pct}%`,
+            background: pct >= 90 ? 'var(--sems-red)' : 'var(--sems-green)'
+          }}
         />
       </div>
       <div className="muted" style={{ fontSize: 12 }}>
@@ -100,18 +104,68 @@ const VAZIA = {
   nome: '',
   descricao: '',
   patrocinador: 'site',
+  // String vazia, e nao `null`: um `<select>` controlado com valor nulo vira
+  // nao-controlado, e o React troca de modo no meio da edicao. A conversao para
+  // `null` acontece no envio, que e' o que a API espera.
+  fleet_id: '',
   starts_at: '',
   ends_at: '',
   beneficio_tipo: 'cashback_fixo',
   beneficio_valor: 5,
   teto_por_recompensa: '',
   orcamento_brl: 500,
-  missoes: [{ codigo: 'tres-recargas', titulo: 'Recarregue 3 vezes', metrica: 'sessoes', alvo: 3, janela: 'mensal' }]
+  missoes: [
+    {
+      codigo: 'tres-recargas',
+      titulo: 'Recarregue 3 vezes',
+      metrica: 'sessoes',
+      alvo: 3,
+      janela: 'mensal'
+    }
+  ]
+}
+
+/**
+ * A quem a campanha se dirige.
+ *
+ * ELEGIBILIDADE, não patrocínio: dirigir a campanha a uma frota não muda quem
+ * paga — isso segue o tipo de benefício. A nota abaixo do campo existe porque
+ * ele fica ao lado de "Benefício", e a leitura natural de quem vê os dois
+ * juntos é que um determina o outro.
+ *
+ * Lista vazia ou ausente degrada para "Todos os motoristas" e mais nada: uma
+ * consulta de frotas que falhou não pode impedir a criação de uma campanha sem
+ * frota, que é o caso comum.
+ *
+ * Exportado para o teste montá-lo com props, sem subir o formulário inteiro.
+ */
+export function SeletorDeFrota({ frotas, valor, aoMudar }) {
+  return (
+    <div className="form-row">
+      <label>Para quem vale</label>
+      <select className="input" value={valor} onChange={aoMudar}>
+        <option value="">Todos os motoristas</option>
+        {(frotas ?? []).map((f) => (
+          <option key={f.id} value={f.id}>
+            Frota {f.nome}
+          </option>
+        ))}
+      </select>
+      <div className="muted" style={{ fontSize: 12 }}>
+        {valor ? 'Só os motoristas desta frota. Quem paga não muda.' : 'Sem restrição de frota.'}
+      </div>
+    </div>
+  )
 }
 
 function Formulario({ aoCriar, aoFechar }) {
   const [rascunho, setRascunho] = useState(VAZIA)
   const criar = useAction(campaigns.create, { onSuccess: aoCriar })
+  // Sem `<Async>` de propósito: uma lista de frotas que não carrega não pode
+  // impedir a criação de uma campanha sem frota, que é o caso comum. Falhando,
+  // o seletor fica com "Todos os motoristas" e mais nada — degrada para o
+  // comportamento de antes deste campo existir.
+  const frotas = useApi(() => campaigns.fleets(), [])
 
   const problemas = useMemo(() => problemasDaCampanha(rascunho), [rascunho])
   const campo = (nome) => (evento) =>
@@ -131,20 +185,14 @@ function Formulario({ aoCriar, aoFechar }) {
   const mexeNaMissao = (indice, chave) => (evento) =>
     setRascunho((atual) => ({
       ...atual,
-      missoes: atual.missoes.map((m, i) => (i === indice ? { ...m, [chave]: evento.target.value } : m))
+      missoes: atual.missoes.map((m, i) =>
+        i === indice ? { ...m, [chave]: evento.target.value } : m
+      )
     }))
 
   const enviar = () => {
     if (problemas.length) return
-    criar.run({
-      ...rascunho,
-      beneficio_valor: Number(rascunho.beneficio_valor),
-      orcamento_brl: Number(rascunho.orcamento_brl),
-      teto_por_recompensa: rascunho.teto_por_recompensa ? Number(rascunho.teto_por_recompensa) : null,
-      starts_at: new Date(rascunho.starts_at).toISOString(),
-      ends_at: new Date(rascunho.ends_at).toISOString(),
-      missoes: rascunho.missoes.map((m) => ({ ...m, alvo: Number(m.alvo), ordem: 0, repetivel: false }))
-    })
+    criar.run(corpoDaCampanha(rascunho))
   }
 
   return (
@@ -157,7 +205,12 @@ function Formulario({ aoCriar, aoFechar }) {
       <div className="grid grid-2" style={{ marginTop: 16 }}>
         <div className="form-row">
           <label>Nome</label>
-          <input className="input" value={rascunho.nome} onChange={campo('nome')} placeholder="Setembro Verde" />
+          <input
+            className="input"
+            value={rascunho.nome}
+            onChange={campo('nome')}
+            placeholder="Setembro Verde"
+          />
         </div>
         <div className="form-row">
           <label>Benefício</label>
@@ -169,16 +222,35 @@ function Formulario({ aoCriar, aoFechar }) {
             ))}
           </select>
         </div>
+        <SeletorDeFrota
+          frotas={frotas.data}
+          valor={rascunho.fleet_id}
+          aoMudar={campo('fleet_id')}
+        />
         <div className="form-row">
           <label>Início</label>
-          <input className="input" type="date" value={rascunho.starts_at} onChange={campo('starts_at')} />
+          <input
+            className="input"
+            type="date"
+            value={rascunho.starts_at}
+            onChange={campo('starts_at')}
+          />
         </div>
         <div className="form-row">
           <label>Término</label>
-          <input className="input" type="date" value={rascunho.ends_at} onChange={campo('ends_at')} />
+          <input
+            className="input"
+            type="date"
+            value={rascunho.ends_at}
+            onChange={campo('ends_at')}
+          />
         </div>
         <div className="form-row">
-          <label>{rascunho.beneficio_tipo.endsWith('_pct') ? 'Percentual (%)' : 'Valor por recompensa (R$)'}</label>
+          <label>
+            {rascunho.beneficio_tipo.endsWith('_pct')
+              ? 'Percentual (%)'
+              : 'Valor por recompensa (R$)'}
+          </label>
           <input
             className="input"
             type="number"
@@ -188,7 +260,12 @@ function Formulario({ aoCriar, aoFechar }) {
         </div>
         <div className="form-row">
           <label>Orçamento total (R$)</label>
-          <input className="input" type="number" value={rascunho.orcamento_brl} onChange={campo('orcamento_brl')} />
+          <input
+            className="input"
+            type="number"
+            value={rascunho.orcamento_brl}
+            onChange={campo('orcamento_brl')}
+          />
         </div>
       </div>
 
@@ -197,16 +274,26 @@ function Formulario({ aoCriar, aoFechar }) {
           <div className="card-title" style={{ marginTop: 20, fontSize: 14 }}>
             Missões
           </div>
-          <div className="card-sub">É o que o motorista precisa cumprir para receber o cashback.</div>
+          <div className="card-sub">
+            É o que o motorista precisa cumprir para receber o cashback.
+          </div>
           {rascunho.missoes.map((missao, indice) => (
             <div className="grid grid-4" key={indice} style={{ marginTop: 12 }}>
               <div className="form-row">
                 <label>Título</label>
-                <input className="input" value={missao.titulo} onChange={mexeNaMissao(indice, 'titulo')} />
+                <input
+                  className="input"
+                  value={missao.titulo}
+                  onChange={mexeNaMissao(indice, 'titulo')}
+                />
               </div>
               <div className="form-row">
                 <label>Medir</label>
-                <select className="input" value={missao.metrica} onChange={mexeNaMissao(indice, 'metrica')}>
+                <select
+                  className="input"
+                  value={missao.metrica}
+                  onChange={mexeNaMissao(indice, 'metrica')}
+                >
                   {METRICAS.map((m) => (
                     <option key={m.valor} value={m.valor}>
                       {m.rotulo}
@@ -216,11 +303,20 @@ function Formulario({ aoCriar, aoFechar }) {
               </div>
               <div className="form-row">
                 <label>Alvo</label>
-                <input className="input" type="number" value={missao.alvo} onChange={mexeNaMissao(indice, 'alvo')} />
+                <input
+                  className="input"
+                  type="number"
+                  value={missao.alvo}
+                  onChange={mexeNaMissao(indice, 'alvo')}
+                />
               </div>
               <div className="form-row">
                 <label>Janela</label>
-                <select className="input" value={missao.janela} onChange={mexeNaMissao(indice, 'janela')}>
+                <select
+                  className="input"
+                  value={missao.janela}
+                  onChange={mexeNaMissao(indice, 'janela')}
+                >
                   {JANELAS.map((j) => (
                     <option key={j.valor} value={j.valor}>
                       {j.rotulo}
@@ -249,7 +345,11 @@ function Formulario({ aoCriar, aoFechar }) {
       )}
 
       <div className="flex gap-12" style={{ marginTop: 16 }}>
-        <button className="btn btn-primary" onClick={enviar} disabled={problemas.length > 0 || criar.pending}>
+        <button
+          className="btn btn-primary"
+          onClick={enviar}
+          disabled={problemas.length > 0 || criar.pending}
+        >
           {criar.pending ? 'Salvando…' : 'Criar campanha'}
         </button>
         <button className="btn" onClick={aoFechar}>
@@ -265,7 +365,11 @@ function Lista({ dados, aoMudar }) {
   const encerrar = useAction(campaigns.close, { onSuccess: aoMudar })
 
   if (!dados.length) {
-    return <Empty>Nenhuma campanha ainda. Crie a primeira para dar um motivo de volta ao motorista.</Empty>
+    return (
+      <Empty>
+        Nenhuma campanha ainda. Crie a primeira para dar um motivo de volta ao motorista.
+      </Empty>
+    )
   }
 
   return (
@@ -292,14 +396,13 @@ function Lista({ dados, aoMudar }) {
               // pela posicao - encerrar uma campanha do meio faria a linha
               // expandida saltar para outra.
               <Fragment key={c.id}>
-                <tr
-                  className="clickable"
-                  onClick={() => setAberta(aberta === c.id ? null : c.id)}
-                >
+                <tr className="clickable" onClick={() => setAberta(aberta === c.id ? null : c.id)}>
                   <td>
                     <strong>{c.nome}</strong>
                     <div className="muted" style={{ fontSize: 12 }}>
-                      {c.missoes.length ? `${c.missoes.length} missão(ões)` : 'desconto direto na fatura'}
+                      {c.missoes.length
+                        ? `${c.missoes.length} missão(ões)`
+                        : 'desconto direto na fatura'}
                     </div>
                   </td>
                   <td>{daRede ? 'Rede GoodWe' : 'Esta praça'}</td>
@@ -346,7 +449,8 @@ function Lista({ dados, aoMudar }) {
                             <div key={m.id}>
                               <span className="muted">{m.titulo}</span>
                               <span>
-                                {num(m.alvo, 0)} · {METRICAS.find((x) => x.valor === m.metrica)?.rotulo ?? m.metrica}
+                                {num(m.alvo, 0)} ·{' '}
+                                {METRICAS.find((x) => x.valor === m.metrica)?.rotulo ?? m.metrica}
                               </span>
                             </div>
                           ))}
@@ -381,8 +485,9 @@ export default function Campaigns() {
           <div>
             <div className="card-title">Campanhas</div>
             <div className="card-sub">
-              Desconto sai da margem desta praça e aparece na fatura na hora. Cashback é bancado pela
-              rede, depende de missão cumprida e vira crédito na carteira — dinheiro que só volta aqui.
+              Desconto sai da margem desta praça e aparece na fatura na hora. Cashback é bancado
+              pela rede, depende de missão cumprida e vira crédito na carteira — dinheiro que só
+              volta aqui.
             </div>
           </div>
           {!criando && (
@@ -400,7 +505,12 @@ export default function Campaigns() {
       )}
 
       <div className="panel">
-        <Async loading={lista.loading} error={lista.error} data={lista.data} onRetry={lista.refetch}>
+        <Async
+          loading={lista.loading}
+          error={lista.error}
+          data={lista.data}
+          onRetry={lista.refetch}
+        >
           {lista.data && <Lista dados={lista.data} aoMudar={recarregar} />}
         </Async>
       </div>

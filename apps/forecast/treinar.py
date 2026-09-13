@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import json
 import sys
 from datetime import date, timedelta
@@ -41,13 +42,13 @@ import pandas as pd  # noqa: E402
 import sklearn  # noqa: E402
 
 from banco import carregar, conectar, resumo  # noqa: E402
+from pipeline import train as _train  # noqa: E402
 from pipeline.features import (  # noqa: E402
     CATEGORICAS,
     FEATURES,
     alvo_em_razao,
     construir_treino,
 )
-from pipeline import train as _train  # noqa: E402
 from pipeline.schema import validar_painel  # noqa: E402
 from pipeline.train import QUANTIS, VERSAO_PIPELINE, backtest, treinar_um  # noqa: E402
 
@@ -136,8 +137,7 @@ def main() -> int:
     print("\n2. Construindo features...")
     ds = alvo_em_razao(construir_treino(painel, estacoes))
     print(
-        f"   {len(ds):,} linhas | {len(FEATURES)} features | "
-        f"{ds['location_id'].nunique()} estacoes"
+        f"   {len(ds):,} linhas | {len(FEATURES)} features | {ds['location_id'].nunique()} estacoes"
     )
     if len(ds) < MINIMO_DE_LINHAS:
         raise SystemExit(
@@ -145,6 +145,30 @@ def main() -> int:
             "O seed precisa gerar pelo menos ~6 meses de operacao por site:\n"
             "  npm run infra:down -- -v && npm run infra:up"
         )
+
+    # Impressao digital do que entrou no treino.
+    #
+    # Existe por uma pergunta que ficou sem resposta: o WAPE mensal saiu 8,31
+    # de manha e 9,94 a tarde, com a MESMA janela, as mesmas 1.647 linhas, os
+    # mesmos parametros e a MESMA regua (7,61 nas duas).
+    #
+    # A reinvestigacao posterior derrubou as hipoteses, uma a uma: o treino e'
+    # deterministico, nao depende de `num_threads`, `pipeline/train.py` nao
+    # mudou entre as corridas, e a procedencia gravada e' confiavel. Inclusive a
+    # mais forte - "o banco mudou" - CAIU: deslocar a janela em dois dias mexe
+    # na regua, entao regua identica prova dado identico. O README de forecast
+    # traz a tabela.
+    #
+    # Nao ha o que reinvestigar de novo: o seed consome UM `random.Random(42)`
+    # em sequencia com a janela ancorada em `now()`, entao o banco daquela manha
+    # nao volta nem re-executando o mesmo seed. Este hash e' para a PROXIMA vez:
+    # hash igual aponta para o ambiente, hash diferente para o banco.
+    impressao = hashlib.sha256(
+        ds.sort_values(["location_id", "date", "horizonte"])[FEATURES + ["y_ratio"]]
+        .to_csv(index=False)
+        .encode()
+    ).hexdigest()[:32]
+    print(f"   impressao digital do treino: {impressao}")
 
     print(f"\n3. Backtest ({args.meses_backtest} meses fora da amostra)...")
     metricas = backtest(ds, args.meses_backtest)
@@ -191,6 +215,7 @@ def main() -> int:
         "estacoes_treinadas": sorted(ds["location_id"].astype(str).unique()),
         "periodo_treino": [str(ds["date"].min().date()), str(ds["date"].max().date())],
         "n_linhas_treino": int(len(ds)),
+        "impressao_do_treino": impressao,
     }
 
     destino = Path(args.saida)
@@ -213,6 +238,9 @@ def main() -> int:
         "versoes": artefato["versoes"],
         "periodo_treino": artefato["periodo_treino"],
         "n_linhas_treino": artefato["n_linhas_treino"],
+        # Muda com os DADOS, nao com o codigo. E' o que separa "o modelo
+        # piorou" de "o banco e' outro" na proxima vez que a metrica mexer.
+        "impressao_do_treino": impressao,
         "estacoes_treinadas": artefato["estacoes_treinadas"],
         "determinismo": DETERMINISMO,
         "metricas": metricas,

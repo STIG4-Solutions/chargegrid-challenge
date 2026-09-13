@@ -50,6 +50,7 @@ from app.models.enums import (
     TariffType,
     UserRole,
 )
+from app.models.fleet import Fleet
 from app.models.platform import PlatformPlan
 from app.models.session import ChargingSession
 from app.models.site import Site, SiteMeterReading
@@ -132,13 +133,21 @@ PLANOS_DA_PLATAFORMA = [
         "essencial",
         "Essencial",
         "Para quem esta comecando: mensalidade baixa, taxa maior por transacao.",
-        149.00, 35.00, 2, 3.5, 12,
+        149.00,
+        35.00,
+        2,
+        3.5,
+        12,
     ),
     (
         "rede",
         "Rede",
         "Para operacao com varios pontos: mensalidade maior, taxa menor.",
-        499.00, 20.00, 8, 1.5, 12,
+        499.00,
+        20.00,
+        8,
+        1.5,
+        12,
     ),
 ]
 
@@ -149,6 +158,32 @@ DRIVERS = [
     ("ana.costa@email.com", "Ana Costa", "Tesla Model 3", "60 kWh", 57.5, 11.0),
     ("pedro.alves@email.com", "Pedro Alves", "GWM Ora 03", "48 kWh", 48.0, 6.6),
 ]
+
+# A frota existia como modelo, rota (`/app/fleet/report`) e tela (`FleetScreen`)
+# desde a 0013 - e o seed nao criava nenhuma. Zero frotas, zero motoristas com
+# frota, zero veiculos com centro de custo: a aba do app abria vazia para todo
+# mundo, e o relatorio corporativo nao tinha o que relatar.
+#
+# Dois dos cinco motoristas entram nela. Dois e nao cinco de proposito: e' o que
+# torna VISIVEL a diferenca entre campanha dirigida a frota e campanha para
+# todos - com todo mundo dentro, os dois casos pareceriam iguais na tela.
+FROTA = {
+    "nome": "Logistica Sao Paulo LTDA",
+    "documento": "12.345.678/0001-90",
+    "email_de_cobranca": "financeiro@logisticasp.com.br",
+}
+MOTORISTAS_DA_FROTA = {
+    "maria.souza@email.com": "CC-COMERCIAL",
+    "carlos.lima@email.com": "CC-OPERACOES",
+}
+# Um dos dois e' GESTOR, e o outro nao. `require_fleet_manager` exige as duas
+# coisas - `fleet_manager` E `fleet_id` -, entao pertencer a frota nao basta
+# para ver o relatorio consolidado.
+#
+# Marcar so' um deixa a diferenca demonstravel: o gestor abre a aba Frota, o
+# colega da mesma empresa toma 403. Com os dois marcados, o recorte de leitura
+# que `deps.py` descreve nao apareceria em lugar nenhum.
+GESTOR_DA_FROTA = "maria.souza@email.com"
 
 # ---------------------------------------------------------------------------
 # Historico
@@ -174,23 +209,111 @@ FUSO_DO_SITE = ZoneInfo("America/Sao_Paulo")
 # pesos relativos de um sorteio.
 PERFIS_HORARIOS = {
     "corporativo": (
-        0.1, 0.1, 0.1, 0.1, 0.1, 0.2, 0.6, 1.8, 3.2, 3.0, 2.2, 1.6,
-        1.4, 1.5, 1.6, 1.8, 2.4, 3.4, 3.0, 1.6, 0.8, 0.4, 0.2, 0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.2,
+        0.6,
+        1.8,
+        3.2,
+        3.0,
+        2.2,
+        1.6,
+        1.4,
+        1.5,
+        1.6,
+        1.8,
+        2.4,
+        3.4,
+        3.0,
+        1.6,
+        0.8,
+        0.4,
+        0.2,
+        0.1,
     ),
     "shopping": (
-        0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.2, 0.4, 0.8, 1.2, 1.8, 2.4,
-        2.8, 2.6, 2.4, 2.6, 3.0, 3.4, 3.6, 3.4, 2.8, 1.8, 0.8, 0.3,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.1,
+        0.2,
+        0.4,
+        0.8,
+        1.2,
+        1.8,
+        2.4,
+        2.8,
+        2.6,
+        2.4,
+        2.6,
+        3.0,
+        3.4,
+        3.6,
+        3.4,
+        2.8,
+        1.8,
+        0.8,
+        0.3,
     ),
     # Estrada tem movimento cedo e no comeco da tarde, e quase nada de
     # madrugada - quem viaja a noite nao para para carregar por opcao.
     "rodovia": (
-        0.3, 0.2, 0.2, 0.2, 0.3, 0.8, 1.8, 2.6, 2.8, 2.6, 2.4, 2.2,
-        2.0, 2.4, 2.6, 2.4, 2.2, 2.0, 1.8, 1.4, 1.0, 0.8, 0.6, 0.4,
+        0.3,
+        0.2,
+        0.2,
+        0.2,
+        0.3,
+        0.8,
+        1.8,
+        2.6,
+        2.8,
+        2.6,
+        2.4,
+        2.2,
+        2.0,
+        2.4,
+        2.6,
+        2.4,
+        2.2,
+        2.0,
+        1.8,
+        1.4,
+        1.0,
+        0.8,
+        0.6,
+        0.4,
     ),
     # Predio residencial: o carro chega a noite e passa a madrugada plugado.
     "condominio": (
-        0.6, 0.4, 0.3, 0.2, 0.2, 0.2, 0.4, 0.8, 0.9, 0.7, 0.6, 0.6,
-        0.7, 0.7, 0.7, 0.8, 1.0, 1.6, 2.8, 3.6, 3.4, 2.6, 1.6, 0.9,
+        0.6,
+        0.4,
+        0.3,
+        0.2,
+        0.2,
+        0.2,
+        0.4,
+        0.8,
+        0.9,
+        0.7,
+        0.6,
+        0.6,
+        0.7,
+        0.7,
+        0.7,
+        0.8,
+        1.0,
+        1.6,
+        2.8,
+        3.6,
+        3.4,
+        2.6,
+        1.6,
+        0.9,
     ),
 }
 
@@ -253,22 +376,46 @@ SITES = [
         "lab-fiap-eco-station",
         "LAB FIAP Eco Station",
         "Av. Lins de Vasconcelos, 1264 - Aclimacao, Sao Paulo",
-        "Sao Paulo", "SP", -23.568500, -46.632200,
-        "corporativo", 9.0, 75.0, 75.0, DIAS_DE_HISTORICO, CHARGE_POINTS,
+        "Sao Paulo",
+        "SP",
+        -23.568500,
+        -46.632200,
+        "corporativo",
+        9.0,
+        75.0,
+        75.0,
+        DIAS_DE_HISTORICO,
+        CHARGE_POINTS,
     ),
     (
         "shopping-morumbi-g3",
         "Shopping Morumbi - Piso G3",
         "Av. Roque Petroni Junior, 1089 - Jardim das Acacias, Sao Paulo",
-        "Sao Paulo", "SP", -23.622700, -46.698900,
-        "shopping", 13.0, 120.0, 110.0, DIAS_DE_HISTORICO, CHARGE_POINTS,
+        "Sao Paulo",
+        "SP",
+        -23.622700,
+        -46.698900,
+        "shopping",
+        13.0,
+        120.0,
+        110.0,
+        DIAS_DE_HISTORICO,
+        CHARGE_POINTS,
     ),
     (
         "posto-anhanguera-km-68",
         "Posto Anhanguera km 68",
         "Rodovia Anhanguera, km 68 - Jundiai",
-        "Jundiai", "SP", -23.185600, -46.897300,
-        "rodovia", 15.0, 180.0, 170.0, DIAS_DE_HISTORICO, PONTOS_RODOVIA,
+        "Jundiai",
+        "SP",
+        -23.185600,
+        -46.897300,
+        "rodovia",
+        15.0,
+        180.0,
+        170.0,
+        DIAS_DE_HISTORICO,
+        PONTOS_RODOVIA,
     ),
     # Aberto ha quatro meses, de proposito: fica ABAIXO dos 150 dias que o modelo
     # de previsao exige. E' o caso que faz a tela dizer "sem historico suficiente"
@@ -278,8 +425,16 @@ SITES = [
         "residencial-vila-mariana",
         "Residencial Vila Mariana",
         "Rua Domingos de Morais, 2187 - Vila Mariana, Sao Paulo",
-        "Sao Paulo", "SP", -23.601400, -46.638700,
-        "condominio", 5.0, 45.0, 40.0, 118, CHARGE_POINTS[:3],
+        "Sao Paulo",
+        "SP",
+        -23.601400,
+        -46.638700,
+        "condominio",
+        5.0,
+        45.0,
+        40.0,
+        118,
+        CHARGE_POINTS[:3],
     ),
 ]
 
@@ -341,8 +496,19 @@ async def _reservar_codigos(db, sequencia: str, quantidade: int) -> int:
 async def _montar_site(db, especificacao: tuple) -> dict:
     """Cria um site completo: tarifas, pontos e meios de pagamento."""
     (
-        slug, nome, endereco, cidade, uf, lat, lon,
-        carater, sessoes_dia, grid_kw, demanda_kw, dias, pontos,
+        slug,
+        nome,
+        endereco,
+        cidade,
+        uf,
+        lat,
+        lon,
+        carater,
+        sessoes_dia,
+        grid_kw,
+        demanda_kw,
+        dias,
+        pontos,
     ) = especificacao
 
     site = Site(
@@ -457,9 +623,7 @@ async def _montar_site(db, especificacao: tuple) -> dict:
             priority=priority,
             status=ChargePointStatus.OFFLINE,
         )
-        cp.connection = ChargePointConnection(
-            protocol="modbus_tcp", host=None, port=502, unit_id=1
-        )
+        cp.connection = ChargePointConnection(protocol="modbus_tcp", host=None, port=502, unit_id=1)
         db.add(cp)
         criados.append(cp)
     await db.flush()
@@ -552,7 +716,11 @@ def _sessoes_do_site(rng: random.Random, montado: dict, agora: datetime) -> list
 
             for hora in sorted(_sorteia_hora(rng, horas) for _ in range(quantidade)):
                 inicio = datetime(
-                    dia.year, dia.month, dia.day, hora, rng.randrange(60),
+                    dia.year,
+                    dia.month,
+                    dia.day,
+                    hora,
+                    rng.randrange(60),
                     tzinfo=FUSO_DO_SITE,
                 )
                 # O ponto e' um recurso fisico: enquanto um carro esta plugado,
@@ -733,9 +901,14 @@ async def _gravar_historico(db, sessoes: list[dict], agora: datetime) -> int:
         posicao = 0
         linhas_item.append(
             {
-                "id": uuid.uuid4(), "invoice_id": fatura_id, "position": posicao,
-                "kind": "energy", "description": f"Energia — {tarifa_nome}",
-                "quantity": s["kwh"], "unit": "kWh", "unit_price": preco,
+                "id": uuid.uuid4(),
+                "invoice_id": fatura_id,
+                "position": posicao,
+                "kind": "energy",
+                "description": f"Energia — {tarifa_nome}",
+                "quantity": s["kwh"],
+                "unit": "kWh",
+                "unit_price": preco,
                 "amount": energia,
             }
         )
@@ -743,10 +916,15 @@ async def _gravar_historico(db, sessoes: list[dict], agora: datetime) -> int:
             posicao += 1
             linhas_item.append(
                 {
-                    "id": uuid.uuid4(), "invoice_id": fatura_id, "position": posicao,
-                    "kind": "idle", "description": "Taxa de ociosidade",
-                    "quantity": ocioso, "unit": "min",
-                    "unit_price": 0.20 if na_ponta else 0.10, "amount": taxa_ociosa,
+                    "id": uuid.uuid4(),
+                    "invoice_id": fatura_id,
+                    "position": posicao,
+                    "kind": "idle",
+                    "description": "Taxa de ociosidade",
+                    "quantity": ocioso,
+                    "unit": "min",
+                    "unit_price": 0.20 if na_ponta else 0.10,
+                    "amount": taxa_ociosa,
                 }
             )
         if total > subtotal:
@@ -754,9 +932,14 @@ async def _gravar_historico(db, sessoes: list[dict], agora: datetime) -> int:
             complemento = round(total - subtotal, 2)
             linhas_item.append(
                 {
-                    "id": uuid.uuid4(), "invoice_id": fatura_id, "position": posicao,
-                    "kind": "min_charge", "description": "Complemento até o valor mínimo",
-                    "quantity": 1, "unit": "un", "unit_price": complemento,
+                    "id": uuid.uuid4(),
+                    "invoice_id": fatura_id,
+                    "position": posicao,
+                    "kind": "min_charge",
+                    "description": "Complemento até o valor mínimo",
+                    "quantity": 1,
+                    "unit": "un",
+                    "unit_price": complemento,
                     "amount": complemento,
                 }
             )
@@ -774,7 +957,9 @@ async def _gravar_historico(db, sessoes: list[dict], agora: datetime) -> int:
     return len(linhas_sessao)
 
 
-async def _montar_gamificacao(db, montados: list[dict], motoristas: list[User], agora) -> None:
+async def _montar_gamificacao(
+    db, montados: list[dict], motoristas: list[User], agora, frota: Fleet
+) -> None:
     """Campanha, contrato e o progresso que o historico ja produziu.
 
     Sem isto, reseedar deixa as telas novas vazias mesmo com dois anos de
@@ -821,19 +1006,44 @@ async def _montar_gamificacao(db, montados: list[dict], motoristas: list[User], 
         # outras duas ficam em andamento de proposito - uma tela em que tudo
         # esta concluido nao mostra a barra de progresso funcionando, e uma em
         # que nada esta nunca chega na recompensa.
-        ("oito-recargas", "Recarregue 8 vezes na campanha",
-         "Oito recargas ate o fim da campanha.", "sessoes", 8, "campanha", 0),
-        ("energia-solar", "50 kWh de energia solar",
-         "Some 50 kWh vindos do sol carregando durante o dia.",
-         "energia_verde_kwh", 50, "mensal", 1),
-        ("fora-de-ponta", "3 recargas fora de ponta",
-         "Carregue fora do horario de pico e ajude a rede.",
-         "sessoes_fora_de_ponta", 3, "semanal", 2),
+        (
+            "oito-recargas",
+            "Recarregue 8 vezes na campanha",
+            "Oito recargas ate o fim da campanha.",
+            "sessoes",
+            8,
+            "campanha",
+            0,
+        ),
+        (
+            "energia-solar",
+            "50 kWh de energia solar",
+            "Some 50 kWh vindos do sol carregando durante o dia.",
+            "energia_verde_kwh",
+            50,
+            "mensal",
+            1,
+        ),
+        (
+            "fora-de-ponta",
+            "3 recargas fora de ponta",
+            "Carregue fora do horario de pico e ajude a rede.",
+            "sessoes_fora_de_ponta",
+            3,
+            "semanal",
+            2,
+        ),
     ]:
         db.add(
             Mission(
-                campaign_id=rede.id, codigo=codigo, titulo=titulo, descricao=descricao,
-                metrica=metrica, alvo=alvo, janela=janela, ordem=ordem,
+                campaign_id=rede.id,
+                codigo=codigo,
+                titulo=titulo,
+                descricao=descricao,
+                metrica=metrica,
+                alvo=alvo,
+                janela=janela,
+                ordem=ordem,
             )
         )
 
@@ -854,6 +1064,41 @@ async def _montar_gamificacao(db, montados: list[dict], motoristas: list[User], 
                 orcamento_brl=1500.00,
             )
         )
+
+    # Campanha dirigida a FROTA: patrocinada pela rede (cashback sai da rede,
+    # como sempre) e restrita aos motoristas da empresa. `fleet_id` e'
+    # elegibilidade, nao patrocinio - a frota nao paga nada.
+    #
+    # Existe no seed porque ela e' a unica forma de ver a regra funcionando: o
+    # motorista da frota enxerga quatro missoes, o de fora enxerga tres. Sem
+    # isso, a clausula de elegibilidade seria codigo que ninguem exercita.
+    corporativa = Campaign(
+        patrocinador="rede",
+        fleet_id=frota.id,
+        nome="Frota Logistica SP",
+        descricao="Acordo corporativo: cashback para os motoristas da empresa.",
+        starts_at=agora - timedelta(days=30),
+        ends_at=agora + timedelta(days=60),
+        ativa=True,
+        beneficio_tipo="cashback_pct",
+        beneficio_valor=5.00,
+        teto_por_recompensa=15.00,
+        orcamento_brl=3000.00,
+    )
+    db.add(corporativa)
+    await db.flush()
+    db.add(
+        Mission(
+            campaign_id=corporativa.id,
+            codigo="dez-recargas-corporativas",
+            titulo="10 recargas no mes",
+            descricao="Dez recargas da frota dentro do mes.",
+            metrica="sessoes",
+            alvo=10,
+            janela="mensal",
+            ordem=0,
+        )
+    )
     await db.flush()
 
     # Contrato da praca principal com a plataforma, com seis meses de vida - o
@@ -934,6 +1179,14 @@ async def seed() -> None:
             )
         )
 
+        frota = Fleet(
+            name=FROTA["nome"],
+            document=FROTA["documento"],
+            billing_email=FROTA["email_de_cobranca"],
+        )
+        db.add(frota)
+        await db.flush()
+
         motoristas: list[User] = []
         veiculos: dict[uuid.UUID, Vehicle] = {}
         for index, (email, full_name, model, _label, battery, max_ac) in enumerate(DRIVERS):
@@ -944,6 +1197,9 @@ async def seed() -> None:
                 role=UserRole.DRIVER,
                 wallet_balance=100.0,
             )
+            if email in MOTORISTAS_DA_FROTA:
+                driver.fleet_id = frota.id
+                driver.fleet_manager = email == GESTOR_DA_FROTA
             db.add(driver)
             await db.flush()
             # O saldo inicial precisa da propria linha no razao. Creditar
@@ -958,10 +1214,17 @@ async def seed() -> None:
                     idempotency_key=f"seed:abertura:{driver.id}",
                     provider="seed",
                     origem="ajuste",
+                    motivo="Saldo de abertura do seed",
                 )
             )
             veiculo = Vehicle(
-                user_id=driver.id, model=model, battery_kwh=battery, max_ac_kw=max_ac
+                user_id=driver.id,
+                model=model,
+                battery_kwh=battery,
+                max_ac_kw=max_ac,
+                # Sem centro de custo o relatorio da frota soma tudo num balde
+                # so' - que e' o relatorio que a empresa NAO quer.
+                cost_center=MOTORISTAS_DA_FROTA.get(email),
             )
             db.add(veiculo)
             await db.flush()
@@ -1022,7 +1285,7 @@ async def seed() -> None:
         #
         # Depois do historico, e nao antes: o progresso das missoes e' calculado
         # a partir das sessoes ja gravadas.
-        await _montar_gamificacao(db, montados, motoristas, agora)
+        await _montar_gamificacao(db, montados, motoristas, agora, frota)
 
         # ---- leitura inicial do medidor: sem ela o orcamento so ve a rede ----
         for montado in montados:

@@ -16,30 +16,43 @@ export default function Utilization() {
   const dados = useApi(() => power.utilizationByPoint(30), [], { pollMs: 300000 })
 
   return (
-    <Async
-      loading={dados.loading}
-      error={dados.error}
-      data={dados.data}
-      onRetry={dados.refetch}
-    >
+    <Async loading={dados.loading} error={dados.error} data={dados.data} onRetry={dados.refetch}>
       {dados.data && <Relatorio d={dados.data} />}
     </Async>
   )
 }
 
 const ROTULOS = {
-  congestionado: { texto: 'Congestionado', cor: '#d9534f', acao: 'Vive cheio — está recusando cliente. É aqui que o próximo ponto se paga.' },
-  bloqueado: { texto: 'Bloqueado', cor: '#d9a441', acao: 'Ocupado sem consumir: usado como vaga. Caso para taxa de ociosidade.' },
-  ocioso: { texto: 'Ocioso', cor: '#7a8699', acao: 'Pouca procura. Capital parado — avalie realocar.' },
+  congestionado: {
+    texto: 'Congestionado',
+    cor: '#d9534f',
+    acao: 'Vive cheio — está recusando cliente. É aqui que o próximo ponto se paga.'
+  },
+  bloqueado: {
+    texto: 'Bloqueado',
+    cor: '#d9a441',
+    acao: 'Ocupado sem consumir: usado como vaga. Caso para taxa de ociosidade.'
+  },
+  ocioso: {
+    texto: 'Ocioso',
+    cor: '#7a8699',
+    acao: 'Pouca procura. Capital parado — avalie realocar.'
+  },
   saudavel: { texto: 'Saudável', cor: '#3d9970', acao: 'Giro compatível com a capacidade.' },
-  indisponivel: { texto: 'Indisponível', cor: '#8a2be2', acao: 'Ficou fora do ar o período todo. É manutenção, não demanda.' }
+  indisponivel: {
+    texto: 'Indisponível',
+    cor: '#8a2be2',
+    acao: 'Ficou fora do ar o período todo. É manutenção, não demanda.'
+  }
 }
 
 function Stat({ rotulo, valor, nota, destaque }) {
   return (
     <div className="stat">
       <div className="label">{rotulo}</div>
-      <div className="value" style={destaque ? { color: 'var(--sems-red)' } : undefined}>{valor}</div>
+      <div className="value" style={destaque ? { color: 'var(--sems-red)' } : undefined}>
+        {valor}
+      </div>
       <div className="trend muted">{nota}</div>
     </div>
   )
@@ -90,9 +103,8 @@ function Relatorio({ d }) {
         {d.janela_completa
           ? `Últimos ${d.dias} dias.`
           : `Site em operação há ${num(d.dias_efetivos, 1)} dia(s) — a janela cobre esse período, não os ${d.dias} pedidos.`}{' '}
-        O ranking é por receita a cada hora em que o ponto esteve realmente disponível —
-        horas de falha saem do denominador, senão um ponto quebrado apareceria como ponto
-        sem procura.
+        O ranking é por receita a cada hora em que o ponto esteve realmente disponível — horas de
+        falha saem do denominador, senão um ponto quebrado apareceria como ponto sem procura.
       </p>
 
       <div className="grid grid-3" style={{ marginBottom: 16 }}>

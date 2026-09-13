@@ -6,7 +6,7 @@ import { StatusBar } from 'expo-status-bar'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { AuthProvider, useAuth } from './src/auth'
 import { Carregando } from './src/components'
-import LoginScreen from './src/screens/LoginScreen'
+import Entrada from './src/screens/Entrada'
 import MapScreen from './src/screens/MapScreen'
 import SessionScreen from './src/screens/SessionScreen'
 import StationScreen from './src/screens/StationScreen'
@@ -94,7 +94,7 @@ function Rotas() {
   // nao da para saber se o motorista ja estava logado.
   if (status === 'checking') return <Carregando rotulo="Restaurando sessao..." />
 
-  if (status !== 'authenticated') return <LoginScreen />
+  if (status !== 'authenticated') return <Entrada />
 
   return (
     <Stack.Navigator

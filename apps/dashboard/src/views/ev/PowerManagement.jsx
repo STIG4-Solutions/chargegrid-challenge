@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import {
   chargePointStatus,
   dateTime,
@@ -11,6 +11,7 @@ import {
   useSiteStream
 } from '@chargegrid/sdk'
 import { Async, ErrorState, Spinner } from '../../components/Async.jsx'
+import { idadeEmPalavras, problemaNaResolucao, rotuloDaCategoria } from './manutencao.js'
 import { alteracoesDoOrcamento, mudouPorBaixo } from './orcamento.js'
 
 // Espelha ACTIVE_SESSION_STATES do backend: são os estados que ocupam o ponto.
@@ -24,6 +25,15 @@ export default function PowerManagement() {
   const overview = useApi(() => power.overview(), [], { pollMs: 10000 })
   const recent = useApi(() => sessionsApi.list({ limit: 50 }), [], { pollMs: 15000 })
   const manutencao = useApi(() => power.maintenanceAttention(30), [], { pollMs: 120000 })
+  const reportes = useApi(() => power.maintenanceReports(true, 100), [], { pollMs: 60000 })
+  const resolver = useAction((id, resolucao) => power.resolveReport(id, resolucao), {
+    onSuccess: () => {
+      void reportes.refetch({ silent: true })
+      // A contagem de `abertos` por categoria muda junto: sem isto, o card de
+      // cima continuaria dizendo "3 abertos" com a fila já em 2.
+      void manutencao.refetch({ silent: true })
+    }
+  })
   const stream = useSiteStream()
 
   // O evento do WebSocket chega antes do próximo poll: aplica na hora.
@@ -104,7 +114,12 @@ export default function PowerManagement() {
         </button>
       </div>
 
-      <Async loading={overview.loading} error={overview.error} data={data} onRetry={overview.refetch}>
+      <Async
+        loading={overview.loading}
+        error={overview.error}
+        data={data}
+        onRetry={overview.refetch}
+      >
         {data && (
           <>
             <PowerStats data={data} budget={budget} />
@@ -127,6 +142,20 @@ export default function PowerManagement() {
       >
         {manutencao.data && <Manutencao d={manutencao.data} />}
       </Async>
+
+      {/*
+        Sem `<Async>` de propósito: uma fila que não carregou não pode esconder
+        o resto da aba. Falhando, o card não aparece — e o erro de uma ação
+        aparece dentro dele, onde quem clicou está olhando.
+      */}
+      {reportes.data && (
+        <FilaDeReportes
+          reportes={reportes.data}
+          aoResolver={(id, texto) => resolver.run(id, texto)}
+          pendente={resolver.pending}
+          erro={resolver.error}
+        />
+      )}
     </div>
   )
 }
@@ -195,7 +224,10 @@ function BalancePanel({ data, budget, rebalance }) {
 
   return (
     <div className="panel" style={{ marginBottom: 16 }}>
-      <div className="flex items-center" style={{ justifyContent: 'space-between', marginBottom: 10 }}>
+      <div
+        className="flex items-center"
+        style={{ justifyContent: 'space-between', marginBottom: 10 }}
+      >
         <div className="card-title" style={{ margin: 0 }}>
           Balanceamento de carga do site
         </div>
@@ -210,7 +242,11 @@ function BalancePanel({ data, budget, rebalance }) {
           >
             {prever.pending ? <Spinner /> : null} {previa ? 'Ocultar prévia' : 'Prever rateio'}
           </button>
-          <button className="btn btn-sm" onClick={() => rebalance.run()} disabled={rebalance.pending}>
+          <button
+            className="btn btn-sm"
+            onClick={() => rebalance.run()}
+            disabled={rebalance.pending}
+          >
             {rebalance.pending ? <Spinner /> : null} Redistribuir agora
           </button>
         </div>
@@ -226,7 +262,9 @@ function BalancePanel({ data, budget, rebalance }) {
         />
       </div>
       <div className="flex" style={{ justifyContent: 'space-between', marginTop: 6 }}>
-        <span className="muted" style={{ fontSize: 12 }}>0 kW</span>
+        <span className="muted" style={{ fontSize: 12 }}>
+          0 kW
+        </span>
         <span className="muted" style={{ fontSize: 12 }}>
           Capacidade: {num(budget.available_kw, 1)} kW
         </span>
@@ -240,7 +278,10 @@ function BalancePanel({ data, budget, rebalance }) {
 function PlanPreview({ plano }) {
   return (
     <div className="plan-preview">
-      <div className="flex items-center" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
+      <div
+        className="flex items-center"
+        style={{ justifyContent: 'space-between', marginBottom: 8 }}
+      >
         <span style={{ fontWeight: 600, fontSize: 13 }}>Prévia do rateio</span>
         <span className="muted" style={{ fontSize: 12 }}>
           {num(plano.total_granted_kw, 1)} kW de {num(plano.budget.available_kw, 1)} kW disponíveis
@@ -295,8 +336,8 @@ function ChargePointTable({ chargePoints, activeByPoint, onChanged }) {
       <div className="card-sub">
         O limite é escrito no registrador 10029 e vira o teto do ponto: o rateio automático
         distribui a potência disponível, mas nunca sobe acima do valor definido aqui.
-        <strong> Cortar</strong> usa o registrador 10000 para derrubar o ponto à potência mínima
-        sem encerrar a sessão em curso.
+        <strong> Cortar</strong> usa o registrador 10000 para derrubar o ponto à potência mínima sem
+        encerrar a sessão em curso.
       </div>
       <table className="table">
         <thead>
@@ -482,10 +523,33 @@ export function podeReceberPotencia(cp) {
 // mensagem — o operador que apagasse o valor só para redigitar levava um erro
 // de servidor. Só `main_breaker_current_a` aceita nulo de verdade.
 const CAMPOS_ORCAMENTO = [
-  { campo: 'grid_limit_kw', rotulo: 'Limite da rede (kW)', dica: 'Capacidade contratada no ponto de entrega', step: 1, obrigatorio: true },
-  { campo: 'reserved_kw', rotulo: 'Reserva predial (kW)', dica: 'Potência protegida para as cargas não-EV', step: 1, obrigatorio: true },
-  { campo: 'main_breaker_current_a', rotulo: 'Disjuntor de entrada (A)', dica: 'Espelha o registrador 10026 do carregador', step: 1 },
-  { campo: 'battery_min_soc', rotulo: 'SOC mínimo da bateria (%)', dica: 'Abaixo disso a bateria não alimenta a recarga', step: 1, obrigatorio: true }
+  {
+    campo: 'grid_limit_kw',
+    rotulo: 'Limite da rede (kW)',
+    dica: 'Capacidade contratada no ponto de entrega',
+    step: 1,
+    obrigatorio: true
+  },
+  {
+    campo: 'reserved_kw',
+    rotulo: 'Reserva predial (kW)',
+    dica: 'Potência protegida para as cargas não-EV',
+    step: 1,
+    obrigatorio: true
+  },
+  {
+    campo: 'main_breaker_current_a',
+    rotulo: 'Disjuntor de entrada (A)',
+    dica: 'Espelha o registrador 10026 do carregador',
+    step: 1
+  },
+  {
+    campo: 'battery_min_soc',
+    rotulo: 'SOC mínimo da bateria (%)',
+    dica: 'Abaixo disso a bateria não alimenta a recarga',
+    step: 1,
+    obrigatorio: true
+  }
 ]
 
 // Rótulo legível de cada chave, para o aviso de edição concorrente não dizer
@@ -524,13 +588,16 @@ function BudgetEditor({ settings, onSaved }) {
   const alteracoes = alteracoesDoOrcamento(rascunho, baseRef.current, CHAVES_ORCAMENTO)
   const mudouAtras = mudouPorBaixo(settings, baseRef.current, CHAVES_ORCAMENTO, alteracoes)
 
-  const salvar = useAction(
-    (payload) => power.updateBudget(payload),
-    { onSuccess: () => { setAberto(false); onSaved() } }
-  )
+  const salvar = useAction((payload) => power.updateBudget(payload), {
+    onSuccess: () => {
+      setAberto(false)
+      onSaved()
+    }
+  })
 
   const faltando = CAMPOS_ORCAMENTO.filter(
-    ({ campo, obrigatorio }) => obrigatorio && (rascunho[campo] === null || rascunho[campo] === undefined)
+    ({ campo, obrigatorio }) =>
+      obrigatorio && (rascunho[campo] === null || rascunho[campo] === undefined)
   )
 
   const alterado = Object.keys(alteracoes).length > 0
@@ -540,8 +607,8 @@ function BudgetEditor({ settings, onSaved }) {
       <div className="budget-bar">
         <span className="muted" style={{ fontSize: 13 }}>
           Rede {num(settings.grid_limit_kw, 0)} kW · reserva {num(settings.reserved_kw, 0)} kW ·
-          solar {settings.allow_pv_kw ? 'no orçamento' : 'fora'} ·
-          bateria {settings.allow_battery_kw ? `acima de ${num(settings.battery_min_soc, 0)}%` : 'fora'}
+          solar {settings.allow_pv_kw ? 'no orçamento' : 'fora'} · bateria{' '}
+          {settings.allow_battery_kw ? `acima de ${num(settings.battery_min_soc, 0)}%` : 'fora'}
         </span>
         <button className="btn btn-sm" onClick={() => setAberto(true)}>
           Ajustar orçamento
@@ -554,8 +621,8 @@ function BudgetEditor({ settings, onSaved }) {
     <div className="panel" style={{ marginBottom: 16 }}>
       <div className="card-title">Orçamento do site</div>
       <div className="card-sub">
-        Define o teto que o rateio automático distribui. Salvar recalcula e reaplica os limites
-        nos pontos imediatamente.
+        Define o teto que o rateio automático distribui. Salvar recalcula e reaplica os limites nos
+        pontos imediatamente.
       </div>
 
       <div className="grid grid-4" style={{ marginTop: 14 }}>
@@ -571,10 +638,15 @@ function BudgetEditor({ settings, onSaved }) {
               value={rascunho[campo] ?? ''}
               disabled={salvar.pending}
               onChange={(e) =>
-                setRascunho({ ...rascunho, [campo]: e.target.value === '' ? null : Number(e.target.value) })
+                setRascunho({
+                  ...rascunho,
+                  [campo]: e.target.value === '' ? null : Number(e.target.value)
+                })
               }
             />
-            <span className="muted" style={{ fontSize: 11 }}>{dica}</span>
+            <span className="muted" style={{ fontSize: 11 }}>
+              {dica}
+            </span>
           </div>
         ))}
       </div>
@@ -602,22 +674,20 @@ function BudgetEditor({ settings, onSaved }) {
 
       <ErrorState error={salvar.error} compact />
 
-        {faltando.length > 0 && (
-          <p className="muted" style={{ marginTop: 12, fontSize: 13 }}>
-            Preencha {faltando.map((c) => c.rotulo).join(', ')} para salvar.
-          </p>
-        )}
+      {faltando.length > 0 && (
+        <p className="muted" style={{ marginTop: 12, fontSize: 13 }}>
+          Preencha {faltando.map((c) => c.rotulo).join(', ')} para salvar.
+        </p>
+      )}
 
-        {mudouAtras.length > 0 && (
-          <p className="muted" style={{ marginTop: 12, fontSize: 13 }}>
-            Outra pessoa alterou{' '}
-            {mudouAtras
-              .map((campo) => ROTULO_ORCAMENTO[campo] ?? campo)
-              .join(', ')}{' '}
-            enquanto este painel estava aberto. Esses valores <strong>não</strong> serão
-            sobrescritos — só o que você mudou é enviado. Feche e reabra para ver os atuais.
-          </p>
-        )}
+      {mudouAtras.length > 0 && (
+        <p className="muted" style={{ marginTop: 12, fontSize: 13 }}>
+          Outra pessoa alterou{' '}
+          {mudouAtras.map((campo) => ROTULO_ORCAMENTO[campo] ?? campo).join(', ')} enquanto este
+          painel estava aberto. Esses valores <strong>não</strong> serão sobrescritos — só o que
+          você mudou é enviado. Feche e reabra para ver os atuais.
+        </p>
+      )}
 
       <div className="flex gap-8" style={{ marginTop: 16 }}>
         <button
@@ -643,6 +713,133 @@ function BudgetEditor({ settings, onSaved }) {
  * não vai continuar funcionando. No instante em que se olha o painel de estado,
  * ele está normal — por isso o problema só aparece quando para.
  */
+/**
+ * A fila de problemas reportados por quem esteve no ponto.
+ *
+ * `Manutencao`, acima, agrupa por categoria e diz QUANTOS estão abertos — e
+ * dizia isso desde sempre sem que nada pudesse fechá-los. Esta lista diz QUAIS,
+ * e é dela que sai o trabalho de quem vai até o ponto.
+ *
+ * Exportada para o teste montá-la com props, sem subir a aba inteira.
+ */
+export function FilaDeReportes({ reportes, aoResolver, pendente, erro }) {
+  const [aberto, setAberto] = useState(null)
+  const [texto, setTexto] = useState('')
+
+  const fila = reportes ?? []
+  if (!fila.length) {
+    return (
+      <div className="card" style={{ marginTop: 16 }}>
+        <h3 style={{ margin: '0 0 4px', fontSize: 15 }}>Problemas reportados</h3>
+        <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+          Nenhum reporte em aberto. O que as pessoas relatam aparece aqui antes de o sensor perceber
+          — cabo cortado e vaga ocupada não têm registrador.
+        </p>
+      </div>
+    )
+  }
+
+  const problema = problemaNaResolucao(texto)
+
+  const fechar = (id) => {
+    if (problema) return
+    aoResolver(id, texto.trim())
+    setAberto(null)
+    setTexto('')
+  }
+
+  return (
+    <div className="card" style={{ marginTop: 16 }}>
+      <h3 style={{ margin: '0 0 4px', fontSize: 15 }}>
+        Problemas reportados <span className="badge badge-red">{fila.length}</span>
+      </h3>
+      <p className="muted" style={{ margin: '0 0 12px', fontSize: 13 }}>
+        O que as pessoas relatam, e o sensor não vê. Fechar exige dizer o que foi feito: o próximo
+        que reportar o mesmo problema precisa saber que alguém já olhou.
+      </p>
+
+      {erro && <ErrorState error={erro} compact />}
+
+      <div style={{ overflowX: 'auto' }}>
+        <table className="table" style={{ minWidth: 720 }}>
+          <thead>
+            <tr>
+              <th>Ponto</th>
+              <th>Problema</th>
+              <th>Quem reportou</th>
+              <th>Aberto</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {fila.map((r) => (
+              <Fragment key={r.id}>
+                <tr>
+                  <td>{r.ponto}</td>
+                  <td>
+                    {rotuloDaCategoria(r.categoria)}
+                    {r.descricao && (
+                      <div className="muted" style={{ fontSize: 12 }}>
+                        {r.descricao}
+                      </div>
+                    )}
+                  </td>
+                  <td className="muted">{r.reportado_por ?? '—'}</td>
+                  <td className="muted">{idadeEmPalavras(r.reportado_em)}</td>
+                  <td className="text-right">
+                    <button
+                      className="btn btn-sm"
+                      onClick={() => {
+                        setAberto(aberto === r.id ? null : r.id)
+                        setTexto('')
+                      }}
+                    >
+                      {aberto === r.id ? 'Cancelar' : 'Resolver'}
+                    </button>
+                  </td>
+                </tr>
+                {aberto === r.id && (
+                  <tr>
+                    <td colSpan={5}>
+                      <div className="form-row">
+                        <label htmlFor={`resolucao-${r.id}`}>O que foi feito</label>
+                        <input
+                          id={`resolucao-${r.id}`}
+                          className="input"
+                          value={texto}
+                          onChange={(e) => setTexto(e.target.value)}
+                          placeholder="Cabo trocado na manutenção de terça"
+                        />
+                        {/*
+                          O aviso aparece enquanto se digita, e o botão fica
+                          desabilitado: descobrir o piso de tamanho no 422 do
+                          servidor é a mesma informação chegando tarde.
+                        */}
+                        {problema && (
+                          <div className="muted" style={{ fontSize: 12 }}>
+                            {problema}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        className="btn btn-primary btn-sm"
+                        disabled={Boolean(problema) || pendente}
+                        onClick={() => fechar(r.id)}
+                      >
+                        {pendente ? 'Fechando…' : 'Fechar reporte'}
+                      </button>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 function Manutencao({ d }) {
   if (d.sem_ocorrencias) {
     return (
@@ -655,7 +852,11 @@ function Manutencao({ d }) {
     )
   }
 
-  const cor = { alta: 'var(--sems-red)', media: 'var(--sems-yellow, #ffcc00)', baixa: 'var(--sems-text-dim)' }
+  const cor = {
+    alta: 'var(--sems-red)',
+    media: 'var(--sems-yellow, #ffcc00)',
+    baixa: 'var(--sems-text-dim)'
+  }
   const rotulo = { alta: 'Alta', media: 'Média', baixa: 'Baixa' }
 
   return (
@@ -668,19 +869,30 @@ function Manutencao({ d }) {
 
       <table className="table">
         <thead>
-          <tr><th>Ponto</th><th>Prioridade</th><th>Episódios</th><th>Sintomas</th></tr>
+          <tr>
+            <th>Ponto</th>
+            <th>Prioridade</th>
+            <th>Episódios</th>
+            <th>Sintomas</th>
+          </tr>
         </thead>
         <tbody>
           {d.pontos.map((p) => (
             <tr key={p.charge_point_id}>
               <td>
                 <div style={{ fontWeight: 600 }}>{p.code}</div>
-                <div className="muted" style={{ fontSize: 12 }}>{p.name}</div>
+                <div className="muted" style={{ fontSize: 12 }}>
+                  {p.name}
+                </div>
               </td>
               <td>
-                <span style={{ color: cor[p.prioridade], fontWeight: 600 }}>{rotulo[p.prioridade]}</span>
+                <span style={{ color: cor[p.prioridade], fontWeight: 600 }}>
+                  {rotulo[p.prioridade]}
+                </span>
                 {p.tem_falha_aberta && (
-                  <div className="muted" style={{ fontSize: 12 }}>em curso agora</div>
+                  <div className="muted" style={{ fontSize: 12 }}>
+                    em curso agora
+                  </div>
                 )}
               </td>
               <td>{p.episodios}</td>

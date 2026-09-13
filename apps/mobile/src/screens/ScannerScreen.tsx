@@ -148,7 +148,8 @@ function tituloDoVisor(podePerguntar: boolean | undefined, falhou: boolean) {
 }
 
 function textoDoVisor(podePerguntar: boolean | undefined, falhou: boolean) {
-  if (falhou) return 'Não foi possível abrir a câmera deste aparelho. Digite o código impresso no carregador.'
+  if (falhou)
+    return 'Não foi possível abrir a câmera deste aparelho. Digite o código impresso no carregador.'
   return podePerguntar === false
     ? 'Libere o acesso à câmera nas configurações do aparelho, ou digite o código impresso no carregador.'
     : 'Precisamos da câmera para ler o QR colado no carregador. Você também pode digitar o código.'

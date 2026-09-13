@@ -14,6 +14,7 @@ from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
+from app.core.errors import DomainError, NotFound
 from app.models.charge_point_report import ChargePointReport
 from app.models.enums import InvoiceStatus, SessionState
 from app.models.fleet import Fleet
@@ -46,10 +47,12 @@ async def test_reporte_sozinho_ja_poe_o_ponto_em_atencao(db, site, ponto, motori
     confirmacao do sensor, esperaria para sempre: o ponto reporta "disponivel"
     com toda a sinceridade, porque do ponto de vista dele esta tudo bem.
     """
-    db.add_all([
-        _reporte(ponto, motorista, "cabo_danificado", descricao="cabo com fio a mostra"),
-        _reporte(ponto, motorista, "cabo_danificado"),
-    ])
+    db.add_all(
+        [
+            _reporte(ponto, motorista, "cabo_danificado", descricao="cabo com fio a mostra"),
+            _reporte(ponto, motorista, "cabo_danificado"),
+        ]
+    )
     await db.flush()
 
     r = await ms.pontos_em_atencao(db, site.id, dias=30)
@@ -73,11 +76,13 @@ async def test_um_reporte_isolado_nao_alarma(db, site, ponto, motorista):
 
 async def test_reportes_agrupam_por_categoria(db, site, ponto, motorista):
     """Tres pessoas reclamando do mesmo cabo sao um problema, nao tres."""
-    db.add_all([
-        _reporte(ponto, motorista, "cabo_danificado"),
-        _reporte(ponto, motorista, "cabo_danificado"),
-        _reporte(ponto, motorista, "tela_apagada"),
-    ])
+    db.add_all(
+        [
+            _reporte(ponto, motorista, "cabo_danificado"),
+            _reporte(ponto, motorista, "cabo_danificado"),
+            _reporte(ponto, motorista, "tela_apagada"),
+        ]
+    )
     await db.flush()
 
     r = await ms.pontos_em_atencao(db, site.id, dias=30)
@@ -88,10 +93,12 @@ async def test_reportes_agrupam_por_categoria(db, site, ponto, motorista):
 
 
 async def test_reporte_resolvido_sai_da_contagem_de_abertos(db, site, ponto, motorista):
-    db.add_all([
-        _reporte(ponto, motorista, "nao_inicia", resolvido=True),
-        _reporte(ponto, motorista, "nao_inicia", resolvido=True),
-    ])
+    db.add_all(
+        [
+            _reporte(ponto, motorista, "nao_inicia", resolvido=True),
+            _reporte(ponto, motorista, "nao_inicia", resolvido=True),
+        ]
+    )
     await db.flush()
 
     r = await ms.pontos_em_atencao(db, site.id, dias=30)
@@ -108,15 +115,21 @@ async def test_reporte_com_falha_do_sensor_nao_e_so_humano(db, site, ponto, moto
 
     db.add(
         ChargePointFault(
-            id=uuid.uuid4(), charge_point_id=ponto.id, label="falha da trava",
-            terminal=False, first_seen_at=agora - timedelta(days=1),
-            last_seen_at=agora, ciclos=10,
+            id=uuid.uuid4(),
+            charge_point_id=ponto.id,
+            label="falha da trava",
+            terminal=False,
+            first_seen_at=agora - timedelta(days=1),
+            last_seen_at=agora,
+            ciclos=10,
         )
     )
-    db.add_all([
-        _reporte(ponto, motorista, "conector_travado"),
-        _reporte(ponto, motorista, "conector_travado"),
-    ])
+    db.add_all(
+        [
+            _reporte(ponto, motorista, "conector_travado"),
+            _reporte(ponto, motorista, "conector_travado"),
+        ]
+    )
     await db.flush()
 
     r = await ms.pontos_em_atencao(db, site.id, dias=30)
@@ -165,9 +178,17 @@ async def test_nao_da_para_amarrar_reporte_a_sessao_alheia(
     from app.models.session import ChargingSession
 
     alheia = ChargingSession(
-        id=uuid.uuid4(), code="SES-ALHEIA", site_id=site.id, charge_point_id=ponto.id,
-        user_id=segundo_motorista.id, state=SessionState.FINISHED,
-        energy_kwh=0, duration_s=0, estimated_cost=0, preauth_amount=0, idle_minutes=0,
+        id=uuid.uuid4(),
+        code="SES-ALHEIA",
+        site_id=site.id,
+        charge_point_id=ponto.id,
+        user_id=segundo_motorista.id,
+        state=SessionState.FINISHED,
+        energy_kwh=0,
+        duration_s=0,
+        estimated_cost=0,
+        preauth_amount=0,
+        idle_minutes=0,
     )
     db.add(alheia)
     await db.flush()
@@ -184,10 +205,12 @@ async def test_motorista_so_ve_os_proprios_reportes(
     db, api, ponto, motorista, segundo_motorista, como_motorista
 ):
     """A lista de reclamacoes de um ponto e' informacao do operador."""
-    db.add_all([
-        _reporte(ponto, motorista, "nao_inicia"),
-        _reporte(ponto, segundo_motorista, "tela_apagada"),
-    ])
+    db.add_all(
+        [
+            _reporte(ponto, motorista, "nao_inicia"),
+            _reporte(ponto, segundo_motorista, "tela_apagada"),
+        ]
+    )
     await db.flush()
 
     r = await api.get(f"/api/v1/app/charge-points/{ponto.id}/reports", headers=como_motorista)
@@ -236,19 +259,35 @@ async def _gasto(db, site, ponto, usuario, veiculo, valor, kwh, emitida, status=
     from app.models.session import ChargingSession
 
     s = ChargingSession(
-        id=uuid.uuid4(), code=f"S-{uuid.uuid4().hex[:6]}", site_id=site.id,
-        charge_point_id=ponto.id, user_id=usuario.id,
+        id=uuid.uuid4(),
+        code=f"S-{uuid.uuid4().hex[:6]}",
+        site_id=site.id,
+        charge_point_id=ponto.id,
+        user_id=usuario.id,
         vehicle_id=veiculo.id if veiculo else None,
-        state=SessionState.BILLED, energy_kwh=kwh, duration_s=3600,
-        estimated_cost=valor, preauth_amount=0, idle_minutes=0,
+        state=SessionState.BILLED,
+        energy_kwh=kwh,
+        duration_s=3600,
+        estimated_cost=valor,
+        preauth_amount=0,
+        idle_minutes=0,
     )
     db.add(s)
     await db.flush()
     db.add(
         Invoice(
-            id=uuid.uuid4(), code=f"INV-{uuid.uuid4().hex[:6]}", site_id=site.id,
-            session_id=s.id, user_id=usuario.id, status=status, currency="BRL",
-            subtotal=valor, discount=0, total=valor, processing_fee=0, net_amount=valor,
+            id=uuid.uuid4(),
+            code=f"INV-{uuid.uuid4().hex[:6]}",
+            site_id=site.id,
+            session_id=s.id,
+            user_id=usuario.id,
+            status=status,
+            currency="BRL",
+            subtotal=valor,
+            discount=0,
+            total=valor,
+            processing_fee=0,
+            net_amount=valor,
             issued_on=emitida,
         )
     )
@@ -416,3 +455,223 @@ async def test_gestor_nao_mexe_em_carro_de_outra_frota(
         headers=como_gestor,
     )
     assert r.status_code == 404
+
+
+# ------------------------------------------------------- fechar o reporte
+#
+# O motorista reportava e NINGUEM conseguia resolver. `resolved_at` era lido -
+# a resposta do app expoe `resolvido`, e `ix_charge_point_reports_abertos` e' a
+# fila de abertos - e nenhuma rota o escrevia. A fila nunca drenava, e o CHECK
+# `resolucao_completa` mantinha `resolved_by` inalcancavel junto.
+
+
+async def test_resolver_fecha_o_reporte(db, site, ponto, motorista, operador):
+    r = _reporte(ponto, motorista, "cabo_danificado")
+    db.add(r)
+    await db.flush()
+
+    resultado = await ms.resolver_reporte(db, r.id, site.id, por=operador, resolucao="Cabo trocado")
+
+    assert resultado["resolvido"] is True
+    await db.refresh(r)
+    assert r.resolved_at is not None
+    assert r.resolved_by == operador.id
+    assert r.resolucao == "Cabo trocado"
+
+
+async def test_resolucao_vazia_e_recusada(db, site, ponto, motorista, operador):
+    """Fechar sem dizer o que se fez transforma a fila num botao de sumir com a
+    reclamacao: o proximo motorista que reportar o mesmo cabo nao tem como saber
+    que ja olharam."""
+    r = _reporte(ponto, motorista, "cabo_danificado")
+    db.add(r)
+    await db.flush()
+
+    with pytest.raises(DomainError):
+        await ms.resolver_reporte(db, r.id, site.id, por=operador, resolucao="   ")
+
+    await db.refresh(r)
+    assert r.resolved_at is None
+
+
+async def test_resolver_duas_vezes_nao_reescreve_quem_resolveu(
+    db, site, ponto, motorista, operador
+):
+    """Quem resolveu e quando sao fato consumado.
+
+    Sem isto, o segundo clique trocaria o responsavel pelo ultimo que passou -
+    e o registro deixaria de servir para a pergunta que ele responde.
+    """
+    r = _reporte(ponto, motorista, "tela_apagada")
+    db.add(r)
+    await db.flush()
+    primeiro = await ms.resolver_reporte(db, r.id, site.id, por=operador, resolucao="Reiniciado")
+
+    segundo = await ms.resolver_reporte(db, r.id, site.id, por=motorista, resolucao="Outra coisa")
+
+    assert segundo["resolvido_em"] == primeiro["resolvido_em"]
+    await db.refresh(r)
+    assert r.resolved_by == operador.id
+    assert r.resolucao == "Reiniciado"
+
+
+async def test_reporte_de_outra_praca_da_404(db, site, segundo_site, ponto, motorista, operador):
+    """404 e nao 403: dizer "existe, mas nao e' seu" ja entrega que ele existe."""
+    r = _reporte(ponto, motorista, "vaga_ocupada")
+    db.add(r)
+    await db.flush()
+
+    with pytest.raises(NotFound):
+        await ms.resolver_reporte(
+            db, r.id, segundo_site.id, por=operador, resolucao="Tentando de fora"
+        )
+
+
+async def test_reporte_inexistente_da_404(db, site, operador):
+    with pytest.raises(NotFound):
+        await ms.resolver_reporte(db, uuid.uuid4(), site.id, por=operador, resolucao="Nada")
+
+
+# --------------------------------------------------------------- a fila
+
+
+async def test_a_fila_so_traz_os_abertos(db, site, ponto, motorista, operador):
+    aberto = _reporte(ponto, motorista, "cabo_danificado")
+    fechado = _reporte(ponto, motorista, "tela_apagada")
+    db.add_all([aberto, fechado])
+    await db.flush()
+    await ms.resolver_reporte(db, fechado.id, site.id, por=operador, resolucao="Reiniciado")
+
+    fila = await ms.listar_reportes(db, site.id)
+
+    assert [x["id"] for x in fila] == [str(aberto.id)]
+
+
+async def test_a_fila_drena_ao_resolver(db, site, ponto, motorista, operador):
+    """A razao de tudo isto: antes, ela nunca esvaziava."""
+    r = _reporte(ponto, motorista, "cabo_danificado")
+    db.add(r)
+    await db.flush()
+    assert len(await ms.listar_reportes(db, site.id)) == 1
+
+    await ms.resolver_reporte(db, r.id, site.id, por=operador, resolucao="Cabo trocado")
+
+    assert await ms.listar_reportes(db, site.id) == []
+
+
+async def test_a_fila_pode_mostrar_o_historico(db, site, ponto, motorista, operador):
+    r = _reporte(ponto, motorista, "cabo_danificado")
+    db.add(r)
+    await db.flush()
+    await ms.resolver_reporte(db, r.id, site.id, por=operador, resolucao="Cabo trocado")
+
+    todos = await ms.listar_reportes(db, site.id, abertos=False)
+
+    assert len(todos) == 1
+    assert todos[0]["resolvido"] is True
+    assert todos[0]["resolucao"] == "Cabo trocado"
+    assert todos[0]["resolvido_por"] == operador.email
+
+
+async def test_a_fila_nao_mostra_reporte_do_vizinho(
+    db, site, segundo_site, ponto, motorista, operador
+):
+    """`charge_point_reports` nao tem `site_id` - o escopo vem do JOIN com o
+    ponto. Sem ele, a lista devolveria a reclamacao da praca ao lado."""
+    db.add(_reporte(ponto, motorista, "cabo_danificado"))
+    await db.flush()
+
+    assert await ms.listar_reportes(db, segundo_site.id) == []
+
+
+async def test_a_fila_diz_quem_reportou_e_mais_nada(db, site, ponto, motorista, operador):
+    """O operador precisa poder responder a pessoa - e nao precisa do resto do
+    cadastro dela. Reporte ja e' reclamacao; enriquecer a linha exporia o
+    motorista a quem ele reclamou."""
+    db.add(_reporte(ponto, motorista, "qr_ilegivel", descricao="adesivo arrancado"))
+    await db.flush()
+
+    linha = (await ms.listar_reportes(db, site.id))[0]
+
+    assert linha["reportado_por"] == motorista.email
+    assert linha["ponto"] == ponto.code
+    assert linha["descricao"] == "adesivo arrancado"
+    assert not (set(linha) & {"document", "hashed_password", "wallet_balance", "phone"})
+
+
+# ------------------------------------------------------------ pelas rotas
+
+
+async def test_operador_resolve_pela_rota(api, como_operador_do_site, db, ponto, motorista):
+    r = _reporte(ponto, motorista, "cabo_danificado")
+    db.add(r)
+    await db.flush()
+
+    resposta = await api.post(
+        f"/api/v1/power/maintenance/reports/{r.id}/resolve",
+        headers=como_operador_do_site,
+        json={"resolucao": "Cabo trocado na manutencao de terca"},
+    )
+
+    assert resposta.status_code == 200, resposta.text
+    assert resposta.json()["resolvido"] is True
+
+
+async def test_motorista_nao_resolve(api, como_motorista, db, ponto, motorista):
+    """Quem reporta nao fecha o proprio reporte."""
+    r = _reporte(ponto, motorista, "cabo_danificado")
+    db.add(r)
+    await db.flush()
+
+    resposta = await api.post(
+        f"/api/v1/power/maintenance/reports/{r.id}/resolve",
+        headers=como_motorista,
+        json={"resolucao": "Resolvi sozinho"},
+    )
+
+    assert resposta.status_code == 403
+
+
+async def test_resolucao_curta_demais_e_recusada_pelo_schema(
+    api, como_operador_do_site, db, ponto, motorista
+):
+    r = _reporte(ponto, motorista, "cabo_danificado")
+    db.add(r)
+    await db.flush()
+
+    resposta = await api.post(
+        f"/api/v1/power/maintenance/reports/{r.id}/resolve",
+        headers=como_operador_do_site,
+        json={"resolucao": "ok"},
+    )
+
+    assert resposta.status_code == 422
+
+
+async def test_a_rota_do_motorista_devolve_o_desfecho(
+    api, como_motorista, como_operador_do_site, db, ponto, motorista
+):
+    """A API entrega a quem reportou o que foi feito.
+
+    O nome anterior dizia "o app do motorista ve que foi resolvido", e isso era
+    mais do que o teste prova: ele exercita a ROTA. Na epoca nenhuma tela
+    chamava `myReports`, entao a afirmacao estava errada - o motorista mandava o
+    problema e nunca ficava sabendo.
+
+    A tela existe agora (`ReportarProblema` lista os proprios reportes com o
+    desfecho), mas quem a cobre nao e' este teste: nao ha harness de React
+    Native aqui. O nome passa a dizer o que ele de fato garante.
+    """
+    r = _reporte(ponto, motorista, "cabo_danificado")
+    db.add(r)
+    await db.flush()
+    await api.post(
+        f"/api/v1/power/maintenance/reports/{r.id}/resolve",
+        headers=como_operador_do_site,
+        json={"resolucao": "Cabo trocado"},
+    )
+
+    meus = await api.get(f"/api/v1/app/charge-points/{ponto.id}/reports", headers=como_motorista)
+
+    assert meus.status_code == 200, meus.text
+    assert meus.json()[0]["resolvido"] is True

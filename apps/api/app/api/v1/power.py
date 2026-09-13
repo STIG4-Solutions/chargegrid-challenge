@@ -25,6 +25,7 @@ from app.schemas.ev import (
     PowerPlanOut,
     PriorityRuleIn,
     PriorityRuleOut,
+    ResolucaoIn,
     SetLimitRequest,
     SiteSettingsOut,
 )
@@ -370,6 +371,52 @@ async def maintenance_attention(
     return await maintenance_service.pontos_em_atencao(db, site_id, dias=dias)
 
 
+@router.get("/maintenance/reports")
+async def maintenance_reports(
+    db: DbSession,
+    site_id: ScopedSiteId,
+    _: OperatorUser,
+    abertos: bool = Query(default=True),
+    limit: int = Query(default=100, ge=1, le=500),
+) -> list[dict]:
+    """Os problemas que as pessoas reportaram nesta praca.
+
+    `/maintenance/attention` agrupa por categoria e diz QUANTOS estao abertos;
+    esta lista diz QUAIS - e' dela que sai o trabalho de quem vai ate o ponto.
+
+    Escopo pelo site do PONTO: `charge_point_reports` nao tem `site_id`, e ler
+    sem o JOIN devolveria a reclamacao do vizinho.
+    """
+    return await maintenance_service.listar_reportes(db, site_id, abertos=abertos, limite=limit)
+
+
+@router.post("/maintenance/reports/{reporte_id}/resolve")
+async def resolve_report(
+    reporte_id: uuid.UUID,
+    payload: ResolucaoIn,
+    db: DbSession,
+    site_id: ScopedSiteId,
+    operador: OperatorUser,
+) -> dict:
+    """Fecha o reporte, dizendo o que foi feito.
+
+    Ate aqui nao existia: o motorista reportava, `resolved_at` era LIDO pelo app
+    e pelo indice de abertos, e nenhuma rota o escrevia. A fila nunca drenava.
+
+    A descricao do que foi feito e' obrigatoria - fechar sem dizer transforma a
+    fila num botao de sumir com a reclamacao.
+
+    QUEM BARRA O MOTORISTA E' `ScopedSiteId`, que ja depende de `OperatorUser` -
+    nao a anotacao abaixo. Ela esta aqui pelo VALOR: `resolved_by` precisa de
+    quem fechou. O teste de mutacao mostrou isso ao trocar `OperatorUser` por
+    `CurrentUser` sem quebrar nada, e a distincao vale escrita: quem ler pode
+    achar que removendo a anotacao abre a rota, e nao abre.
+    """
+    return await maintenance_service.resolver_reporte(
+        db, reporte_id, site_id, por=operador, resolucao=payload.resolucao
+    )
+
+
 @router.get("/utilization/by-point")
 async def utilization_by_point(
     db: DbSession,
@@ -417,9 +464,7 @@ async def _regra_do_site(db: DbSession, regra_id: uuid.UUID, site_id: uuid.UUID)
     """
     regra = (
         await db.execute(
-            select(PriorityRule).where(
-                PriorityRule.id == regra_id, PriorityRule.site_id == site_id
-            )
+            select(PriorityRule).where(PriorityRule.id == regra_id, PriorityRule.site_id == site_id)
         )
     ).scalar_one_or_none()
     if regra is None:
@@ -482,9 +527,7 @@ async def preview_priority_rules(
     pontos = list(
         (
             await db.execute(
-                select(ChargePoint)
-                .where(ChargePoint.site_id == site_id)
-                .order_by(ChargePoint.code)
+                select(ChargePoint).where(ChargePoint.site_id == site_id).order_by(ChargePoint.code)
             )
         )
         .scalars()

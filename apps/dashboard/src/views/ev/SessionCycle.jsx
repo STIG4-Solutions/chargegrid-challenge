@@ -26,18 +26,19 @@ const filters = [
 const CYCLE = ['Autorização', 'Início', 'Carregando', 'Encerramento', 'Faturamento']
 
 function cycleSteps(session) {
-  const reached = {
-    authorizing: 1,
-    // Na fila o ciclo não avança: a sessão está autorizada e aguardando folga.
-    queued: 1,
-    starting: 2,
-    charging: 3,
-    suspended: 3,
-    finishing: 4,
-    finished: 4,
-    billed: 5,
-    error: 2
-  }[session.state] || 1
+  const reached =
+    {
+      authorizing: 1,
+      // Na fila o ciclo não avança: a sessão está autorizada e aguardando folga.
+      queued: 1,
+      starting: 2,
+      charging: 3,
+      suspended: 3,
+      finishing: 4,
+      finished: 4,
+      billed: 5,
+      error: 2
+    }[session.state] || 1
 
   return CYCLE.map((label, i) => ({
     label,
@@ -52,11 +53,9 @@ export default function SessionCycle() {
   const [selectedId, setSelectedId] = useState(null)
 
   const active = filters.find((f) => f.key === filter)
-  const list = useApi(
-    () => sessionsApi.list({ state: active.state, limit: 100 }),
-    [filter],
-    { pollMs: 10000 }
-  )
+  const list = useApi(() => sessionsApi.list({ state: active.state, limit: 100 }), [filter], {
+    pollMs: 10000
+  })
   const kpis = useApi(() => sessionsApi.kpis(), [], { pollMs: 10000 })
 
   const items = useMemo(() => list.data?.items || [], [list.data])
@@ -173,10 +172,16 @@ export default function SessionCycle() {
             nova — com os botões calculados do dado velho e agindo sobre o id novo.
             Clicar em "Encerrar" nessa janela chamava stop() numa sessão já
             encerrada. */}
-        {selectedId && <SessionDetail key={selectedId} sessionId={selectedId} onChanged={() => {
-          list.refetch({ silent: true })
-          kpis.refetch({ silent: true })
-        }} />}
+        {selectedId && (
+          <SessionDetail
+            key={selectedId}
+            sessionId={selectedId}
+            onChanged={() => {
+              list.refetch({ silent: true })
+              kpis.refetch({ silent: true })
+            }}
+          />
+        )}
       </div>
     </div>
   )
@@ -198,7 +203,8 @@ function SessionDetail({ sessionId, onChanged }) {
 
   const session = detail.data
   const canStop =
-    session && ['authorizing', 'queued', 'starting', 'charging', 'suspended'].includes(session.state)
+    session &&
+    ['authorizing', 'queued', 'starting', 'charging', 'suspended'].includes(session.state)
   const canBill = session && session.state === 'finished'
 
   return (
@@ -216,7 +222,9 @@ function SessionDetail({ sessionId, onChanged }) {
             </div>
             <div className="card-sub">
               Autorização via {session.auth_method}
-              {session.stop_reason ? ` · ${stopReason[session.stop_reason] || session.stop_reason}` : ''}
+              {session.stop_reason
+                ? ` · ${stopReason[session.stop_reason] || session.stop_reason}`
+                : ''}
             </div>
 
             <div className="cycle">
@@ -308,7 +316,11 @@ function SessionDetail({ sessionId, onChanged }) {
                 {stop.pending ? <Spinner size={12} /> : null}{' '}
                 {session.state === 'queued' ? 'Sair da fila' : 'Encerrar sessão'}
               </button>
-              <button className="btn btn-sm" disabled={!canBill || bill.pending} onClick={() => bill.run()}>
+              <button
+                className="btn btn-sm"
+                disabled={!canBill || bill.pending}
+                onClick={() => bill.run()}
+              >
                 {bill.pending ? <Spinner size={12} /> : null} Faturar
               </button>
             </div>
@@ -372,7 +384,9 @@ function Timeline({ events }) {
             <span className="muted">{dateTime(event.occurred_at)}</span>
             <span>
               {event.message ||
-                (event.to_state ? `${event.from_state || '—'} → ${event.to_state}` : event.event_type)}
+                (event.to_state
+                  ? `${event.from_state || '—'} → ${event.to_state}`
+                  : event.event_type)}
             </span>
           </li>
         ))}
@@ -420,7 +434,9 @@ function SessionChart({ sessionId }) {
     return (
       <>
         <hr className="hr" />
-        <div className="card-title" style={{ fontSize: 14 }}>Potência entregue</div>
+        <div className="card-title" style={{ fontSize: 14 }}>
+          Potência entregue
+        </div>
         <Empty label="Ainda sem amostras suficientes para o gráfico." />
       </>
     )
@@ -436,7 +452,9 @@ function SessionChart({ sessionId }) {
 
   const px = (i) => G.left + (i / (amostras.length - 1)) * PLOT_W
   const pontos = amostras.map((a, i) => [px(i), escalaY(Number(a.power_kw) || 0, maximo)])
-  const linha = pontos.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ')
+  const linha = pontos
+    .map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`)
+    .join(' ')
   const area = `${linha} L${pontos[pontos.length - 1][0].toFixed(1)},${G.top + PLOT_H} L${pontos[0][0].toFixed(1)},${G.top + PLOT_H} Z`
 
   // Uma linha por passo, então todo rótulo cai num número redondo.
@@ -464,15 +482,20 @@ function SessionChart({ sessionId }) {
     <>
       <hr className="hr" />
       <div className="flex items-center" style={{ justifyContent: 'space-between' }}>
-        <div className="card-title" style={{ fontSize: 14, margin: 0 }}>Potência entregue</div>
+        <div className="card-title" style={{ fontSize: 14, margin: 0 }}>
+          Potência entregue
+        </div>
         <span className="muted" style={{ fontSize: 11 }}>
           pico {num(picoSerie, 1)} kW · {amostras.length} amostras
         </span>
       </div>
 
       <div className="chart" onMouseLeave={() => setAtivo(null)}>
-        <svg viewBox={`0 0 ${G.w} ${G.h}`} role="img"
-             aria-label={`Potência da sessão ao longo do tempo, pico de ${num(picoSerie, 1)} kW`}>
+        <svg
+          viewBox={`0 0 ${G.w} ${G.h}`}
+          role="img"
+          aria-label={`Potência da sessão ao longo do tempo, pico de ${num(picoSerie, 1)} kW`}
+        >
           <defs>
             <linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="var(--chart-fill-top)" />
@@ -508,20 +531,34 @@ function SessionChart({ sessionId }) {
 
           {ativo !== null && (
             <>
-              <line className="c-cross" x1={pontos[ativo][0]} x2={pontos[ativo][0]}
-                    y1={G.top} y2={G.top + PLOT_H} vectorEffect="non-scaling-stroke" />
+              <line
+                className="c-cross"
+                x1={pontos[ativo][0]}
+                x2={pontos[ativo][0]}
+                y1={G.top}
+                y2={G.top + PLOT_H}
+                vectorEffect="non-scaling-stroke"
+              />
               <circle className="c-end-ring" cx={pontos[ativo][0]} cy={pontos[ativo][1]} r="5.5" />
               <circle className="c-end" cx={pontos[ativo][0]} cy={pontos[ativo][1]} r="3.5" />
             </>
           )}
 
-          <text className="c-axis" x={G.left} y={G.h - 8}>{timeOnly(amostras[0].recorded_at)}</text>
+          <text className="c-axis" x={G.left} y={G.h - 8}>
+            {timeOnly(amostras[0].recorded_at)}
+          </text>
           <text className="c-axis" x={G.w - G.right} y={G.h - 8} textAnchor="end">
             {timeOnly(amostras[amostras.length - 1].recorded_at)}
           </text>
 
-          <rect x={G.left} y={G.top} width={PLOT_W} height={PLOT_H} fill="transparent"
-                onMouseMove={mover} />
+          <rect
+            x={G.left}
+            y={G.top}
+            width={PLOT_W}
+            height={PLOT_H}
+            fill="transparent"
+            onMouseMove={mover}
+          />
         </svg>
 
         {ativo !== null && (

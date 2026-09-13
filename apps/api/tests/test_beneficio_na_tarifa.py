@@ -30,9 +30,7 @@ def _sessao(energia="10", minutos=60):
 
 
 def _cobra(tarifa, beneficio=None, energia="10"):
-    return rate_session(
-        _sessao(energia), tarifa, [], timezone=SP, now=INICIO, beneficio=beneficio
-    )
+    return rate_session(_sessao(energia), tarifa, [], timezone=SP, now=INICIO, beneficio=beneficio)
 
 
 def _linha(resultado, kind):
@@ -223,7 +221,7 @@ def test_minimo_nao_retoma_a_franquia_do_plano():
 
 
 def test_o_rotulo_do_beneficio_chega_na_linha():
-    """"Desconto" sozinho nao diz de onde veio."""
+    """ "Desconto" sozinho nao diz de onde veio."""
     r = _cobra(make_tariff(), Beneficio("Plano Mensal", desconto_pct=Decimal("10")))
     assert "Plano Mensal" in _linha(r, "desconto").description
 

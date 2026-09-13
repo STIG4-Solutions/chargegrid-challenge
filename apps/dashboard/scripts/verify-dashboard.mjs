@@ -22,6 +22,9 @@ const saida = join(cache, 'painel.mjs')
 const saidaCampanha = join(cache, 'campanha.mjs')
 const saidaPrevisao = join(cache, 'previsao.mjs')
 const saidaContrato = join(cache, 'contrato.mjs')
+const saidaManutencao = join(cache, 'manutencao.mjs')
+const saidaAuditoria = join(cache, 'auditoria.mjs')
+const saidaContas = join(cache, 'contas.mjs')
 
 // Só os módulos puros entram. Importar um `.jsx` puxaria React e o SDK inteiro
 // para dentro do Node — e o que se quer verificar não depende de nenhum deles.
@@ -33,7 +36,10 @@ for (const [entrada, destino] of [
   ['src/views/ev/orcamento.js', saida],
   ['src/views/ev/campanha.js', saidaCampanha],
   ['src/views/ev/previsao.js', saidaPrevisao],
-  ['src/views/ev/contrato.js', saidaContrato]
+  ['src/views/ev/contrato.js', saidaContrato],
+  ['src/views/ev/manutencao.js', saidaManutencao],
+  ['src/views/ev/auditoria.js', saidaAuditoria],
+  ['src/views/ev/contas.js', saidaContas]
 ]) {
   await build({
     entryPoints: [join(raiz, entrada)],
@@ -45,12 +51,33 @@ for (const [entrada, destino] of [
 }
 
 const { alteracoesDoOrcamento, mudouPorBaixo } = await import(pathToFileURL(saida).href)
-const { problemasDaCampanha, consumoDoOrcamento, situacaoDaCampanha, alteracoesDaCampanha } =
-  await import(pathToFileURL(saidaCampanha).href)
-const { bandaConfiavel, superaARegua, temBanda, escalaDaBanda } =
-  await import(pathToFileURL(saidaPrevisao).href)
-const { mesesRestantes, multaPorRescisao, pontosExcedentes, proximaCobranca } =
-  await import(pathToFileURL(saidaContrato).href)
+const { rotuloDaCategoria, problemaNaResolucao, idadeEmPalavras, diasEmAberto, RESOLUCAO_MINIMA } =
+  await import(pathToFileURL(saidaManutencao).href)
+const { rotuloDaAcao, mudancas, comoTexto, abasDaSecao, podeEstornar } = await import(
+  pathToFileURL(saidaAuditoria).href
+)
+const {
+  SENHA_MINIMA,
+  corpoDaConta,
+  podeDesligar,
+  pracaDaConta,
+  problemaNaConta,
+  rotuloDoPapel,
+  ultimoAcesso
+} = await import(pathToFileURL(saidaContas).href)
+const {
+  problemasDaCampanha,
+  consumoDoOrcamento,
+  situacaoDaCampanha,
+  alteracoesDaCampanha,
+  corpoDaCampanha
+} = await import(pathToFileURL(saidaCampanha).href)
+const { bandaConfiavel, superaARegua, temBanda, escalaDaBanda } = await import(
+  pathToFileURL(saidaPrevisao).href
+)
+const { mesesRestantes, multaPorRescisao, pontosExcedentes, proximaCobranca } = await import(
+  pathToFileURL(saidaContrato).href
+)
 
 let falhas = 0
 const check = (nome, cond, extra = '') => {
@@ -110,7 +137,9 @@ check(
 // 4. Booleano compara como booleano, não como número.
 check(
   'desligar o solar e detectado',
-  mesmo(alteracoesDoOrcamento({ ...base, allow_pv_kw: false }, base, CHAVES), { allow_pv_kw: false })
+  mesmo(alteracoesDoOrcamento({ ...base, allow_pv_kw: false }, base, CHAVES), {
+    allow_pv_kw: false
+  })
 )
 
 // 4b. O caso que exige o desvio de booleano — e que o cenário acima NÃO
@@ -163,10 +192,7 @@ check(
 )
 
 // 9. Servidor parado: nada a avisar.
-check(
-  'sem mudanca alheia, sem aviso',
-  mesmo(mudouPorBaixo(base, base, CHAVES, meu), [])
-)
+check('sem mudanca alheia, sem aviso', mesmo(mudouPorBaixo(base, base, CHAVES, meu), []))
 
 // ---- formulário de campanha ----
 //
@@ -193,6 +219,60 @@ check(
   'campanha bem formada nao acusa problema',
   problemasDaCampanha(cashbackValida).length === 0,
   JSON.stringify(problemasDaCampanha(cashbackValida))
+)
+
+// ---- o corpo que vai para o servidor ----
+//
+// A tela guarda tudo como string, e o servidor não aceita string em campo
+// numérico nem `''` em campo opcional. É aqui que a tradução acontece, e é aqui
+// que ela pode errar em silêncio.
+
+const rascunhoCompleto = {
+  ...cashbackValida,
+  descricao: '',
+  patrocinador: 'site',
+  fleet_id: '',
+  teto_por_recompensa: '',
+  beneficio_valor: '5',
+  orcamento_brl: '1000',
+  missoes: [{ codigo: 'tres', titulo: 'Tres', metrica: 'sessoes', alvo: '3' }]
+}
+
+// 10a. Frota vazia é "todos", e a API espera `null`. Mandar `''` daria 422 num
+//      campo que o operador deixou em branco de propósito.
+check(
+  'frota em branco vira null',
+  corpoDaCampanha(rascunhoCompleto).fleet_id === null,
+  JSON.stringify(corpoDaCampanha(rascunhoCompleto).fleet_id)
+)
+
+// 10b. E a frota escolhida viaja como está.
+check(
+  'frota escolhida viaja no corpo',
+  corpoDaCampanha({ ...rascunhoCompleto, fleet_id: 'abc-123' }).fleet_id === 'abc-123'
+)
+
+// 10c. `site_id` nunca sai daqui: quem paga vem do escopo do token. Um campo
+//      aceito no corpo deixaria a tela parecer que escolhe.
+check(
+  'site_id nao viaja no corpo',
+  !('site_id' in corpoDaCampanha({ ...rascunhoCompleto, site_id: 'nao-deveria-ir' }))
+)
+
+// 10d. Os `<input type="number">` entregam string, e o servidor recusa string
+//      em campo numérico.
+check(
+  'numeros saem como numero',
+  typeof corpoDaCampanha(rascunhoCompleto).beneficio_valor === 'number' &&
+    typeof corpoDaCampanha(rascunhoCompleto).orcamento_brl === 'number' &&
+    typeof corpoDaCampanha(rascunhoCompleto).missoes[0].alvo === 'number'
+)
+
+// 10e. Teto em branco é ausência de teto, não zero. Zero seria um teto que
+//      impede qualquer recompensa - o oposto de deixar em branco.
+check(
+  'teto em branco vira null, nao zero',
+  corpoDaCampanha(rascunhoCompleto).teto_por_recompensa === null
 )
 
 // 11. Cashback sem missão não premia ninguém: não há o que cumprir.
@@ -254,8 +334,14 @@ check(
 //
 // Pintar a barra cheia diria exatamente o oposto do que é: sem teto, e não sem
 // saldo. O operador desligaria uma campanha que ainda está funcionando.
-check('sem orcamento a barra fica vazia, nao cheia', consumoDoOrcamento({ orcamento_brl: 0, consumido_brl: 0 }) === 0)
-check('consumo e proporcional', consumoDoOrcamento({ orcamento_brl: 200, consumido_brl: 50 }) === 25)
+check(
+  'sem orcamento a barra fica vazia, nao cheia',
+  consumoDoOrcamento({ orcamento_brl: 0, consumido_brl: 0 }) === 0
+)
+check(
+  'consumo e proporcional',
+  consumoDoOrcamento({ orcamento_brl: 200, consumido_brl: 50 }) === 25
+)
 check(
   'consumo nao passa de 100 mesmo estourado',
   consumoDoOrcamento({ orcamento_brl: 100, consumido_brl: 250 }) === 100
@@ -296,11 +382,17 @@ check(
 )
 check(
   'orcamento alheio nao viaja no PATCH',
-  !('orcamento_brl' in alteracoesDaCampanha({ ...baseCampanha, nome: 'Outubro' }, baseCampanha, CHAVES_CAMPANHA))
+  !(
+    'orcamento_brl' in
+    alteracoesDaCampanha({ ...baseCampanha, nome: 'Outubro' }, baseCampanha, CHAVES_CAMPANHA)
+  )
 )
 check(
   'string do input numerico nao vira alteracao fantasma',
-  mesmo(alteracoesDaCampanha({ ...baseCampanha, orcamento_brl: '1000' }, baseCampanha, CHAVES_CAMPANHA), {})
+  mesmo(
+    alteracoesDaCampanha({ ...baseCampanha, orcamento_brl: '1000' }, baseCampanha, CHAVES_CAMPANHA),
+    {}
+  )
 )
 check(
   'desativar a campanha e detectado',
@@ -369,7 +461,10 @@ check(
 // 24. A escala da barra.
 const comBanda = { fonte: 'modelo', kwh_p10: 5215, kwh_p90: 10005, kwh_previsto: 8283 }
 const escala = escalaDaBanda(comBanda)
-check('previsto cai dentro da banda desenhada', escala.previsto > escala.inicio && escala.previsto < escala.fim)
+check(
+  'previsto cai dentro da banda desenhada',
+  escala.previsto > escala.inicio && escala.previsto < escala.fim
+)
 check('a banda sobra dos dois lados', escala.inicio > 0 && escala.fim < 100)
 check('sem banda nao ha escala', escalaDaBanda({ fonte: 'media_movel' }) === null)
 // p10 == p90 seria divisão por zero e a barra sairia com NaN de largura.
@@ -394,7 +489,10 @@ check('prazo vencido nao deixa meses negativos', mesesRestantes(HOJE, '2025-01-0
 check('doze meses inteiros a frente contam doze', mesesRestantes(HOJE, '2027-09-10') === 12)
 
 // 26. O dia importa: dia 20 até dia 10 do mês seguinte não é um mês cheio.
-check('mes incompleto nao conta', mesesRestantes(new Date('2026-09-20T12:00:00Z'), '2026-10-10') === 0)
+check(
+  'mes incompleto nao conta',
+  mesesRestantes(new Date('2026-09-20T12:00:00Z'), '2026-10-10') === 0
+)
 check('mes completo conta', mesesRestantes(HOJE, '2026-10-10') === 1)
 
 // 27. A multa é proporcional ao que faltava.
@@ -433,8 +531,207 @@ const semMovimento = proximaCobranca(plano, 2, 0)
 check('sem faturamento a taxa e zero', semMovimento.transacao === 0)
 check('sem faturamento resta a mensalidade', semMovimento.total === 149)
 
+// ---- fila de reportes ----
+//
+// O que estas regras protegem é o tempo de quem vai até o ponto: uma categoria
+// impressa como nome de coluna, ou um fechamento vazio, transformam a fila num
+// botão de sumir com a reclamação.
+
+// 20. Categoria traduzida. `cabo_danificado` na tela é nome de coluna, e o
+//     recibo já cometeu esse erro uma vez.
+check(
+  'categoria conhecida sai em portugues',
+  rotuloDaCategoria('cabo_danificado') === 'Cabo danificado',
+  rotuloDaCategoria('cabo_danificado')
+)
+
+// 21. Categoria nova na API não pode apagar a linha - é justamente a que
+//     ninguém viu ainda que mais interessa aparecer.
+check(
+  'categoria desconhecida cai no valor cru',
+  rotuloDaCategoria('cabo_derretido') === 'cabo_derretido'
+)
+check('categoria ausente nao quebra', rotuloDaCategoria(undefined) === '—')
+
+// 22. Fechar exige dizer o que foi feito.
+check('resolucao vazia e recusada', problemaNaResolucao('   ') !== null)
+check('resolucao curta e recusada', problemaNaResolucao('ok') !== null)
+check('resolucao descritiva passa', problemaNaResolucao('Cabo trocado') === null)
+
+// 23. O piso espelha o do servidor: descobrir no 422 é a mesma informação
+//     chegando tarde.
+check(
+  'o piso e o mesmo do servidor',
+  RESOLUCAO_MINIMA === 3,
+  `min_length do ResolucaoIn = ${RESOLUCAO_MINIMA}`
+)
+
+// 24. Idade em palavras: a data crua obriga cada um a fazer a conta de cabeça.
+const AGORA = new Date('2026-09-12T12:00:00Z')
+check('hoje', idadeEmPalavras('2026-09-12T08:00:00Z', AGORA) === 'hoje')
+check('ontem', idadeEmPalavras('2026-09-11T08:00:00Z', AGORA) === 'ontem')
+check(
+  'ha N dias',
+  idadeEmPalavras('2026-09-01T12:00:00Z', AGORA) === 'há 11 dias',
+  idadeEmPalavras('2026-09-01T12:00:00Z', AGORA)
+)
+
+// 25. Data futura não vira idade negativa: relógio de cliente adiantado
+//     produziria "há -1 dias" na tela.
+check('data futura nao fica negativa', diasEmAberto('2026-09-13T12:00:00Z', AGORA) === 0)
+check('data invalida nao quebra', diasEmAberto('nao-e-data', AGORA) === null)
+
+// ---- trilha de auditoria ----
+//
+// A trilha era gravada e não tinha leitor. O que estas regras protegem é a
+// leitura: ação impressa como nome de evento, ou um objeto JSON despejado na
+// célula, tornam a tabela ilegível para quem precisa dela.
+
+// 26. Ação traduzida. `carteira.ajustada` é nome de evento.
+check(
+  'acao conhecida sai em portugues',
+  rotuloDaAcao('carteira.ajustada') === 'Saldo corrigido à mão',
+  rotuloDaAcao('carteira.ajustada')
+)
+check('acao desconhecida cai no valor cru', rotuloDaAcao('algo.novo') === 'algo.novo')
+
+// 27. O que interessa a quem audita é o que MUDOU, não o retrato de cada lado.
+//
+// `mesmo` é PREDICADO, não asserção: solto, o resultado se perde e o cenário
+// não verifica nada. Foi o que aconteceu na primeira versão destes três, e o
+// teste de mutação pegou — remover o filtro de `mudancas` não quebrava nada.
+check(
+  'o diff traz so o que mudou',
+  mesmo(mudancas({ saldo: 10, motivo: 'x' }, { saldo: 25, motivo: 'x' }), [
+    { campo: 'saldo', de: 10, para: 25 }
+  ]),
+  JSON.stringify(mudancas({ saldo: 10, motivo: 'x' }, { saldo: 25, motivo: 'x' }))
+)
+
+// 28. Chave só de um lado também aparece: criar campanha não tem "antes", e é
+//     exatamente isso que a linha deve mostrar.
+check(
+  'campo novo aparece sem antes',
+  mesmo(mudancas({}, { nome: 'Setembro' }), [{ campo: 'nome', de: undefined, para: 'Setembro' }])
+)
+
+// 29. Objeto igual dos dois lados não polui a lista - comparado por VALOR, e
+//     não por referência: dois objetos iguais nunca são o mesmo objeto.
+check('objeto igual nao entra no diff', mesmo(mudancas({ cfg: { a: 1 } }, { cfg: { a: 1 } }), []))
+
+// 30. Objeto diferente entra, comparado por valor e não por referência.
+check('objeto alterado aparece', mudancas({ cfg: { a: 1 } }, { cfg: { a: 2 } }).length === 1)
+
+// 31. `***` vem mascarado do servidor e passa direto: mascarar de novo
+//     esconderia que houve mascaramento, e quem audita precisa ver que ali
+//     existia um segredo.
+check('a mascara do servidor e preservada', comoTexto('***') === '***')
+check('nulo vira travessao', comoTexto(null) === '—' && comoTexto(undefined) === '—')
+check('objeto vira json legivel', comoTexto({ a: 1 }) === '{"a":1}')
+
+// 32. A aba de auditoria e' de ADMIN, e nao "de quem ve mais de uma praca". A
+//     rota recusa operador, e aba que sempre volta 403 e' pior que aba nenhuma.
+const MODS = [{ to: '/ev/power', label: 'Potência' }]
+check(
+  'operador nao ve a aba de auditoria',
+  !abasDaSecao(MODS, { rede: true, isAdmin: false }).some((a) => a.to === '/ev/audit')
+)
+check(
+  'admin ve a aba de auditoria',
+  abasDaSecao(MODS, { rede: false, isAdmin: true }).some((a) => a.to === '/ev/audit')
+)
+check(
+  'visao de rede continua sendo por numero de pracas',
+  abasDaSecao(MODS, { rede: true, isAdmin: false }).some((a) => a.to === '/ev/portfolio')
+)
+
+// 33. Estornar: so' admin, e so' fatura paga. Em aberto devolveria dinheiro que
+//     nunca entrou; como operador, devolveria do caixa da rede.
+check('operador nao estorna', podeEstornar({ status: 'paid' }, false) === false)
+check('admin estorna fatura paga', podeEstornar({ status: 'paid' }, true) === true)
+check('fatura em aberto nao estorna', podeEstornar({ status: 'open' }, true) === false)
+check('fatura ausente nao quebra', podeEstornar(undefined, true) === false)
+
+// ---------------------------------------------------------------- contas
+//
+// 34. Operador sem praça é a regra menos óbvia desta tela e a mais cara de
+//     errar: `get_scoped_site_id` devolve o PRIMEIRO site da rede para quem não
+//     tem `site_id`. O operador não ficaria sem acesso — ficaria com o acesso
+//     da praça de outra pessoa, e nada na tela dele diria isso.
+const OPERADOR = {
+  nome: 'Maria Souza',
+  email: 'maria@empresa.com',
+  senha: 'senha-comprida',
+  papel: 'operator',
+  siteId: 's1'
+}
+check('operador com praca pode', problemaNaConta(OPERADOR) === null)
+check('operador SEM praca nao pode', problemaNaConta({ ...OPERADOR, siteId: '' }) !== null)
+check('admin sem praca pode', problemaNaConta({ ...OPERADOR, papel: 'admin', siteId: '' }) === null)
+
+// 35. Os pisos espelham o servidor, e errar para menos é melhor que para mais.
+check('nome curto nao passa', problemaNaConta({ ...OPERADOR, nome: 'M' }) !== null)
+check('email torto nao passa', problemaNaConta({ ...OPERADOR, email: 'maria' }) !== null)
+check(
+  'senha curta nao passa',
+  problemaNaConta({ ...OPERADOR, senha: 'x'.repeat(SENHA_MINIMA - 1) }) !== null
+)
+check(
+  'senha no piso passa',
+  problemaNaConta({ ...OPERADOR, senha: 'x'.repeat(SENHA_MINIMA) }) === null
+)
+
+// 36. Admin é global: mandar a praça dele sugeriria que ficou restrito a ela.
+check('corpo de operador leva a praca', corpoDaConta(OPERADOR).site_id === 's1')
+check(
+  'corpo de admin nao leva praca',
+  corpoDaConta({ ...OPERADOR, papel: 'admin' }).site_id === null
+)
+check(
+  'email vai em minusculas',
+  corpoDaConta({ ...OPERADOR, email: '  Maria@Empresa.COM ' }).email === 'maria@empresa.com'
+)
+check('senha vai como foi digitada', corpoDaConta(OPERADOR).password === 'senha-comprida')
+
+// 37. O servidor recusa desligar a própria conta com 409. O botão nasce apagado
+//     em vez de a pessoa descobrir depois do clique.
+check('nao desligo a mim mesmo', podeDesligar({ id: 'eu', is_active: true }, 'eu') === false)
+check('desligo outro', podeDesligar({ id: 'outro', is_active: true }, 'eu') === true)
+check(
+  'ja desligado nao desliga de novo',
+  podeDesligar({ id: 'outro', is_active: false }, 'eu') === false
+)
+
+// 38. Admin sem praça é o NORMAL — ele enxerga a rede inteira. Escrever "—"
+//     sugeriria dado faltando, e alguém iria "corrigir".
+check(
+  'admin sem praca diz que ve a rede',
+  pracaDaConta({ role: 'admin', site_nome: null }) === 'toda a rede'
+)
+check(
+  'operador com praca mostra a praca',
+  pracaDaConta({ role: 'operator', site_nome: 'Shopping' }) === 'Shopping'
+)
+check('papel desconhecido nao apaga a linha', rotuloDoPapel('auditor') === 'auditor')
+check('papel conhecido e traduzido', rotuloDoPapel('operator') === 'Operador')
+
+// 39. "nunca entrou" é a informação que esta tela existe para dar.
+check('sem acesso diz nunca entrou', ultimoAcesso(null) === 'nunca entrou')
+check('data invalida nao vira Invalid Date', ultimoAcesso('nao-e-data') === 'nunca entrou')
+check('data valida e formatada', /\d{2}\/\d{2}\/\d{4}/.test(ultimoAcesso('2026-09-01T10:00:00Z')))
+
+// 40. A aba de contas é de ADMIN, como a de auditoria: a rota recusa operador,
+//     e aba que só devolve 403 é pior que aba nenhuma.
+const abasAdmin = abasDaSecao([], { rede: false, isAdmin: true }).map((a) => a.to)
+const abasOperador = abasDaSecao([], { rede: false, isAdmin: false }).map((a) => a.to)
+check('admin ve a aba de contas', abasAdmin.includes('/ev/users'))
+check('operador nao ve a aba de contas', !abasOperador.includes('/ev/users'))
+
+rmSync(saidaContas, { force: true })
 rmSync(saida, { force: true })
 rmSync(saidaCampanha, { force: true })
+rmSync(saidaManutencao, { force: true })
+rmSync(saidaAuditoria, { force: true })
 rmSync(saidaPrevisao, { force: true })
 rmSync(saidaContrato, { force: true })
 console.log(falhas === 0 ? '\nTodos os cenarios passaram.' : `\n${falhas} falha(s).`)

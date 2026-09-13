@@ -12,9 +12,10 @@ from fastapi import APIRouter, HTTPException, Response
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.core.deps import DbSession, OperatorUser, ScopedSiteId
+from app.core.deps import Auditor, DbSession, OperatorUser, ScopedSiteId
 from app.models.campaign import Campaign, Mission
-from app.schemas.campanha import CampanhaIn, CampanhaOut, DesempenhoOut
+from app.models.fleet import Fleet
+from app.schemas.campanha import CampanhaIn, CampanhaOut, DesempenhoOut, FrotaOut
 from app.services import campaign_service
 
 router = APIRouter(prefix="/campaigns", tags=["campanhas"])
@@ -39,10 +40,32 @@ async def _da_praca(db, campanha_id: uuid.UUID, site_id: uuid.UUID) -> Campaign:
     if campanha.site_id != site_id:
         # Campanha de rede (site_id nulo) e' visivel mas nao editavel por
         # operador de praca: quem paga e' a rede.
-        raise HTTPException(
-            status_code=403, detail="esta campanha não pertence à sua praça"
-        )
+        raise HTTPException(status_code=403, detail="esta campanha não pertence à sua praça")
     return campanha
+
+
+@router.get("/fleets", response_model=list[FrotaOut])
+async def frotas(db: DbSession, _: OperatorUser):
+    """As frotas as quais uma campanha pode ser dirigida.
+
+    Fica sob `/campaigns` porque e' isto que ela serve: preencher o seletor do
+    formulario. Uma rota `/fleets` de proposito geral prometeria administracao
+    de frota, que nao existe neste painel.
+
+    ID E NOME, e mais nada. `Fleet` tem CNPJ e e-mail de cobranca, e o operador
+    de uma praca nao precisa de nenhum dos dois para dirigir uma campanha - sao
+    dados comerciais de uma empresa que nao e' cliente dele.
+
+    Sem escopo por site, e isso e' deliberado: frota nao pertence a praca
+    nenhuma. Dirigir uma campanha a uma frota nao custa nada a ela - quem paga
+    continua sendo o estabelecimento ou a rede, pelo tipo de beneficio -, entao
+    nao ha o que proteger aqui alem do dado pessoal, que ja ficou de fora.
+    """
+    return (
+        (await db.execute(select(Fleet).where(Fleet.active.is_(True)).order_by(Fleet.name)))
+        .scalars()
+        .all()
+    )
 
 
 @router.get("", response_model=list[CampanhaOut])
@@ -51,7 +74,9 @@ async def listar(db: DbSession, _: OperatorUser, site_id: ScopedSiteId):
 
 
 @router.post("", response_model=CampanhaOut, status_code=201)
-async def criar(payload: CampanhaIn, db: DbSession, _: OperatorUser, site_id: ScopedSiteId):
+async def criar(
+    payload: CampanhaIn, db: DbSession, _: OperatorUser, site_id: ScopedSiteId, aud: Auditor
+):
     # O site vem do escopo, nunca do corpo: aceitar `site_id` do payload deixaria
     # um operador criar campanha paga pelo vizinho.
     if payload.patrocinador == "site":
@@ -64,6 +89,10 @@ async def criar(payload: CampanhaIn, db: DbSession, _: OperatorUser, site_id: Sc
         descricao=payload.descricao,
         patrocinador=payload.patrocinador,
         site_id=dono,
+        # Vem do corpo, ao contrario de `site_id`: dizer PARA QUEM a campanha
+        # vale nao move dinheiro de ninguem - quem paga e' determinado pelo tipo
+        # de beneficio. Escolher o site, sim, cederia a margem do vizinho.
+        fleet_id=payload.fleet_id,
         starts_at=payload.starts_at,
         ends_at=payload.ends_at,
         ativa=payload.ativa,
@@ -78,6 +107,21 @@ async def criar(payload: CampanhaIn, db: DbSession, _: OperatorUser, site_id: Sc
 
     for missao in payload.missoes:
         db.add(Mission(campaign_id=campanha.id, **missao.model_dump()))
+
+    # Campanha e' orcamento comprometido: quem a criou, quando, e com que teto.
+    await aud.registrar(
+        db,
+        "campanha.criada",
+        "campaign",
+        entidade_id=campanha.id,
+        depois={
+            "nome": campanha.nome,
+            "patrocinador": campanha.patrocinador,
+            "beneficio": f"{campanha.beneficio_tipo} {campanha.beneficio_valor}",
+            "orcamento_brl": float(campanha.orcamento_brl),
+            "fleet_id": str(campanha.fleet_id) if campanha.fleet_id else None,
+        },
+    )
     await db.commit()
 
     return (
@@ -134,9 +178,7 @@ async def atualizar(
 
 
 @router.get("/{campanha_id}/desempenho", response_model=DesempenhoOut)
-async def desempenho(
-    campanha_id: uuid.UUID, db: DbSession, _: OperatorUser, site_id: ScopedSiteId
-):
+async def desempenho(campanha_id: uuid.UUID, db: DbSession, _: OperatorUser, site_id: ScopedSiteId):
     campanha = (
         await db.execute(
             select(Campaign)
@@ -153,11 +195,9 @@ async def desempenho(
     return await campaign_service.desempenho(db, campanha)
 
 
-@router.delete(
-    "/{campanha_id}", status_code=204, response_model=None, response_class=Response
-)
+@router.delete("/{campanha_id}", status_code=204, response_model=None, response_class=Response)
 async def encerrar(
-    campanha_id: uuid.UUID, db: DbSession, _: OperatorUser, site_id: ScopedSiteId
+    campanha_id: uuid.UUID, db: DbSession, _: OperatorUser, site_id: ScopedSiteId, aud: Auditor
 ):
     """Encerra a campanha. NAO apaga.
 
@@ -168,5 +208,13 @@ async def encerrar(
     """
     campanha = await _da_praca(db, campanha_id, site_id)
     campanha.ativa = False
+    await aud.registrar(
+        db,
+        "campanha.encerrada",
+        "campaign",
+        entidade_id=campanha.id,
+        antes={"ativa": True},
+        depois={"ativa": False, "consumido_brl": float(campanha.consumido_brl)},
+    )
     await db.commit()
     return Response(status_code=204)

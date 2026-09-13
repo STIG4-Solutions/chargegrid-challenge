@@ -27,7 +27,16 @@ await build({
 })
 
 const sdk = await import(pathToFileURL(saida).href)
-const { api, ApiError, configureSdk, currentTokens, hydrateTokens, saveTokens, socketUrl, accessToken } = sdk
+const {
+  api,
+  ApiError,
+  configureSdk,
+  currentTokens,
+  hydrateTokens,
+  saveTokens,
+  socketUrl,
+  accessToken
+} = sdk
 
 // Armazenamento assíncrono de propósito: é o do React Native. Se o SDK
 // funciona com este, funciona com o localStorage síncrono da web.
@@ -54,9 +63,15 @@ globalThis.fetch = async (url, init = {}) => {
 
   if (u.includes('/auth/refresh')) {
     refreshCount++
-    if (recusarRefresh) return new Response(JSON.stringify({ detail: 'refresh expirado' }), { status: 401 })
+    if (recusarRefresh)
+      return new Response(JSON.stringify({ detail: 'refresh expirado' }), { status: 401 })
     return new Response(
-      JSON.stringify({ access_token: 'novo', refresh_token: 'r2', token_type: 'bearer', expires_in: 3600 }),
+      JSON.stringify({
+        access_token: 'novo',
+        refresh_token: 'r2',
+        token_type: 'bearer',
+        expires_in: 3600
+      }),
       { status: 200, headers: { 'content-type': 'application/json' } }
     )
   }
@@ -66,11 +81,16 @@ globalThis.fetch = async (url, init = {}) => {
     return new Response(JSON.stringify({ detail: 'credenciais invalidas' }), { status: 401 })
   }
   if (u.includes('/conflito')) {
-    return new Response(JSON.stringify({ code: 'invalid_transition', detail: 'sessao ja encerrada' }), { status: 409 })
+    return new Response(
+      JSON.stringify({ code: 'invalid_transition', detail: 'sessao ja encerrada' }),
+      { status: 409 }
+    )
   }
   if (u.includes('/validacao')) {
     return new Response(
-      JSON.stringify({ detail: [{ loc: ['body', 'limit_kw'], msg: 'Input should be less than 350' }] }),
+      JSON.stringify({
+        detail: [{ loc: ['body', 'limit_kw'], msg: 'Input should be less than 350' }]
+      }),
       { status: 422 }
     )
   }
@@ -98,7 +118,10 @@ const retomada = await api.get('/expira')
 check('401 dispara refresh e repete a chamada', retomada?.ok === true)
 check('refresh executado uma vez', refreshCount === 1, `refreshCount=${refreshCount}`)
 check('token novo persistido', currentTokens().access_token === 'novo')
-check('token novo gravado no armazenamento', JSON.parse(store.get('chargegrid.tokens')).access_token === 'novo')
+check(
+  'token novo gravado no armazenamento',
+  JSON.parse(store.get('chargegrid.tokens')).access_token === 'novo'
+)
 
 // 2. Refresh único mesmo com várias chamadas simultâneas tomando 401.
 await saveTokens({ access_token: 'velho', refresh_token: 'r1' })
@@ -111,7 +134,11 @@ try {
   await api.post('/conflito')
   check('erro de dominio propagado', false)
 } catch (err) {
-  check('erro de dominio propagado', err instanceof ApiError && err.code === 'invalid_transition' && err.status === 409, err.detail)
+  check(
+    'erro de dominio propagado',
+    err instanceof ApiError && err.code === 'invalid_transition' && err.status === 409,
+    err.detail
+  )
 }
 
 // 4. Erro de validação do FastAPI vira mensagem legível.
@@ -119,7 +146,11 @@ try {
   await api.post('/validacao')
   check('422 formatado', false)
 } catch (err) {
-  check('422 formatado por campo', err.detail.includes('limit_kw') && err.detail.includes('less than 350'), err.detail)
+  check(
+    '422 formatado por campo',
+    err.detail.includes('limit_kw') && err.detail.includes('less than 350'),
+    err.detail
+  )
 }
 
 // 5. Backend fora do ar é sinalizado como offline, não como erro genérico.
@@ -137,7 +168,11 @@ await api.get('/sessions', { state: undefined, limit: 100 })
 check('params vazios omitidos da URL', calls[0] === 'GET /api/v1/sessions?limit=100', calls[0])
 
 // 7. URL do WebSocket com token e protocolo corretos.
-check('websocket usa ws:// e leva o token', socketUrl('/ws/site', accessToken()) === 'ws://localhost:8000/api/v1/ws/site?token=novo', socketUrl('/ws/site', accessToken()))
+check(
+  'websocket usa ws:// e leva o token',
+  socketUrl('/ws/site', accessToken()) === 'ws://localhost:8000/api/v1/ws/site?token=novo',
+  socketUrl('/ws/site', accessToken())
+)
 
 // 8. Refresh recusado encerra a sessão e avisa o app (é o que desloga a tela).
 recusarRefresh = true
@@ -150,7 +185,10 @@ try {
   check('refresh recusado propaga erro', true)
 }
 check('sessao expirada notificada ao app', sessaoExpirou === 1, `chamadas=${sessaoExpirou}`)
-check('tokens descartados apos refresh recusado', currentTokens() === null && !store.has('chargegrid.tokens'))
+check(
+  'tokens descartados apos refresh recusado',
+  currentTokens() === null && !store.has('chargegrid.tokens')
+)
 
 // Uma baseUrl vazia nao pode apagar a que ja esta configurada.
 //
@@ -160,9 +198,17 @@ check('tokens descartados apos refresh recusado', currentTokens() === null && !s
 // na primeira chamada.
 const wsAntes = socketUrl('/ws/site', accessToken())
 configureSdk({ baseUrl: '' })
-check('baseUrl vazia nao apaga a configurada', socketUrl('/ws/site', accessToken()) === wsAntes, socketUrl('/ws/site', accessToken()))
+check(
+  'baseUrl vazia nao apaga a configurada',
+  socketUrl('/ws/site', accessToken()) === wsAntes,
+  socketUrl('/ws/site', accessToken())
+)
 configureSdk({ baseUrl: 'http://localhost:8000/' })
-check('barra final e removida', socketUrl('/ws/site', accessToken()) === wsAntes, socketUrl('/ws/site', accessToken()))
+check(
+  'barra final e removida',
+  socketUrl('/ws/site', accessToken()) === wsAntes,
+  socketUrl('/ws/site', accessToken())
+)
 
 rmSync(saida, { force: true })
 console.log(falhas === 0 ? '\nTodos os cenarios passaram.' : `\n${falhas} falha(s).`)

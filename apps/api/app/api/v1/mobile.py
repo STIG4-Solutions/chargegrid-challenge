@@ -111,9 +111,7 @@ async def nearby_stations(
     if ids_de_tarifa:
         precos = {
             t.id: float(t.price_per_kwh)
-            for t in (
-                await db.execute(select(Tariff).where(Tariff.id.in_(ids_de_tarifa)))
-            )
+            for t in (await db.execute(select(Tariff).where(Tariff.id.in_(ids_de_tarifa))))
             .scalars()
             .all()
         }
@@ -162,9 +160,7 @@ async def nearby_stations(
 
 
 @router.get("/stations/{site_id}/charge-points")
-async def station_points(
-    site_id: uuid.UUID, db: DbSession, _: DriverUser
-) -> list[StationPointOut]:
+async def station_points(site_id: uuid.UUID, db: DbSession, _: DriverUser) -> list[StationPointOut]:
     points = (
         (
             await db.execute(
@@ -392,9 +388,7 @@ async def create_reservation(payload: ReservationCreate, db: DbSession, user: Dr
         await db.execute(
             select(func.count(Reservation.id)).where(
                 Reservation.user_id == user.id,
-                Reservation.status.in_(
-                    [ReservationStatus.PENDING, ReservationStatus.CONFIRMED]
-                ),
+                Reservation.status.in_([ReservationStatus.PENDING, ReservationStatus.CONFIRMED]),
                 Reservation.ends_at > agora,
             )
         )
@@ -592,13 +586,12 @@ async def delete_vehicle(vehicle_id: uuid.UUID, db: DbSession, user: DriverUser)
         )
     ).first()
     if em_uso is not None:
-        raise HTTPException(
-            status_code=409, detail="este veículo está em uma recarga em andamento"
-        )
+        raise HTTPException(status_code=409, detail="este veículo está em uma recarga em andamento")
 
     await db.delete(veiculo)
     await db.commit()
     return Response(status_code=204)
+
 
 @router.get("/invoices", response_model=list[InvoiceOut])
 async def my_invoices(
@@ -669,18 +662,14 @@ async def when_to_start(
     atravessa a virada no meio, e o preço médio que ela paga não é o de
     nenhuma das duas pontas.
     """
-    return await start_advice_service.quando_comecar(
-        db, charge_point_id, kwh=kwh, horas=horas
-    )
+    return await start_advice_service.quando_comecar(db, charge_point_id, kwh=kwh, horas=horas)
 
 
 # ------------------------------------------------------------------ push
 
 
 @router.post("/push-devices", status_code=204, response_class=Response, response_model=None)
-async def register_push_device(
-    payload: PushDeviceIn, db: DbSession, user: DriverUser
-) -> Response:
+async def register_push_device(payload: PushDeviceIn, db: DbSession, user: DriverUser) -> Response:
     """Registra (ou reaponta) o aparelho deste motorista.
 
     O token pertence ao aparelho, não à pessoa. Dois motoristas usando o mesmo

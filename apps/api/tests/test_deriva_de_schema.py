@@ -1,4 +1,4 @@
-"""Os modelos e as migrations descrevem o mesmo banco.
+"""Os modelos e as migrations descrevem o mesmo banco - e com nomes legiveis.
 
 `alembic check` responde isso, e o projeto passou meses com ele VERMELHO por
 deriva acumulada: cinco check constraints e um indice parcial existiam apenas
@@ -13,6 +13,17 @@ migration ja aplicada, um nome de constraint truncado pelo Postgres -, o
 comando ja estava vermelho havia tanto tempo que a saida nao dizia nada.
 
 Este teste existe para o vermelho voltar a significar alguma coisa.
+
+ARMADILHA AO MEXER NESTES TESTES. O banco de teste PERSISTE entre execucoes, e o
+`conftest` so' roda `alembic upgrade head` - que nao faz nada num banco ja no
+head. Entao mudar uma migration e rodar a suite NAO exercita a mudanca: o schema
+continua o que a execucao anterior deixou. Para conferir de verdade:
+
+    docker compose --env-file .env exec -T db psql -U chargegrid -d postgres
+        -c "DROP DATABASE IF EXISTS chargegrid_test WITH (FORCE);"
+
+Sem isso, uma migration quebrada passa na suite - foi o que aconteceu duas vezes
+ao verificar as mutacoes de 0020 e de 0022.
 """
 
 from __future__ import annotations
@@ -20,6 +31,7 @@ from __future__ import annotations
 import asyncio
 
 import pytest
+from sqlalchemy import text
 
 from app.core.config import settings
 
@@ -59,3 +71,74 @@ async def test_modelos_e_migrations_descrevem_o_mesmo_banco(url_de_teste, prepar
             )
     finally:
         settings.database_url_override = anterior
+
+
+# O `alembic check` acima NAO pega o que este teste pega. Se o modelo declara o
+# nome completo e a migration o cria com o nome completo, os dois concordam e o
+# check fica verde - com o prefixo dobrado no banco dos dois lados. Foi assim
+# que 21 constraints passaram meses erradas.
+LIMITE_DE_IDENTIFICADOR = 63
+
+# Quanto se exige de folga antes de reclamar. Um nome a um caractere do teto
+# passa hoje e some amanha, quando alguem renomear a tabela.
+FOLGA_MINIMA = 3
+
+
+async def test_nenhum_nome_de_constraint_tem_prefixo_dobrado(db):
+    """`ck_campaigns_ck_campaigns_beneficio` nao pode voltar a existir.
+
+    A NAMING_CONVENTION de `Base.metadata` e' `ck_%(table_name)s_%(constraint_
+    name)s`: quem escreve `name="ck_campaigns_beneficio"` no modelo nao esta
+    escolhendo o nome final, esta escolhendo o SUFIXO - e a convencao prefixa
+    por cima.
+
+    Alem de ilegivel na mensagem de erro do Postgres, o nome dobrado gasta duas
+    vezes o nome da tabela no orcamento de 63 caracteres, e o Postgres trunca em
+    SILENCIO: a migration seguinte nao acha mais a constraint que ela criou.
+
+    Quebrou? No `__table_args__` do modelo, use o nome CURTO.
+    """
+    linhas = (
+        await db.execute(
+            text(
+                """
+                SELECT c.conname, t.relname
+                FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid
+                WHERE c.connamespace = 'public'::regnamespace
+                  AND c.conname ~ ('^(ck|uq|fk)_' || t.relname || '_(ck|uq|fk)_' || t.relname)
+                ORDER BY c.conname
+                """
+            )
+        )
+    ).all()
+    assert not linhas, "nomes com prefixo dobrado:\n  " + "\n  ".join(
+        f"{nome}  (tabela {tabela}: declare como o sufixo apenas)" for nome, tabela in linhas
+    )
+
+
+async def test_nenhum_nome_esta_perto_do_limite_do_postgres(db):
+    """O Postgres corta em 63 caracteres sem avisar.
+
+    Nao ha o que consertar automaticamente aqui - a convencao de FK
+    (`fk_<tabela>_<coluna>_<tabela_referida>`) produz nomes longos por
+    construcao. O teste existe para que passar do teto seja uma falha de suite,
+    e nao uma constraint que desaparece do banco em silencio.
+
+    Quebrou? Ou a tabela nova tem nome grande demais, ou a constraint precisa de
+    nome explicito mais curto no `__table_args__`.
+    """
+    linhas = (
+        await db.execute(
+            text(
+                "SELECT conname, length(conname) FROM pg_constraint "
+                "WHERE connamespace = 'public'::regnamespace "
+                "ORDER BY length(conname) DESC LIMIT 5"
+            )
+        )
+    ).all()
+    teto = LIMITE_DE_IDENTIFICADOR - FOLGA_MINIMA
+    apertados = [(n, tam) for n, tam in linhas if tam > teto]
+    assert not apertados, (
+        f"nomes a menos de {FOLGA_MINIMA} caracteres do limite de "
+        f"{LIMITE_DE_IDENTIFICADOR}:\n  " + "\n  ".join(f"{n} ({tam})" for n, tam in apertados)
+    )

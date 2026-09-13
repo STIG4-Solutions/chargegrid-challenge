@@ -27,7 +27,9 @@ function Stat({ rotulo, valor, nota, destaque }) {
   return (
     <div className="stat">
       <div className="label">{rotulo}</div>
-      <div className="value" style={destaque ? { color: 'var(--sems-red)' } : undefined}>{valor}</div>
+      <div className="value" style={destaque ? { color: 'var(--sems-red)' } : undefined}>
+        {valor}
+      </div>
       <div className="trend muted">{nota}</div>
     </div>
   )
@@ -41,7 +43,9 @@ function Rede({ d }) {
     return (
       <div className="card">
         <h3 style={{ margin: '0 0 4px', fontSize: 15 }}>Visão de rede</h3>
-        <p className="muted" style={{ fontSize: 13, margin: 0 }}>Nenhuma praça cadastrada.</p>
+        <p className="muted" style={{ fontSize: 13, margin: 0 }}>
+          Nenhuma praça cadastrada.
+        </p>
       </div>
     )
   }
@@ -115,7 +119,9 @@ function Rede({ d }) {
                 <td style={{ textAlign: 'right' }}>
                   <span
                     style={
-                      s.disponibilidade_pct < 90 ? { color: 'var(--sems-red)', fontWeight: 600 } : undefined
+                      s.disponibilidade_pct < 90
+                        ? { color: 'var(--sems-red)', fontWeight: 600 }
+                        : undefined
                     }
                   >
                     {num(s.disponibilidade_pct, 0)}%

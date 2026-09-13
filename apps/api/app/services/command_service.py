@@ -27,6 +27,7 @@ COMMANDS = {
     "push_reservation": lambda d, hour, minute, duration_min, **_: d.push_reservation(
         hour, minute, duration_min
     ),
+    "clear_reservation": lambda d, **_: d.clear_reservation(),
 }
 
 

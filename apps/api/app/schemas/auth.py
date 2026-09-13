@@ -29,14 +29,26 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
-class UserCreate(BaseModel):
+class RegistroPublicoIn(BaseModel):
+    """Cadastro pelo app do motorista. Rota PUBLICA, sem token.
+
+    NAO tem `role` nem `site_id`, e a ausencia dos dois e' a regra de seguranca -
+    nao esquecimento. A rota fixa `role="driver"` no corpo da funcao, entao
+    aceita-los aqui esta' seguro HOJE por causa de como a funcao foi escrita, e
+    nao por causa do contrato. No dia em que alguem trocar a construcao
+    explicita por `User(**payload.model_dump())` - que e' o idioma usado em
+    `mobile.py:538` e `power.py:454` - vira escalacao de privilegio silenciosa:
+    qualquer pessoa na internet criaria um admin.
+
+    Quem cria operador e admin e' o admin da rede, por rota propria e
+    autenticada.
+    """
+
     email: EmailStr
     full_name: str = Field(min_length=2, max_length=160)
     password: str = Field(min_length=8)
-    role: UserRole = UserRole.DRIVER
     phone: str | None = None
     document: str | None = None
-    site_id: uuid.UUID | None = None
 
 
 class UserOut(ORMModel):
@@ -155,3 +167,57 @@ class CentroDeCustoIn(BaseModel):
     """Vazio ou so' espacos limpa o centro de custo do veiculo."""
 
     centro_de_custo: str | None = Field(default=None, max_length=60)
+
+
+class ContaNovaIn(BaseModel):
+    """Conta de operacao criada por um admin da rede.
+
+    Existe separada de `RegistroPublicoIn` porque as duas rotas respondem a
+    perguntas opostas: aquela e' publica e NAO pode escolher papel; esta e'
+    autenticada, restrita a admin, e escolher o papel e' a razao dela existir.
+    Um schema so' para as duas obrigaria a rota publica a ignorar campos - que
+    foi exatamente o arranjo fragil que a 0027 desfez.
+
+    `role` nao aceita `driver`: motorista se cadastra sozinho pelo app, e criar
+    um daqui produziria uma conta sem senha escolhida pelo dono dela.
+    """
+
+    email: EmailStr
+    full_name: str = Field(min_length=2, max_length=160)
+    password: str = Field(min_length=8)
+    role: Literal["operator", "admin"]
+    # Obrigatorio para operador, e a rota recusa sem ele. Nao e' burocracia:
+    # `get_scoped_site_id` cai no PRIMEIRO site da rede quando nao ha `site_id`,
+    # entao um operador sem praca nao fica sem acesso - fica com o acesso da
+    # praca errada, em silencio.
+    site_id: uuid.UUID | None = None
+
+
+class ContaAtivaIn(BaseModel):
+    """Ligar ou desligar uma conta. Nao ha apagar."""
+
+    is_active: bool
+
+
+class ContaOut(ORMModel):
+    """O que a tela de contas mostra.
+
+    Deliberadamente menos que `UserOut`: saldo de carteira, telefone e documento
+    sao dados do MOTORISTA, e nao tem o que fazer numa tela sobre quem opera a
+    rede. `last_login_at` entra porque e' a pergunta que essa tela responde e
+    nenhuma outra - conta criada e nunca usada.
+
+    Herda `ORMModel` para ENTRAR na guarda de `test_cobertura_de_schema`: aquela
+    varredura so' enxerga subclasses de `ORMModel`, entao um schema de resposta
+    em `BaseModel` escaparia tanto da tabela de omissoes quanto da checagem de
+    campo sigiloso - e este aqui carrega colunas de `User`.
+    """
+
+    id: uuid.UUID
+    email: EmailStr
+    full_name: str
+    role: UserRole
+    is_active: bool
+    site_id: uuid.UUID | None
+    site_nome: str | None
+    last_login_at: datetime | None

@@ -13,9 +13,11 @@ from decimal import Decimal
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from app.models.campaign import Campaign, Mission, MissionProgress
 from app.models.enums import AuthMethod, SessionState, StopReason
+from app.models.fleet import Fleet
 from app.models.session import ChargingSession
 from app.services import billing_service, campaign_service, session_service
 
@@ -146,9 +148,7 @@ async def test_sessao_sem_dono_nao_gera_progresso(db, ponto, tarifa):
     campanha = await _campanha(db)
     await _missao(db, campanha)
 
-    sessao = await session_service.authorize(
-        db, ponto, user=None, auth_method=AuthMethod.RFID
-    )
+    sessao = await session_service.authorize(db, ponto, user=None, auth_method=AuthMethod.RFID)
     await session_service.start(db, sessao, ponto)
     sessao.energy_kwh = 10.0
     sessao.state = SessionState.FINISHED
@@ -194,9 +194,7 @@ async def test_faturar_a_mesma_sessao_duas_vezes_nao_dobra_o_progresso(
 
     fatura = await _sessao_faturada(db, ponto, motorista)
     sessao = (
-        await db.execute(
-            select(ChargingSession).where(ChargingSession.id == fatura.session_id)
-        )
+        await db.execute(select(ChargingSession).where(ChargingSession.id == fatura.session_id))
     ).scalar_one()
 
     await billing_service.bill_session(db, sessao)
@@ -244,13 +242,9 @@ async def test_conclusao_sobrevive_ao_alvo_subir(db, ponto, motorista, tarifa):
     assert float(progresso.valor) == 2.0
 
 
-async def test_campanha_de_desconto_nao_cria_missao_de_progresso(
-    db, ponto, motorista, tarifa
-):
+async def test_campanha_de_desconto_nao_cria_missao_de_progresso(db, ponto, motorista, tarifa):
     """Desconto age na fatura, na hora. Nao ha o que acumular."""
-    campanha = await _campanha(
-        db, beneficio_tipo="desconto_pct", beneficio_valor=Decimal("10")
-    )
+    campanha = await _campanha(db, beneficio_tipo="desconto_pct", beneficio_valor=Decimal("10"))
     missao = await _missao(db, campanha)
 
     await _sessao_faturada(db, ponto, motorista)
@@ -268,9 +262,7 @@ async def test_desconto_de_campanha_chega_na_fatura(db, ponto, motorista, tarifa
     fatura = await _sessao_faturada(db, ponto, motorista, energia=10.0)
 
     assert float(fatura.discount) > 0
-    assert float(fatura.subtotal) - float(fatura.discount) == pytest.approx(
-        float(fatura.total)
-    )
+    assert float(fatura.subtotal) - float(fatura.discount) == pytest.approx(float(fatura.total))
     assert any(linha.kind == "desconto" for linha in fatura.lines)
 
 
@@ -289,18 +281,231 @@ async def test_campanha_sem_orcamento_nao_desconta(db, ponto, motorista, tarifa)
     assert float(fatura.discount) == 0.0
 
 
-async def test_entre_duas_campanhas_vence_a_melhor_para_o_motorista(
-    db, ponto, motorista, tarifa
-):
+async def test_entre_duas_campanhas_vence_a_melhor_para_o_motorista(db, ponto, motorista, tarifa):
     """Ele nao escolhe, entao a escolha e' a favor dele."""
-    await _campanha(
-        db, nome="Fraca", beneficio_tipo="desconto_pct", beneficio_valor=Decimal("5")
-    )
-    await _campanha(
-        db, nome="Forte", beneficio_tipo="desconto_pct", beneficio_valor=Decimal("25")
-    )
+    await _campanha(db, nome="Fraca", beneficio_tipo="desconto_pct", beneficio_valor=Decimal("5"))
+    await _campanha(db, nome="Forte", beneficio_tipo="desconto_pct", beneficio_valor=Decimal("25"))
 
     fatura = await _sessao_faturada(db, ponto, motorista, energia=10.0)
 
     linha = next(x for x in fatura.lines if x.kind == "desconto")
     assert "Forte" in linha.description
+
+
+# ------------------------------------------------------------------- frota
+#
+# A decisao de escopo resolvida na migration 0024: `patrocinador = 'frota'`
+# SAIU, e `fleet_id` virou ELEGIBILIDADE.
+#
+# O motivo estava no proprio modelo: `patrocinador` nunca foi quem paga. O bolso
+# e' determinado pelo TIPO DE BENEFICIO - desconto sai do estabelecimento,
+# cashback sai da rede - e nao ha um terceiro. `frota` como patrocinador era um
+# valor sem mecanismo atras: o schema aceitava, a validacao recusava com 422 e a
+# consulta de elegibilidade filtrava fora. Inalcancavel pelos tres lados.
+#
+# Sobrou o que nao precisa de bolso nenhum: campanha que vale so' para os
+# motoristas de uma frota, paga por quem sempre pagou.
+
+
+async def _frota(db, nome="Logistica Teste") -> Fleet:
+    frota = Fleet(name=nome, document="12345678000190", billing_email="fin@teste.com")
+    db.add(frota)
+    await db.flush()
+    return frota
+
+
+async def test_banco_recusa_patrocinador_frota(db):
+    """O valor saiu do CHECK, e nao so' da validacao em Python.
+
+    Dois CHECKs barram, e o teste de mutacao mostrou isso: reverter so' o
+    `patrocinador` nao basta, porque `escopo_coerente` tambem nao tem ramo para
+    `frota`. Defesa em profundidade de graca - as duas regras precisam voltar
+    juntas para o valor existir de novo, e ai este teste quebra.
+    """
+    db.add(
+        Campaign(
+            patrocinador="frota",
+            nome="Corporativa",
+            starts_at=AGORA,
+            ends_at=AGORA + timedelta(days=10),
+            beneficio_tipo="cashback_fixo",
+            beneficio_valor=Decimal("5"),
+        )
+    )
+    with pytest.raises(IntegrityError):
+        await db.flush()
+    await db.rollback()
+
+
+async def test_campanha_de_frota_conta_para_quem_e_da_frota(db, ponto, motorista, tarifa):
+    frota = await _frota(db)
+    motorista.fleet_id = frota.id
+    await db.flush()
+    campanha = await _campanha(db, fleet_id=frota.id)
+    missao = await _missao(db, campanha)
+
+    await _sessao_faturada(db, ponto, motorista)
+
+    assert await _progresso(db, missao, motorista) is not None
+
+
+async def test_campanha_de_frota_nao_conta_para_quem_nao_e(db, ponto, motorista, tarifa):
+    """O ponto todo da elegibilidade. Sem isto seria campanha de rede."""
+    frota = await _frota(db)
+    campanha = await _campanha(db, fleet_id=frota.id)
+    missao = await _missao(db, campanha)
+
+    await _sessao_faturada(db, ponto, motorista)
+
+    assert await _progresso(db, missao, motorista) is None
+
+
+async def test_campanha_de_frota_nao_conta_para_outra_frota(db, ponto, motorista, tarifa):
+    dona = await _frota(db, "Dona")
+    outra = await _frota(db, "Outra")
+    motorista.fleet_id = outra.id
+    await db.flush()
+    campanha = await _campanha(db, fleet_id=dona.id)
+    missao = await _missao(db, campanha)
+
+    await _sessao_faturada(db, ponto, motorista)
+
+    assert await _progresso(db, missao, motorista) is None
+
+
+async def test_campanha_sem_frota_conta_para_quem_tem_frota(db, ponto, motorista, tarifa):
+    """`fleet_id` nulo nao exclui ninguem - inclusive quem pertence a uma frota."""
+    frota = await _frota(db)
+    motorista.fleet_id = frota.id
+    await db.flush()
+    campanha = await _campanha(db, fleet_id=None)
+    missao = await _missao(db, campanha)
+
+    await _sessao_faturada(db, ponto, motorista)
+
+    assert await _progresso(db, missao, motorista) is not None
+
+
+async def test_frota_combina_com_patrocinio_de_site(db, ponto, motorista, tarifa, site):
+    """Um posto pode dirigir campanha a frota da empresa vizinha.
+
+    E' o caso que o CHECK antigo proibia: `patrocinador='frota'` exigia
+    `site_id IS NULL`, entao uma praca nao tinha como dirigir campanha a uma
+    frota. Separar patrocinio de elegibilidade libera a combinacao.
+    """
+    frota = await _frota(db)
+    motorista.fleet_id = frota.id
+    await db.flush()
+    campanha = await _campanha(db, patrocinador="site", site_id=site.id, fleet_id=frota.id)
+    missao = await _missao(db, campanha)
+
+    await _sessao_faturada(db, ponto, motorista)
+
+    assert await _progresso(db, missao, motorista) is not None
+
+
+async def test_a_tela_do_app_segue_a_mesma_regra(db, motorista):
+    """A lista e a pontuacao nao podem discordar.
+
+    Uma missao listada no app que nao pontua ao recarregar e' pior que nao
+    lista-la: o motorista cumpre e nao ganha. Sao duas consultas diferentes, em
+    funcoes diferentes, e e' por isso que este teste existe.
+    """
+    frota = await _frota(db)
+    campanha = await _campanha(db, fleet_id=frota.id)
+    await _missao(db, campanha)
+
+    assert await campaign_service.missoes_do_motorista(db, motorista) == []
+
+    motorista.fleet_id = frota.id
+    await db.flush()
+    assert len(await campaign_service.missoes_do_motorista(db, motorista)) == 1
+
+
+async def test_apagar_a_frota_leva_a_campanha_junto(db):
+    """CASCADE, e nao SET NULL: deixar a campanha viva sem frota a
+    transformaria, em silencio, numa campanha para todo mundo - o oposto do que
+    quem a criou pediu."""
+    frota = await _frota(db)
+    campanha = await _campanha(db, fleet_id=frota.id)
+
+    await db.delete(frota)
+    await db.flush()
+
+    sobrou = (
+        await db.execute(select(Campaign).where(Campaign.id == campanha.id))
+    ).scalar_one_or_none()
+    assert sobrou is None
+
+
+# ------------------------------------------------ o seletor do formulario
+
+
+async def test_rota_de_frotas_devolve_id_e_nome(api, como_operador, db):
+    frota = await _frota(db, "Logistica ABC")
+
+    r = await api.get("/api/v1/campaigns/fleets", headers=como_operador)
+
+    assert r.status_code == 200, r.text
+    linha = next(f for f in r.json() if f["id"] == str(frota.id))
+    assert linha == {"id": str(frota.id), "nome": "Logistica ABC"}
+
+
+async def test_rota_de_frotas_nao_vaza_cnpj_nem_email(api, como_operador, db):
+    """`Fleet` tem CNPJ e e-mail de cobranca, e o operador nao precisa de
+    nenhum dos dois para dirigir uma campanha - sao dados comerciais de uma
+    empresa que nao e' cliente dele."""
+    await _frota(db, "Logistica ABC")
+
+    corpo = (await api.get("/api/v1/campaigns/fleets", headers=como_operador)).text
+
+    assert "12345678000190" not in corpo
+    assert "fin@teste.com" not in corpo
+
+
+async def test_frota_inativa_nao_aparece_no_seletor(api, como_operador, db):
+    """Oferecer frota desativada e' oferecer campanha que nasce sem publico."""
+    ativa = await _frota(db, "Ativa")
+    inativa = await _frota(db, "Inativa")
+    inativa.active = False
+    await db.flush()
+
+    r = await api.get("/api/v1/campaigns/fleets", headers=como_operador)
+    ids = {f["id"] for f in r.json()}
+
+    assert str(ativa.id) in ids
+    assert str(inativa.id) not in ids
+
+
+async def test_frotas_saem_em_ordem_alfabetica(api, como_operador, db):
+    """A lista vira `<option>` numa ordem que o operador tem de varrer com o
+    olho. Ordem de insercao no banco nao ajuda ninguem."""
+    await _frota(db, "Zeta Transportes")
+    await _frota(db, "Alfa Logistica")
+
+    r = await api.get("/api/v1/campaigns/fleets", headers=como_operador)
+    nomes = [f["nome"] for f in r.json()]
+
+    assert nomes == sorted(nomes)
+
+
+async def test_motorista_nao_lista_frotas(api, como_motorista):
+    r = await api.get("/api/v1/campaigns/fleets", headers=como_motorista)
+    assert r.status_code == 403
+
+
+async def test_a_rota_de_frotas_nao_engoliu_a_de_campanhas(api, como_operador_do_site):
+    """`/campaigns/fleets` e `/campaigns/{id}/...` convivem no mesmo prefixo.
+
+    Hoje nao ha `GET /campaigns/{id}`, entao nao ha colisao - mas o dia em que
+    houver, `fleets` precisa continuar sendo tratada como rota, e nao como um
+    id malformado. Declarar antes e' o que garante isso.
+
+    Usa o operador COM site: `GET /campaigns` depende de `ScopedSiteId`, e o
+    operador sem praca toma 404 por falta de escopo - o que nao tem nada a ver
+    com a pergunta deste teste.
+    """
+    r = await api.get("/api/v1/campaigns", headers=como_operador_do_site)
+    assert r.status_code == 200, r.text
+    r = await api.get("/api/v1/campaigns/fleets", headers=como_operador_do_site)
+    assert r.status_code == 200, r.text

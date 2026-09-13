@@ -145,9 +145,7 @@ async def test_teto_limita_a_concessao_individual(db, motorista):
 
 async def test_orcamento_esgotado_nao_concede(db, motorista):
     """Teto duro: gastar alem dele compromete dinheiro que ninguem autorizou."""
-    campanha = await _campanha(
-        db, beneficio_valor=Decimal("50"), orcamento_brl=Decimal("10")
-    )
+    campanha = await _campanha(db, beneficio_valor=Decimal("50"), orcamento_brl=Decimal("10"))
     await _missao_cumprida(db, campanha, motorista)
 
     assert await campaign_service.conceder_pendentes(db) == 0

@@ -63,9 +63,7 @@ LOTE = 50
 # ---------------------------------------------------------------- elegibilidade
 
 
-async def _vigentes(
-    db: AsyncSession, sessao: ChargingSession, momento: datetime
-) -> list[Campaign]:
+async def _vigentes(db: AsyncSession, sessao: ChargingSession, momento: datetime) -> list[Campaign]:
     """Campanhas ativas, dentro do periodo e cujo escopo cobre esta sessao.
 
     O escopo e' decidido AQUI, numa clausula so'. Havia uma segunda checagem em
@@ -83,11 +81,20 @@ async def _vigentes(
             # Campanha de site vale so' no site dela; a de rede (site_id nulo)
             # vale em qualquer lugar. Quem paga nao banca recarga do vizinho.
             or_(Campaign.site_id.is_(None), Campaign.site_id == sessao.site_id),
-            # Frota fica de fora, e nao por esforco: nenhuma fatura aponta para
-            # `fleet_id` - `Invoice.user_id` e' pessoa fisica. Campanha
-            # corporativa faria a empresa pagar e o funcionario embolsar. A
-            # coluna existe para nao exigir migration depois; o caminho, nao.
-            Campaign.patrocinador != "frota",
+            # Campanha dirigida a uma frota vale so' para os motoristas dela;
+            # `fleet_id` nulo vale para todos. E' ELEGIBILIDADE, nao patrocinio -
+            # quem paga continua sendo o estabelecimento ou a rede, pelo tipo de
+            # beneficio. Ate a 0024 esta clausula era `patrocinador != 'frota'`,
+            # que jogava fora uma campanha que nunca conseguiu existir.
+            #
+            # Subconsulta em vez de carregar o usuario: o escopo inteiro e'
+            # decidido nesta consulta, e trazer o motorista so' para ler uma
+            # coluna espalharia a regra por dois lugares.
+            or_(
+                Campaign.fleet_id.is_(None),
+                Campaign.fleet_id
+                == select(User.fleet_id).where(User.id == sessao.user_id).scalar_subquery(),
+            ),
         )
         .options(selectinload(Campaign.missions))
     )
@@ -148,9 +155,7 @@ async def _agregar(
         select(
             func.count().label("sessoes"),
             func.coalesce(func.sum(ChargingSession.energy_kwh), 0).label("energia_kwh"),
-            func.coalesce(func.sum(ChargingSession.green_energy_kwh), 0).label(
-                "energia_verde_kwh"
-            ),
+            func.coalesce(func.sum(ChargingSession.green_energy_kwh), 0).label("energia_verde_kwh"),
             func.coalesce(func.sum(Invoice.total), 0).label("valor_brl"),
             func.count(func.distinct(func.date(local))).label("dias_distintos"),
             func.count().filter(~na_ponta).label("sessoes_fora_de_ponta"),
@@ -421,9 +426,7 @@ async def _creditar(db: AsyncSession, recompensa: Reward, campanha: Campaign) ->
     contra credito duplo sem precisar de tabela de trava nova.
     """
     dono = (
-        await db.execute(
-            select(User).where(User.id == recompensa.user_id).with_for_update()
-        )
+        await db.execute(select(User).where(User.id == recompensa.user_id).with_for_update())
     ).scalar_one()
 
     saldo = Decimal(str(dono.wallet_balance)) + Decimal(str(recompensa.valor_brl))
@@ -545,7 +548,17 @@ async def missoes_do_motorista(
                     Campaign.ativa.is_(True),
                     Campaign.starts_at <= momento,
                     Campaign.ends_at >= momento,
-                    Campaign.patrocinador != "frota",
+                    # Mesma regra de elegibilidade de `campanhas_vigentes`, e
+                    # ela precisa ser a mesma: uma missao listada na tela que
+                    # nao pontua ao recarregar seria pior que nao lista-la.
+                    #
+                    # Aqui `user` esta em maos, entao le-se a coluna direto - a
+                    # subconsulta de la' existe so' porque aquela funcao recebe a
+                    # sessao, e nao o motorista.
+                    or_(
+                        Campaign.fleet_id.is_(None),
+                        Campaign.fleet_id == user.fleet_id,
+                    ),
                 )
                 .options(selectinload(Campaign.missions))
             )

@@ -1,16 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { payments, tariffs as tariffsApi } from '@chargegrid/sdk'
-import {
-  brl,
-  dateTime,
-  invoiceStatus,
-  meta,
-  num,
-  paymentKind,
-  tariffType
-} from '@chargegrid/sdk'
+import { admin, payments, tariffs as tariffsApi } from '@chargegrid/sdk'
+import { brl, dateTime, invoiceStatus, meta, num, paymentKind, tariffType } from '@chargegrid/sdk'
 import { useAction, useApi } from '@chargegrid/sdk'
 import { Async, Empty, ErrorState, Spinner } from '../../components/Async.jsx'
+import { useAuth } from '../../auth/AuthContext.jsx'
+import { podeEstornar } from './auditoria.js'
 
 export default function TariffPayment() {
   const tariffs = useApi(() => tariffsApi.list(), [])
@@ -20,7 +14,12 @@ export default function TariffPayment() {
 
   return (
     <div>
-      <Async loading={revenue.loading} error={revenue.error} data={revenue.data} onRetry={revenue.refetch}>
+      <Async
+        loading={revenue.loading}
+        error={revenue.error}
+        data={revenue.data}
+        onRetry={revenue.refetch}
+      >
         {revenue.data && <RevenueStats summary={revenue.data} />}
       </Async>
 
@@ -87,8 +86,8 @@ function TariffTable({ tariffs }) {
             Políticas de tarifação
           </div>
           <div className="card-sub" style={{ margin: '4px 0 0' }}>
-            Preços por energia (kWh), por tempo e taxa de ociosidade. Alterações são gravadas na
-            API e valem para as próximas sessões — faturas já emitidas mantêm o preço da época.
+            Preços por energia (kWh), por tempo e taxa de ociosidade. Alterações são gravadas na API
+            e valem para as próximas sessões — faturas já emitidas mantêm o preço da época.
           </div>
         </div>
         <button className="btn btn-primary btn-sm" onClick={() => setCriando((v) => !v)}>
@@ -98,7 +97,12 @@ function TariffTable({ tariffs }) {
 
       {criando && <NewTariff onCreated={recarregar} onClose={() => setCriando(false)} />}
 
-      <Async loading={tariffs.loading} error={tariffs.error} data={tariffs.data} onRetry={tariffs.refetch}>
+      <Async
+        loading={tariffs.loading}
+        error={tariffs.error}
+        data={tariffs.data}
+        onRetry={tariffs.refetch}
+      >
         {tariffs.data?.length === 0 ? (
           <Empty label="Nenhuma tarifa cadastrada." />
         ) : (
@@ -235,9 +239,16 @@ function TariffRow({ tariff, onSaved, onEditWindows, editandoJanelas }) {
       min="0"
       value={draft[field]}
       disabled={save.pending}
-      onFocus={() => { editandoRef.current = field }}
-      onChange={(e) => { sujoRef.current = true; setDraft({ ...draft, [field]: e.target.value }) }}
-      onBlur={() => { if (encerrarEdicao(field)) commit(field) }}
+      onFocus={() => {
+        editandoRef.current = field
+      }}
+      onChange={(e) => {
+        sujoRef.current = true
+        setDraft({ ...draft, [field]: e.target.value })
+      }}
+      onBlur={() => {
+        if (encerrarEdicao(field)) commit(field)
+      }}
       onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
     />
   )
@@ -253,7 +264,9 @@ function TariffRow({ tariff, onSaved, onEditWindows, editandoJanelas }) {
       <td className="muted" style={{ fontSize: 12 }}>
         {tariff.windows?.length
           ? tariff.windows
-              .map((w) => `${w.label || 'janela'} ${w.starts_at.slice(0, 5)}–${w.ends_at.slice(0, 5)}`)
+              .map(
+                (w) => `${w.label || 'janela'} ${w.starts_at.slice(0, 5)}–${w.ends_at.slice(0, 5)}`
+              )
               .join(' · ')
           : '24h'}
       </td>
@@ -303,7 +316,11 @@ function TariffRow({ tariff, onSaved, onEditWindows, editandoJanelas }) {
               </button>
             </>
           ) : (
-            <button className="btn btn-sm" title="Excluir tarifa" onClick={() => setConfirmando(true)}>
+            <button
+              className="btn btn-sm"
+              title="Excluir tarifa"
+              onClick={() => setConfirmando(true)}
+            >
               Excluir
             </button>
           )}
@@ -321,9 +338,18 @@ function PaymentMethods({ methods }) {
       <div className="card-sub">
         Formas aceitas nos pontos e a taxa do adquirente, descontada da receita líquida.
       </div>
-      <Async loading={methods.loading} error={methods.error} data={methods.data} onRetry={methods.refetch}>
+      <Async
+        loading={methods.loading}
+        error={methods.error}
+        data={methods.data}
+        onRetry={methods.refetch}
+      >
         {(methods.data || []).map((method) => (
-          <MethodRow key={method.id} method={method} onSaved={() => methods.refetch({ silent: true })} />
+          <MethodRow
+            key={method.id}
+            method={method}
+            onSaved={() => methods.refetch({ silent: true })}
+          />
         ))}
       </Async>
     </div>
@@ -474,7 +500,9 @@ function Simulator({ tariffs }) {
       ) : (
         <>
           <div className="total">
-            <span className="muted">Total estimado {simulate.pending ? <Spinner size={12} /> : null}</span>
+            <span className="muted">
+              Total estimado {simulate.pending ? <Spinner size={12} /> : null}
+            </span>
             <span className="amount">{brl(result?.total)}</span>
           </div>
           {result?.lines?.length > 0 && (
@@ -497,7 +525,12 @@ function Invoices({ invoices, onPaid }) {
       <div className="card-sub">
         Cobranças geradas automaticamente ao encerrar uma sessão de recarga.
       </div>
-      <Async loading={invoices.loading} error={invoices.error} data={invoices.data} onRetry={invoices.refetch}>
+      <Async
+        loading={invoices.loading}
+        error={invoices.error}
+        data={invoices.data}
+        onRetry={invoices.refetch}
+      >
         {items.length === 0 ? (
           <Empty label="Nenhuma fatura emitida ainda. Encerre uma sessão para gerar a primeira." />
         ) : (
@@ -569,6 +602,8 @@ function InvoiceRow({ invoice, onPaid }) {
 
   const payment = invoice.payments?.[0]
   const canCharge = invoice.status === 'open' || invoice.status === 'failed'
+  const { isAdmin } = useAuth()
+  const estorno = useAction(() => admin.refundInvoice(invoice.id), { onSuccess: onPaid })
 
   return (
     <tr>
@@ -603,15 +638,38 @@ function InvoiceRow({ invoice, onPaid }) {
               <option value="credit_card">Cartão</option>
               <option value="wallet">Carteira</option>
             </select>
-            <button className="btn btn-sm btn-primary" onClick={() => charge.run()} disabled={charge.pending}>
+            <button
+              className="btn btn-sm btn-primary"
+              onClick={() => charge.run()}
+              disabled={charge.pending}
+            >
               {charge.pending ? <Spinner size={12} /> : null} Cobrar
             </button>
           </div>
         ) : (
-          <span className="muted" style={{ fontSize: 12 }}>
-            {invoice.paid_at ? dateTime(invoice.paid_at) : '—'}
-          </span>
+          <div className="flex gap-8 items-center">
+            <span className="muted" style={{ fontSize: 12 }}>
+              {invoice.paid_at ? dateTime(invoice.paid_at) : '—'}
+            </span>
+            {/*
+              Estornar só aparece para admin e só em fatura paga. O servidor
+              recusa nos dois casos; esconder aqui evita um botão que promete o
+              que a API não faz — e "estornar" é a última coisa que deveria
+              parecer disponível por engano.
+            */}
+            {podeEstornar(invoice, isAdmin) && (
+              <button
+                className="btn btn-sm"
+                onClick={() => estorno.run()}
+                disabled={estorno.pending}
+                title="Devolve o valor: carteira volta na hora, PSP pelo provedor"
+              >
+                {estorno.pending ? <Spinner size={12} /> : null} Estornar
+              </button>
+            )}
+          </div>
         )}
+        {estorno.error && <div className="row-error">{estorno.error.detail}</div>}
       </td>
     </tr>
   )
@@ -677,56 +735,104 @@ function WindowEditor({ tariff, onSaved, onClose }) {
           ends_at: `${j.ends_at}:00`
         }))
       ),
-    { onSuccess: () => { onSaved(); onClose() } }
+    {
+      onSuccess: () => {
+        onSaved()
+        onClose()
+      }
+    }
   )
 
   const editar = (i, campo, valor) =>
     setJanelas((atual) => atual.map((j, k) => (k === i ? { ...j, [campo]: valor } : j)))
-  const alternarDia = (i, bit) =>
-    editar(i, 'day_mask', janelas[i].day_mask ^ (1 << bit))
+  const alternarDia = (i, bit) => editar(i, 'day_mask', janelas[i].day_mask ^ (1 << bit))
 
   // Um instante sem janela cai no preço base da tarifa em silêncio — vale avisar.
   const semCobertura = janelas.length > 0 && janelas.every((j) => j.day_mask === 0)
 
   return (
     <div className="panel" style={{ marginTop: 12 }}>
-      <div className="card-title" style={{ fontSize: 15 }}>Janelas de {tariff.name}</div>
+      <div className="card-title" style={{ fontSize: 15 }}>
+        Janelas de {tariff.name}
+      </div>
       <div className="card-sub">
         A primeira janela que casar com o horário vence. Se nenhuma casar, vale o preço base da
         tarifa — cheque se a cobertura fecha a semana inteira, inclusive o fim de semana.
       </div>
 
       <div className="window-row window-head" style={{ marginTop: 12 }}>
-        <span>Rótulo</span><span>Início</span><span>Fim</span>
-        <span>R$/kWh</span><span>R$/min</span><span>Ocioso</span><span>Dias</span>
+        <span>Rótulo</span>
+        <span>Início</span>
+        <span>Fim</span>
+        <span>R$/kWh</span>
+        <span>R$/min</span>
+        <span>Ocioso</span>
+        <span>Dias</span>
       </div>
 
       {janelas.map((j, i) => (
         <div className="window-row" key={j._chave}>
-          <input className="input" value={j.label} placeholder="Ponta"
-                 onChange={(e) => editar(i, 'label', e.target.value)} />
-          <input className="input" type="time" value={j.starts_at}
-                 onChange={(e) => editar(i, 'starts_at', e.target.value)} />
-          <input className="input" type="time" value={j.ends_at}
-                 onChange={(e) => editar(i, 'ends_at', e.target.value)} />
-          <input className="input" type="number" step="0.01" min="0" value={j.price_per_kwh}
-                 onChange={(e) => editar(i, 'price_per_kwh', Number(e.target.value))} />
-          <input className="input" type="number" step="0.01" min="0" value={j.price_per_min}
-                 onChange={(e) => editar(i, 'price_per_min', Number(e.target.value))} />
-          <input className="input" type="number" step="0.01" min="0" value={j.idle_fee_per_min}
-                 onChange={(e) => editar(i, 'idle_fee_per_min', Number(e.target.value))} />
+          <input
+            className="input"
+            value={j.label}
+            placeholder="Ponta"
+            onChange={(e) => editar(i, 'label', e.target.value)}
+          />
+          <input
+            className="input"
+            type="time"
+            value={j.starts_at}
+            onChange={(e) => editar(i, 'starts_at', e.target.value)}
+          />
+          <input
+            className="input"
+            type="time"
+            value={j.ends_at}
+            onChange={(e) => editar(i, 'ends_at', e.target.value)}
+          />
+          <input
+            className="input"
+            type="number"
+            step="0.01"
+            min="0"
+            value={j.price_per_kwh}
+            onChange={(e) => editar(i, 'price_per_kwh', Number(e.target.value))}
+          />
+          <input
+            className="input"
+            type="number"
+            step="0.01"
+            min="0"
+            value={j.price_per_min}
+            onChange={(e) => editar(i, 'price_per_min', Number(e.target.value))}
+          />
+          <input
+            className="input"
+            type="number"
+            step="0.01"
+            min="0"
+            value={j.idle_fee_per_min}
+            onChange={(e) => editar(i, 'idle_fee_per_min', Number(e.target.value))}
+          />
           <div className="flex gap-8 items-center">
             <div className="day-picker">
               {DIAS.map((letra, bit) => (
-                <button key={bit} type="button" title={NOMES_DIAS[bit]}
-                        className={(j.day_mask >> bit) & 1 ? 'on' : ''}
-                        onClick={() => alternarDia(i, bit)}>
+                <button
+                  key={bit}
+                  type="button"
+                  title={NOMES_DIAS[bit]}
+                  className={(j.day_mask >> bit) & 1 ? 'on' : ''}
+                  onClick={() => alternarDia(i, bit)}
+                >
                   {letra}
                 </button>
               ))}
             </div>
-            <button className="btn btn-sm" title="Remover janela"
-                    onClick={() => setJanelas((a) => a.filter((_, k) => k !== i))}>
+            <button
+              className="btn btn-sm"
+              title="Remover janela"
+              onClick={() => setJanelas((a) => a.filter((_, k) => k !== i))}
+            >
               ✕
             </button>
           </div>
@@ -744,12 +850,18 @@ function WindowEditor({ tariff, onSaved, onClose }) {
       <ErrorState error={salvar.error} compact />
 
       <div className="flex gap-8" style={{ marginTop: 14 }}>
-        <button className="btn btn-primary btn-sm" disabled={salvar.pending}
-                onClick={() => salvar.run()}>
+        <button
+          className="btn btn-primary btn-sm"
+          disabled={salvar.pending}
+          onClick={() => salvar.run()}
+        >
           {salvar.pending ? <Spinner size={12} /> : null} Salvar janelas
         </button>
-        <button className="btn btn-sm" disabled={salvar.pending}
-                onClick={() => setJanelas((a) => [...a, janelaVazia()])}>
+        <button
+          className="btn btn-sm"
+          disabled={salvar.pending}
+          onClick={() => setJanelas((a) => [...a, janelaVazia()])}
+        >
           + Adicionar janela
         </button>
         <button className="btn btn-sm" disabled={salvar.pending} onClick={onClose}>
@@ -789,7 +901,8 @@ const TIPOS_TARIFA = [
 
 const AJUDA_TIPO = {
   per_kwh: 'Cobra só a energia entregue.',
-  time_of_use: 'Cobra a energia pelo preço da janela horária vigente. Configure as janelas depois de criar.',
+  time_of_use:
+    'Cobra a energia pelo preço da janela horária vigente. Configure as janelas depois de criar.',
   per_time: 'Cobra só o tempo conectado, independente da energia.',
   flat: 'Cobra um valor fixo por sessão, independente de energia e tempo.'
 }
@@ -832,7 +945,9 @@ function NewTariff({ onCreated, onClose }) {
 
   return (
     <div className="panel" style={{ marginTop: 12 }}>
-      <div className="card-title" style={{ fontSize: 15 }}>Nova tarifa</div>
+      <div className="card-title" style={{ fontSize: 15 }}>
+        Nova tarifa
+      </div>
       <div className="card-sub">
         Nasce inativa: ligue na tabela quando estiver pronta. As janelas horárias são configuradas
         depois, no botão Janelas da própria linha.
@@ -863,10 +978,14 @@ function NewTariff({ onCreated, onClose }) {
             }}
           >
             {TIPOS_TARIFA.map((t) => (
-              <option key={t.valor} value={t.valor}>{t.rotulo}</option>
+              <option key={t.valor} value={t.valor}>
+                {t.rotulo}
+              </option>
             ))}
           </select>
-          <span className="muted" style={{ fontSize: 11 }}>{AJUDA_TIPO[form.type]}</span>
+          <span className="muted" style={{ fontSize: 11 }}>
+            {AJUDA_TIPO[form.type]}
+          </span>
         </div>
       </div>
 

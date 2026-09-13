@@ -21,7 +21,13 @@ from app.core.security import (
     verify_password,
 )
 from app.models.user import User
-from app.schemas.auth import LoginRequest, RefreshRequest, TokenPair, UserCreate, UserOut
+from app.schemas.auth import (
+    LoginRequest,
+    RefreshRequest,
+    RegistroPublicoIn,
+    TokenPair,
+    UserOut,
+)
 
 router = APIRouter(prefix="/auth", tags=["autenticação"])
 
@@ -78,10 +84,16 @@ async def refresh(payload: RefreshRequest, db: DbSession) -> TokenPair:
 
 
 @router.post("/register", response_model=UserOut, status_code=201)
-async def register(payload: UserCreate, db: DbSession) -> User:
-    """Cadastro publico do app mobile - sempre cria motorista.
+async def register(payload: RegistroPublicoIn, db: DbSession) -> User:
+    """Cadastro publico do app do motorista - sempre cria motorista.
 
-    Contas de operador e admin sao criadas por um admin em /users.
+    `role` e' fixado aqui e o schema nem aceita o campo: sao as duas metades da
+    mesma guarda. Ver `RegistroPublicoIn` para o porque de nao bastar uma.
+
+    Contas de operador e admin nascem do seed. Uma rota de administracao de
+    contas nao existe ainda - ate' ela existir, esta docstring nao aponta para
+    lugar nenhum de proposito, porque apontar para uma rota inexistente foi
+    exatamente o que esta linha fazia antes.
     """
     exists = (
         await db.execute(select(User).where(User.email == payload.email))

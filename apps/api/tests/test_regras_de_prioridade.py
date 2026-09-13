@@ -50,13 +50,13 @@ def test_sem_janela_vale_o_dia_inteiro():
 @pytest.mark.parametrize(
     "momento,esperado",
     [
-        (time(23, 0), True),   # depois do inicio
-        (time(2, 0), True),    # depois da meia-noite, antes do fim
-        (time(5, 59), True),   # ultimo minuto
-        (time(6, 0), True),    # limite fechado
-        (time(7, 0), False),   # ja amanheceu
+        (time(23, 0), True),  # depois do inicio
+        (time(2, 0), True),  # depois da meia-noite, antes do fim
+        (time(5, 59), True),  # ultimo minuto
+        (time(6, 0), True),  # limite fechado
+        (time(7, 0), False),  # ja amanheceu
         (time(12, 0), False),  # meio-dia
-        (time(21, 59), False), # um minuto antes de comecar
+        (time(21, 59), False),  # um minuto antes de comecar
     ],
 )
 def test_janela_que_cruza_a_meia_noite(momento, esperado):
@@ -106,8 +106,9 @@ def test_criterio_sem_valor_nao_casa(ponto):
 def test_primeira_regra_na_ordem_vence(ponto):
     """Duas regras casam; quem decide e' a de menor `ordem`."""
     generosa = _regra(nome="Todos", prioridade=10, ordem=200)
-    especifica = _regra(nome="VIP", prioridade=900, ordem=10, criterio_tipo="ponto",
-                        criterio_valor=ponto.code)
+    especifica = _regra(
+        nome="VIP", prioridade=900, ordem=10, criterio_tipo="ponto", criterio_valor=ponto.code
+    )
 
     r = ps.resolver([generosa, especifica], [ponto], agora_local=time(12))
     assert r[str(ponto.id)].prioridade == 900
@@ -161,8 +162,12 @@ def test_regra_inverte_quem_e_servido_primeiro(ponto, segundo_ponto):
     """
     # available_kw e' derivado: 25 = 25 de rede, sem PV, sem bateria, sem reserva.
     orcamento = power_manager.PowerBudget(
-        grid_limit_kw=25, pv_kw=0, battery_kw=0, reserved_kw=0,
-        building_load_kw=0, ev_load_kw=0,
+        grid_limit_kw=25,
+        pv_kw=0,
+        battery_kw=0,
+        reserved_kw=0,
+        building_load_kw=0,
+        ev_load_kw=0,
     )
     for cp in (ponto, segundo_ponto):
         cp.status = __import__(
@@ -175,7 +180,9 @@ def test_regra_inverte_quem_e_servido_primeiro(ponto, segundo_ponto):
 
     # Com a regra, o segundo ponto sobe para uma faixa acima do primeiro.
     promove = _regra(
-        nome="Frota", prioridade=int(ponto.priority) + 500, criterio_tipo="ponto",
+        nome="Frota",
+        prioridade=int(ponto.priority) + 500,
+        criterio_tipo="ponto",
         criterio_valor=segundo_ponto.code,
     )
     resolvidas = ps.resolver([promove], [ponto, segundo_ponto], agora_local=time(12))
@@ -189,11 +196,16 @@ def test_regra_inverte_quem_e_servido_primeiro(ponto, segundo_ponto):
 def test_plano_expoe_a_regra_que_decidiu(ponto):
     """O painel precisa poder responder "por que este ponto foi cortado"."""
     orcamento = power_manager.PowerBudget(
-        grid_limit_kw=50, pv_kw=0, battery_kw=0, reserved_kw=0,
-        building_load_kw=0, ev_load_kw=0,
+        grid_limit_kw=50,
+        pv_kw=0,
+        battery_kw=0,
+        reserved_kw=0,
+        building_load_kw=0,
+        ev_load_kw=0,
     )
-    resolvidas = ps.resolver([_regra(nome="Visitantes", prioridade=7)], [ponto],
-                             agora_local=time(12))
+    resolvidas = ps.resolver(
+        [_regra(nome="Visitantes", prioridade=7)], [ponto], agora_local=time(12)
+    )
     plano = power_manager.build_plan(orcamento, [ponto], prioridades=resolvidas)
     alocacao = next(a for a in plano.allocations if a.code == ponto.code)
     assert alocacao.priority == 7
@@ -215,9 +227,15 @@ async def test_resolucao_usa_a_hora_local_do_site(db, site, ponto):
     site.timezone = "America/Sao_Paulo"
     db.add(
         PriorityRule(
-            id=uuid.uuid4(), site_id=site.id, nome="Noturna", prioridade=900, ordem=10,
-            ativo=True, criterio_tipo="sempre",
-            janela_inicio=time(22), janela_fim=time(6),
+            id=uuid.uuid4(),
+            site_id=site.id,
+            nome="Noturna",
+            prioridade=900,
+            ordem=10,
+            ativo=True,
+            criterio_tipo="sempre",
+            janela_inicio=time(22),
+            janela_fim=time(6),
         )
     )
     await db.flush()
@@ -238,8 +256,13 @@ async def test_fuso_invalido_nao_derruba_o_rateio(db, site, ponto):
     site.timezone = "Nao/Existe"
     db.add(
         PriorityRule(
-            id=uuid.uuid4(), site_id=site.id, nome="Padrao", prioridade=42, ordem=10,
-            ativo=True, criterio_tipo="sempre",
+            id=uuid.uuid4(),
+            site_id=site.id,
+            nome="Padrao",
+            prioridade=42,
+            ordem=10,
+            ativo=True,
+            criterio_tipo="sempre",
         )
     )
     await db.flush()
@@ -277,9 +300,7 @@ async def test_crud_completo(api, site, ponto, como_operador):
     assert alterada.status_code == 200
     assert alterada.json()["prioridade"] == 900
 
-    apagada = await api.delete(
-        f"/api/v1/power/priority-rules/{regra_id}", headers=como_operador
-    )
+    apagada = await api.delete(f"/api/v1/power/priority-rules/{regra_id}", headers=como_operador)
     assert apagada.status_code == 204
 
 
@@ -329,9 +350,15 @@ async def test_preview_nao_colide_com_a_rota_de_id(api, site, ponto, como_operad
 async def test_preview_em_hora_escolhida(api, db, site, ponto, como_operador):
     db.add(
         PriorityRule(
-            id=uuid.uuid4(), site_id=site.id, nome="Noturna", prioridade=900, ordem=10,
-            ativo=True, criterio_tipo="sempre",
-            janela_inicio=time(22), janela_fim=time(6),
+            id=uuid.uuid4(),
+            site_id=site.id,
+            nome="Noturna",
+            prioridade=900,
+            ordem=10,
+            ativo=True,
+            criterio_tipo="sempre",
+            janela_inicio=time(22),
+            janela_fim=time(6),
         )
     )
     await db.flush()
@@ -342,9 +369,7 @@ async def test_preview_em_hora_escolhida(api, db, site, ponto, como_operador):
     assert de_noite.status_code == 200
     assert de_noite.json()["pontos"][0]["regra"] == "Noturna"
 
-    de_dia = await api.get(
-        "/api/v1/power/priority-rules/preview?hora=14:00", headers=como_operador
-    )
+    de_dia = await api.get("/api/v1/power/priority-rules/preview?hora=14:00", headers=como_operador)
     assert de_dia.json()["pontos"][0]["regra"] is None
 
 

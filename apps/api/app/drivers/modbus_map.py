@@ -265,8 +265,7 @@ POLL_BLOCKS: list[tuple[int, int]] = [
 #
 # Tratar tudo como terminal derrubava a sessao por causa de uma nuvem.
 NAO_TERMINAIS: frozenset[tuple[int, int]] = frozenset(
-    {(10003, 2), (10003, 3), (10003, 4), (10003, 5)}
-    | {(10005, bit) for bit in FAULT_BITS[10005]}
+    {(10003, 2), (10003, 3), (10003, 4), (10003, 5)} | {(10005, bit) for bit in FAULT_BITS[10005]}
 )
 
 

@@ -109,9 +109,7 @@ def test_ha_historico_suficiente_para_o_modelo_de_previsao():
     """
     for carater in ("corporativo", "shopping", "rodovia"):
         dias_com_energia = {
-            s["inicio"].astimezone(FUSO_DO_SITE).date()
-            for s in _gera(carater)
-            if s["kwh"] > 0
+            s["inicio"].astimezone(FUSO_DO_SITE).date() for s in _gera(carater) if s["kwh"] > 0
         }
         assert len(dias_com_energia) > MINIMO_DE_DIAS_DO_MODELO, carater
 
@@ -212,7 +210,10 @@ def test_gerador_e_deterministico():
     assert len(uma) == len(outra)
     for a, b in zip(uma, outra, strict=True):
         assert (a["inicio"], a["kwh"], a["minutos"], a["ocioso"]) == (
-            b["inicio"], b["kwh"], b["minutos"], b["ocioso"]
+            b["inicio"],
+            b["kwh"],
+            b["minutos"],
+            b["ocioso"],
         )
 
 

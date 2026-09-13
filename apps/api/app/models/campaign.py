@@ -25,6 +25,11 @@ produz um modelo que ninguem consegue sustentar:
 Uma campanha declara UM tipo de beneficio, garantido por check constraint.
 "20% de desconto E 5% de cashback" e' o caminho para ninguem conseguir dizer
 quanto a campanha custou.
+
+NAO HA TERCEIRO BOLSO, e por isso `patrocinador` so' aceita `rede` e `site`: ele
+responde ONDE a campanha vale e quem a administra, nao quem paga. A frota chegou
+a existir como patrocinador e saiu na 0024 - era um valor sem mecanismo atras.
+`fleet_id` ficou, com outro papel: elegibilidade.
 """
 
 from __future__ import annotations
@@ -54,7 +59,11 @@ from app.db.base import Base, TimestampMixin, UUIDMixin
 
 # Quem banca. Nao e' o mesmo que "para quem vale": uma campanha de rede pode
 # valer so' para quem carrega num site, mas quem paga continua sendo a rede.
-PATROCINADORES = ("rede", "site", "frota")
+# Quem ADMINISTRA e onde vale - nao quem paga. O bolso e' determinado pelo tipo
+# de beneficio (ver o docstring do modulo), e nunca houve um terceiro: `frota`
+# saiu na 0024 por ser um valor sem mecanismo atras, que a validacao recusava e a
+# consulta de elegibilidade filtrava fora.
+PATROCINADORES = ("rede", "site")
 
 # O que o motorista leva. Desconto abate na hora, na propria fatura; cashback
 # vira credito na carteira e so' se realiza na proxima recarga.
@@ -91,18 +100,15 @@ class Campaign(UUIDMixin, TimestampMixin, Base):
         # rede com site_id" no banco, e ninguem consegue dizer de qual bolso
         # saiu o dinheiro depois que ela acabou.
         CheckConstraint(
-            "(patrocinador = 'site' AND site_id IS NOT NULL AND fleet_id IS NULL)"
-            " OR (patrocinador = 'frota' AND fleet_id IS NOT NULL AND site_id IS NULL)"
-            " OR (patrocinador = 'rede' AND site_id IS NULL AND fleet_id IS NULL)",
-            name="ck_campaigns_escopo_coerente",
+            "(patrocinador = 'site' AND site_id IS NOT NULL)"
+            " OR (patrocinador = 'rede' AND site_id IS NULL)",
+            name="escopo_coerente",
         ),
-        CheckConstraint(
-            f"patrocinador IN ({_em(PATROCINADORES)})", name="ck_campaigns_patrocinador"
-        ),
-        CheckConstraint(f"beneficio_tipo IN ({_em(BENEFICIOS)})", name="ck_campaigns_beneficio"),
-        CheckConstraint("beneficio_valor > 0", name="ck_campaigns_beneficio_valor"),
-        CheckConstraint("ends_at > starts_at", name="ck_campaigns_periodo_valido"),
-        CheckConstraint("consumido_brl >= 0", name="ck_campaigns_consumido_nao_negativo"),
+        CheckConstraint(f"patrocinador IN ({_em(PATROCINADORES)})", name="patrocinador"),
+        CheckConstraint(f"beneficio_tipo IN ({_em(BENEFICIOS)})", name="beneficio"),
+        CheckConstraint("beneficio_valor > 0", name="beneficio_valor"),
+        CheckConstraint("ends_at > starts_at", name="periodo_valido"),
+        CheckConstraint("consumido_brl >= 0", name="consumido_nao_negativo"),
         # A consulta quente e' "quais valem agora". A maioria das linhas envelhece
         # para inativa e nunca mais e' lida.
         Index(
@@ -118,8 +124,17 @@ class Campaign(UUIDMixin, TimestampMixin, Base):
     site_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("sites.id", ondelete="CASCADE")
     )
-    # CASCADE nos dois: a campanha nao sobrevive a quem a financiava. Apagado o
-    # patrocinador, nao ha mais orcamento nem a quem cobrar.
+    # ELEGIBILIDADE, nao patrocinio: preenchido, a campanha so' vale para os
+    # motoristas daquela frota; nulo, vale para todos. Combina com os dois
+    # patrocinadores - a rede pode dar cashback so' para a frota X, e um posto
+    # pode dar desconto so' para a frota da empresa vizinha.
+    #
+    # Quem paga continua sendo determinado pelo TIPO DE BENEFICIO, e nao por
+    # esta coluna. Ate a 0024 ela era lida como "quem financia", e isso exigia um
+    # bolso que a frota nunca teve.
+    #
+    # CASCADE: apagada a frota, a campanha dirigida a ela perde o proposito -
+    # deixa-la viva a transformaria, em silencio, numa campanha para todo mundo.
     fleet_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("fleets.id", ondelete="CASCADE")
     )
@@ -154,9 +169,9 @@ class Mission(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "missions"
     __table_args__ = (
         UniqueConstraint("campaign_id", "codigo", name="uq_missions_campaign_id_codigo"),
-        CheckConstraint(f"metrica IN ({_em(METRICAS)})", name="ck_missions_metrica"),
-        CheckConstraint(f"janela IN ({_em(JANELAS)})", name="ck_missions_janela"),
-        CheckConstraint("alvo > 0", name="ck_missions_alvo"),
+        CheckConstraint(f"metrica IN ({_em(METRICAS)})", name="metrica"),
+        CheckConstraint(f"janela IN ({_em(JANELAS)})", name="janela"),
+        CheckConstraint("alvo > 0", name="alvo"),
     )
 
     campaign_id: Mapped[uuid.UUID] = mapped_column(
@@ -256,11 +271,11 @@ class Reward(UUIDMixin, TimestampMixin, Base):
         # paga sem que exista credito nenhum na carteira do motorista.
         CheckConstraint(
             "estado <> 'creditada' OR wallet_entry_id IS NOT NULL",
-            name="ck_rewards_credito_completo",
+            name="credito_completo",
         ),
-        CheckConstraint(f"estado IN ({_em(ESTADOS_DA_RECOMPENSA)})", name="ck_rewards_estado"),
-        CheckConstraint(f"tipo IN ({_em(BENEFICIOS)})", name="ck_rewards_tipo"),
-        CheckConstraint("valor_brl >= 0", name="ck_rewards_valor_nao_negativo"),
+        CheckConstraint(f"estado IN ({_em(ESTADOS_DA_RECOMPENSA)})", name="estado"),
+        CheckConstraint(f"tipo IN ({_em(BENEFICIOS)})", name="tipo"),
+        CheckConstraint("valor_brl >= 0", name="valor_nao_negativo"),
         # Outbox proprio: a fila do push de recompensa.
         Index("ix_rewards_a_notificar", "user_id", postgresql_where=text("notified_at IS NULL")),
     )

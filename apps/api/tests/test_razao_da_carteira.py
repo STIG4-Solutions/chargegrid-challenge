@@ -23,7 +23,7 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from app.core.errors import PaymentError
 from app.models.billing import Invoice, SitePaymentMethod, WalletEntry
-from app.models.enums import InvoiceStatus, PaymentMethodKind
+from app.models.enums import InvoiceStatus, PaymentMethodKind, PaymentStatus
 from app.services import payment_service, wallet_service
 
 ROTA = "/api/v1/app/wallet/statement"
@@ -87,9 +87,7 @@ async def test_pagar_com_a_carteira_deixa_a_linha_do_debito(db, site, motorista)
     Era exatamente este o buraco: `_charge_wallet` subtraia do saldo e seguia.
     """
     fatura = await _fatura(db, site, motorista, total=30)
-    await payment_service.charge_invoice(
-        db, fatura, PaymentMethodKind.WALLET, payer=motorista
-    )
+    await payment_service.charge_invoice(db, fatura, PaymentMethodKind.WALLET, payer=motorista)
 
     debito = (
         (
@@ -112,9 +110,7 @@ async def test_o_razao_fecha_com_o_saldo_depois_de_credito_e_debito(db, site, mo
         db, motorista, Decimal("40.00"), idempotency_key=uuid.uuid4().hex
     )
     fatura = await _fatura(db, site, motorista, total=55)
-    await payment_service.charge_invoice(
-        db, fatura, PaymentMethodKind.WALLET, payer=motorista
-    )
+    await payment_service.charge_invoice(db, fatura, PaymentMethodKind.WALLET, payer=motorista)
 
     saldo = await _saldo(db, motorista)
     assert saldo == Decimal("85.00"), "100 + 40 - 55"
@@ -130,9 +126,7 @@ async def test_saldo_insuficiente_nao_deixa_linha_nenhuma(db, site, motorista):
     """
     fatura = await _fatura(db, site, motorista, total=500)
     with pytest.raises(PaymentError):
-        await payment_service.charge_invoice(
-            db, fatura, PaymentMethodKind.WALLET, payer=motorista
-        )
+        await payment_service.charge_invoice(db, fatura, PaymentMethodKind.WALLET, payer=motorista)
 
     pagamentos = (
         (
@@ -241,9 +235,7 @@ async def test_banco_recusa_origem_desconhecida(db, motorista):
 async def test_extrato_traduz_a_origem(db, site, motorista):
     """`cashback` cru nao diz nada a quem recebeu o dinheiro."""
     fatura = await _fatura(db, site, motorista, total=12)
-    await payment_service.charge_invoice(
-        db, fatura, PaymentMethodKind.WALLET, payer=motorista
-    )
+    await payment_service.charge_invoice(db, fatura, PaymentMethodKind.WALLET, payer=motorista)
 
     extrato = await wallet_service.extrato(db, motorista.id)
     debito = next(m for m in extrato["movimentos"] if m["origem"] == "pagamento")
@@ -283,3 +275,255 @@ async def test_extrato_do_motorista_e_sempre_o_proprio(api, como_motorista, moto
 
 async def test_extrato_exige_autenticacao(api):
     assert (await api.get(ROTA)).status_code in (401, 403)
+
+
+# --------------------------------------------------- estorno e ajuste
+#
+# `estorno` e `ajuste` estavam no CHECK desde a 0021 e nada os criava. Ao dar
+# caminho a eles apareceu um defeito de verdade: pagamento por CARTEIRA era
+# IRREVERSIVEL pela API. `handle_webhook` sabia marcar `REFUNDED` quando o PSP
+# avisava, mas carteira nao gera webhook - e' capturada na hora -, entao uma
+# recarga cobrada errado do saldo do motorista so' se desfazia no banco.
+
+
+async def _paga_com_carteira(db, site, motorista, total=30):
+    fatura = await _fatura(db, site, motorista, total=total)
+    await payment_service.charge_invoice(db, fatura, PaymentMethodKind.WALLET, payer=motorista)
+    return fatura
+
+
+async def test_estorno_devolve_o_dinheiro_a_carteira(db, site, motorista, administrador):
+    antes = await _saldo(db, motorista)
+    fatura = await _paga_com_carteira(db, site, motorista, total=30)
+    assert await _saldo(db, motorista) == antes - Decimal("30.00")
+
+    await payment_service.estornar(db, fatura, autor=administrador)
+
+    assert await _saldo(db, motorista) == antes
+    assert await _razao(db, motorista.id) == await _saldo(db, motorista)
+
+
+async def test_estorno_deixa_linha_propria_no_razao(db, site, motorista, administrador):
+    """O saldo voltar nao basta: sem a linha, o extrato mostra o debito e nao
+    mostra a devolucao, e o motorista fica achando que pagou."""
+    fatura = await _paga_com_carteira(db, site, motorista)
+    await payment_service.estornar(db, fatura, autor=administrador)
+
+    linha = (
+        (
+            await db.execute(
+                select(WalletEntry).where(
+                    WalletEntry.user_id == motorista.id, WalletEntry.origem == "estorno"
+                )
+            )
+        )
+        .scalars()
+        .one()
+    )
+    assert Decimal(str(linha.amount)) == Decimal("30.00")
+    assert linha.invoice_id == fatura.id
+    assert linha.criado_por == administrador.id
+
+
+async def test_estorno_marca_fatura_e_pagamento(db, site, motorista, administrador):
+    fatura = await _paga_com_carteira(db, site, motorista)
+    pagamento = await payment_service.estornar(db, fatura, autor=administrador)
+
+    assert pagamento.status == PaymentStatus.REFUNDED
+    assert fatura.status == InvoiceStatus.REFUNDED
+
+
+async def test_estornar_duas_vezes_nao_devolve_em_dobro(db, site, motorista, administrador):
+    """A chave e' deterministica pela fatura, e o estado ja e' REFUNDED."""
+    antes = await _saldo(db, motorista)
+    fatura = await _paga_com_carteira(db, site, motorista)
+
+    await payment_service.estornar(db, fatura, autor=administrador)
+    await payment_service.estornar(db, fatura, autor=administrador)
+
+    assert await _saldo(db, motorista) == antes
+    assert await _razao(db, motorista.id) == await _saldo(db, motorista)
+
+
+async def test_fatura_sem_pagamento_nao_estorna(db, site, motorista, administrador):
+    """Devolver o que nunca entrou seria criar saldo do nada."""
+    fatura = await _fatura(db, site, motorista)
+    with pytest.raises(PaymentError, match="não há pagamento capturado"):
+        await payment_service.estornar(db, fatura, autor=administrador)
+
+
+async def test_o_extrato_mostra_a_devolucao(db, site, motorista, administrador):
+    fatura = await _paga_com_carteira(db, site, motorista)
+    await payment_service.estornar(db, fatura, autor=administrador)
+
+    extrato = await wallet_service.extrato(db, motorista.id)
+    devolucao = next(m for m in extrato["movimentos"] if m["origem"] == "estorno")
+    assert devolucao["rotulo"] == f"Estorno — {fatura.code}"
+    assert devolucao["valor"] == 30.0
+
+
+# ------------------------------------------------------------------ ajuste
+
+
+async def test_ajuste_credita_com_motivo_e_responsavel(db, motorista, administrador):
+    antes = await _saldo(db, motorista)
+
+    await wallet_service.ajustar(
+        db, motorista, Decimal("25.00"), "Cortesia por queda do ponto", autor=administrador
+    )
+
+    assert await _saldo(db, motorista) == antes + Decimal("25.00")
+    linha = (
+        (
+            await db.execute(
+                select(WalletEntry).where(
+                    WalletEntry.user_id == motorista.id,
+                    WalletEntry.provider == "manual",
+                )
+            )
+        )
+        .scalars()
+        .one()
+    )
+    assert linha.motivo == "Cortesia por queda do ponto"
+    assert linha.criado_por == administrador.id
+
+
+async def test_ajuste_negativo_e_permitido(db, motorista, administrador):
+    """Correcao existe nos dois sentidos: credito lancado por engano precisa
+    poder ser desfeito."""
+    antes = await _saldo(db, motorista)
+
+    await wallet_service.ajustar(
+        db, motorista, Decimal("-10.00"), "Estorno de cortesia duplicada", autor=administrador
+    )
+
+    assert await _saldo(db, motorista) == antes - Decimal("10.00")
+
+
+async def test_ajuste_nao_deixa_saldo_negativo(db, motorista, administrador):
+    """A carteira e' pre-paga. Saldo devedor seria credito que ninguem autorizou."""
+    with pytest.raises(PaymentError, match="negativo"):
+        await wallet_service.ajustar(
+            db, motorista, Decimal("-999.00"), "Cobranca retroativa", autor=administrador
+        )
+
+
+async def test_ajuste_sem_motivo_e_recusado(db, motorista, administrador):
+    with pytest.raises(PaymentError, match="motivo"):
+        await wallet_service.ajustar(db, motorista, Decimal("10.00"), "   ", autor=administrador)
+
+
+async def test_ajuste_de_zero_e_recusado(db, motorista, administrador):
+    """Nao corrige nada e ainda sujaria o extrato com uma linha sem efeito."""
+    with pytest.raises(PaymentError, match="zero"):
+        await wallet_service.ajustar(
+            db, motorista, Decimal("0"), "Nada a fazer", autor=administrador
+        )
+
+
+async def test_banco_recusa_ajuste_sem_motivo(db, motorista):
+    """A guarda de Python devolve 422 legivel; esta garante que nenhum caminho
+    futuro escape dela."""
+    db.add(
+        WalletEntry(
+            user_id=motorista.id,
+            amount=Decimal("5.00"),
+            balance_after=Decimal("105.00"),
+            idempotency_key=uuid.uuid4().hex,
+            origem="ajuste",
+        )
+    )
+    with pytest.raises((IntegrityError, DBAPIError)):
+        await db.flush()
+    await db.rollback()
+
+
+async def test_mesma_chave_nao_ajusta_duas_vezes(db, motorista, administrador):
+    antes = await _saldo(db, motorista)
+    chave = uuid.uuid4().hex
+
+    await wallet_service.ajustar(
+        db, motorista, Decimal("7.00"), "Cortesia", autor=administrador, idempotency_key=chave
+    )
+    await wallet_service.ajustar(
+        db, motorista, Decimal("7.00"), "Cortesia", autor=administrador, idempotency_key=chave
+    )
+
+    assert await _saldo(db, motorista) == antes + Decimal("7.00")
+
+
+async def test_o_extrato_explica_o_ajuste(db, motorista, administrador):
+    """ "Ajuste R$ 50,00" sem explicacao e' o que a coluna `motivo` existe para
+    impedir - entao ela precisa chegar na tela, e nao so' no banco."""
+    await wallet_service.ajustar(
+        db, motorista, Decimal("50.00"), "Compensacao de recarga interrompida", autor=administrador
+    )
+
+    extrato = await wallet_service.extrato(db, motorista.id)
+    # Busca pelo motivo, e nao pela primeira posicao: `created_at` tem
+    # `server_default=now()`, que no Postgres e' o instante da TRANSACAO - a
+    # abertura da fixture e este ajuste nascem com o mesmo carimbo, e o
+    # desempate por `id` (UUID sorteado) e' arbitrario. Em producao cada
+    # operacao e' uma transacao propria, entao a ordem vale; num teste que faz
+    # as duas juntas, nao.
+    linha = next(
+        m for m in extrato["movimentos"] if m["motivo"] == "Compensacao de recarga interrompida"
+    )
+    assert linha["rotulo"] == "Ajuste — Compensacao de recarga interrompida"
+
+
+# ------------------------------------------------------------ quem pode
+
+
+async def test_motorista_nao_estorna_a_propria_fatura(api, como_motorista, db, site, motorista):
+    fatura = await _paga_com_carteira(db, site, motorista)
+    r = await api.post(f"/api/v1/invoices/{fatura.id}/refund", headers=como_motorista)
+    assert r.status_code == 403
+
+
+async def test_operador_nao_estorna(api, como_operador, db, site, motorista):
+    """Devolver dinheiro e' decisao da rede: o operador nao devolve do caixa da
+    plataforma, e o motorista nao se auto-reembolsa."""
+    fatura = await _paga_com_carteira(db, site, motorista)
+    r = await api.post(f"/api/v1/invoices/{fatura.id}/refund", headers=como_operador)
+    assert r.status_code == 403
+
+
+async def test_motorista_nao_ajusta_a_propria_carteira(api, como_motorista, motorista):
+    r = await api.post(
+        f"/api/v1/wallets/{motorista.id}/adjust",
+        headers=como_motorista,
+        json={"valor": "100.00", "motivo": "quero mais saldo"},
+    )
+    assert r.status_code == 403
+
+
+async def test_admin_ajusta_pela_rota(api, como_admin, motorista, db):
+    r = await api.post(
+        f"/api/v1/wallets/{motorista.id}/adjust",
+        headers=como_admin,
+        json={"valor": "15.00", "motivo": "Cortesia por queda do ponto"},
+    )
+    assert r.status_code == 200, r.text
+    linha = next(m for m in r.json()["movimentos"] if m["origem"] == "ajuste" and m["valor"] > 0)
+    assert linha["motivo"] == "Cortesia por queda do ponto"
+    assert Decimal(str(r.json()["saldo"])) == await _saldo(db, motorista)
+
+
+async def test_ajuste_em_motorista_inexistente_e_404(api, como_admin):
+    r = await api.post(
+        f"/api/v1/wallets/{uuid.uuid4()}/adjust",
+        headers=como_admin,
+        json={"valor": "10.00", "motivo": "Teste"},
+    )
+    assert r.status_code == 404
+
+
+async def test_motivo_curto_demais_e_recusado_pelo_schema(api, como_admin, motorista):
+    r = await api.post(
+        f"/api/v1/wallets/{motorista.id}/adjust",
+        headers=como_admin,
+        json={"valor": "10.00", "motivo": "x"},
+    )
+    assert r.status_code == 422
