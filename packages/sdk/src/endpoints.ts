@@ -264,10 +264,11 @@ export const app = {
   /** Relatorio mensal da frota, por centro de custo. So gestor. */
   fleetReport: (mes: string) =>
     api.get<Record<string, unknown>>('/app/fleet/report', { mes }),
-  /** Carros da frota e seus centros de custo. */
-  fleetVehicles: () => api.get<Record<string, unknown>[]>('/app/fleet/vehicles'),
+  /** Carros da frota e seus centros de custo. So gestor. */
+  fleetVehicles: () => api.get<T.VeiculoDaFrota[]>('/app/fleet/vehicles'),
+  /** Define (ou limpa, com null) a area do carro. Vazio ou so espaco limpa. */
   setCostCenter: (vehicleId: string, centro: string | null) =>
-    api.put<Record<string, unknown>>(`/app/fleet/vehicles/${vehicleId}/cost-center`, {
+    api.put<T.VeiculoDaFrota>(`/app/fleet/vehicles/${vehicleId}/cost-center`, {
       centro_de_custo: centro
     }),
   /** Registra (ou reaponta) o aparelho que recebe notificacao push. */

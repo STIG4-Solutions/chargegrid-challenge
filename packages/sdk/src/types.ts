@@ -118,6 +118,22 @@ export interface ReporteDoPonto {
  * subconjunto de `ReporteDoPonto` — sem quem reportou (é ele mesmo) e sem o
  * ponto (ele está olhando para o ponto).
  */
+/**
+ * Um carro da frota, do ponto de vista de quem paga a conta.
+ *
+ * Escrita à mão: a rota devolve `list[dict]`. É deliberadamente menos do que
+ * `Veiculo` — o gestor precisa identificar o carro e saber de qual área ele é,
+ * e não do resto do cadastro de quem dirige.
+ */
+export interface VeiculoDaFrota {
+  id: string
+  modelo: string
+  placa: string | null
+  /** `null` = ainda sem área. É o que o relatório soma em "sem centro de custo". */
+  centro_de_custo: string | null
+  motorista: string
+}
+
 export interface MeuReporte {
   id: string
   categoria: string

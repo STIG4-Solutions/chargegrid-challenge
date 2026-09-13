@@ -8,7 +8,8 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "typecheck": "tsc --noEmit",
-    "bundle": "expo export --platform android --output-dir .expo-bundle"
+    "bundle": "expo export --platform android --output-dir .expo-bundle",
+    "verify": "node scripts/verify-mobile.mjs"
   },
   "dependencies": {
     "@chargegrid/sdk": "*",

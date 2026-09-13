@@ -11,6 +11,7 @@ import {
   type Veiculo
 } from '@chargegrid/sdk'
 import { Aviso, Botao, Carregando, Tela } from '../components'
+import EditarVeiculo from '../EditarVeiculo'
 import { useAuth } from '../auth'
 import { API_URL } from '../api'
 import { cores, espaco, raio } from '../theme'
@@ -41,6 +42,7 @@ export default function ProfileScreen() {
   const { user, logout, recarregarPerfil } = useAuth()
   const veiculos = useApi<Veiculo[]>(() => app.myVehicles(), [])
   const [confirmando, setConfirmando] = useState<string | null>(null)
+  const [editando, setEditando] = useState<string | null>(null)
   const remover = useAction((id: string) => app.removeVehicle(id), {
     onSuccess: () => {
       setConfirmando(null)
@@ -255,18 +257,45 @@ export default function ProfileScreen() {
                 {v.max_ac_kw ? ` · até ${num(v.max_ac_kw, 1)} kW AC` : ''}
               </Text>
             </View>
-            {/* Duas etapas em vez de um alerta do sistema: um modal nativo trava
-                a ponte e a sessao de automacao para com ele. */}
-            <Pressable
-              onPress={() => (confirmando === v.id ? remover.run(v.id) : setConfirmando(v.id))}
-              disabled={remover.pending}
-              accessibilityRole="button"
-              hitSlop={8}
-            >
-              <Text style={confirmando === v.id ? s.removerConfirma : s.remover}>
-                {confirmando === v.id ? 'Confirmar' : 'Remover'}
-              </Text>
-            </Pressable>
+            <View style={s.veiculoAcoes}>
+              {/* Editar antes de remover, e nao so' por comodidade: corrigir uma
+                  placa apagando o carro levaria junto o vinculo do historico,
+                  que e' ON DELETE SET NULL. */}
+              <Pressable
+                onPress={() => {
+                  setEditando(editando === v.id ? null : v.id)
+                  setConfirmando(null)
+                }}
+                disabled={remover.pending}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: editando === v.id }}
+                hitSlop={8}
+              >
+                <Text style={s.editar}>{editando === v.id ? 'Fechar' : 'Editar'}</Text>
+              </Pressable>
+              {/* Duas etapas em vez de um alerta do sistema: um modal nativo trava
+                  a ponte e a sessao de automacao para com ele. */}
+              <Pressable
+                onPress={() => (confirmando === v.id ? remover.run(v.id) : setConfirmando(v.id))}
+                disabled={remover.pending}
+                accessibilityRole="button"
+                hitSlop={8}
+              >
+                <Text style={confirmando === v.id ? s.removerConfirma : s.remover}>
+                  {confirmando === v.id ? 'Confirmar' : 'Remover'}
+                </Text>
+              </Pressable>
+            </View>
+            {editando === v.id && (
+              <EditarVeiculo
+                veiculo={v}
+                aoSalvar={() => {
+                  setEditando(null)
+                  void veiculos.refetch({ silent: true })
+                }}
+                aoFechar={() => setEditando(null)}
+              />
+            )}
           </View>
         ))}
         {remover.error && <Aviso mensagem={(remover.error as ApiError).detail} />}
@@ -365,6 +394,8 @@ const s = StyleSheet.create({
     gap: 2
   },
   veiculoTexto: { flex: 1 },
+  veiculoAcoes: { flexDirection: 'row', gap: espaco.md, marginTop: 2 },
+  editar: { color: cores.textoFraco, fontSize: 13 },
   veiculoModelo: { color: cores.texto, fontSize: 15, fontWeight: '600' },
   remover: { color: cores.textoFraco, fontSize: 13 },
   removerConfirma: { color: cores.acento, fontSize: 13, fontWeight: '700' },

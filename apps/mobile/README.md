@@ -279,9 +279,9 @@ entre "nada agora" e "o app quebrou".
 | Agendar recarga | `src/screens/NewReservationScreen.tsx` | `app.stations`, `app.stationChargePoints`, `app.myVehicles`, `app.createReservation` |
 | Histórico (recargas e faturas) | `src/screens/HistoryScreen.tsx` | `app.mySessions`, `app.myInvoices` |
 | Missões | `src/screens/MissionsScreen.tsx` | `app.missions`, `app.rewards` |
-| Perfil (carteira, veículos e plano) | `src/screens/ProfileScreen.tsx` | `app.myVehicles`, `app.addVehicle`, `app.topUpWallet`, `app.plans`, `app.subscription`, `app.subscribe`, `app.unsubscribe` |
+| Perfil (carteira, veículos e plano) | `src/screens/ProfileScreen.tsx` | `app.myVehicles`, `app.addVehicle`, `app.updateVehicle`, `app.removeVehicle`, `app.topUpWallet`, `app.plans`, `app.subscription`, `app.subscribe`, `app.unsubscribe` |
 | Ler QR do carregador | `src/screens/ScannerScreen.tsx` | `app.chargePointByCode` |
-| Frota (só gestor) | `src/screens/FleetScreen.tsx` | `app.fleetReport` |
+| Frota (só gestor) | `src/screens/FleetScreen.tsx` | `app.fleetReport`, `app.fleetVehicles`, `app.setCostCenter` |
 
 Componentes que vivem fora das telas, porque aparecem em mais de uma:
 
@@ -306,6 +306,20 @@ A aba de missões traduz cada métrica para a unidade certa: "3 de 5 recargas", 
 solares". Sem isso a tela diria "3 de 5 energia_verde_kwh", que é o nome da coluna e não o nome
 da coisa. Missões que o motorista ainda não começou aparecem com barra zerada — quem acabou de
 instalar o app é justamente quem mais precisa ver o que há para ganhar.
+
+**Editar veículo em vez de apagar e recadastrar.** O perfil tinha adicionar e remover e nada
+entre os dois — uma placa digitada errada só se corrigia apagando o carro, e `vehicles.id` é
+`ON DELETE SET NULL` nas sessões: o histórico sobrevive, mas perde o vínculo com o carro. O
+`PATCH /app/vehicles/{id}` existia desde sempre, com a docstring dizendo este caso exato
+("placa digitada errada, bateria trocada"), e nenhuma tela chamava. O corpo enviado é só o que
+mudou (`corpoDaEdicao`, em `src/veiculo.ts`): mandar o cadastro inteiro funcionaria, e
+transformaria toda correção numa reescrita de todos os campos.
+
+**Centro de custo se atribui onde ele é cobrado.** A tela da Frota já avisava "R$ X sem centro
+de custo — cadastre a área dos carros para o rateio fechar", e não havia onde cadastrar:
+`PUT /app/fleet/vehicles/{id}/cost-center` estava testado e sem caminho até ele. A atribuição
+entra logo abaixo do aviso, e salvar recarrega o relatório junto — o rateio lê o centro **atual**
+do veículo, então classificar reclassifica o mês inteiro e o aviso encolhe na hora.
 
 O bloco de plano no Perfil distingue **"assina"** de **"renova"**. Cancelada dentro do mês pago
 continua dando desconto até o fim do período, e dizer só "cancelada" faria o motorista achar

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native'
 import { app, brl, num, useApi } from '@chargegrid/sdk'
 import { Aviso, Carregando, Tela, useRecuoInferior } from '../components'
+import CentroDeCusto from '../CentroDeCusto'
 import { cores, espaco, raio } from '../theme'
 
 /**
@@ -132,11 +133,18 @@ export default function FleetScreen() {
 
                 {(d.sem_centro_brl ?? 0) > 0 && (
                   <Aviso
-                    mensagem={`${brl(d.sem_centro_brl ?? 0)} sem centro de custo. Cadastre a área dos carros para o rateio fechar.`}
+                    mensagem={`${brl(d.sem_centro_brl ?? 0)} sem centro de custo. Cadastre a área dos carros abaixo para o rateio fechar.`}
                   />
                 )}
               </>
             )}
+
+            {/*
+              Logo abaixo do aviso que cobra a área, e nao em aba separada: o
+              aviso mandava cadastrar e nao dizia onde. Ler a cobranca e agir
+              sao o mesmo gesto.
+            */}
+            <CentroDeCusto aoAtribuir={() => void relatorio.refetch()} />
           </View>
         }
         ListEmptyComponent={

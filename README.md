@@ -302,11 +302,12 @@ npm ls react           # tem que aparecer uma única
 
 ```bash
 npm run verify:api                         # 17 cenários do SDK com fetch simulado
-npm run verify:dashboard                   # 62 cenários da lógica do painel, sem navegador
+npm run verify:dashboard                   # 96 cenários da lógica do painel, sem navegador
+npm run verify:mobile                      # 28 cenários da lógica do app, sem simulador
 npm run test:dashboard                     # 52 testes de renderização (vitest + jsdom)
 npm run typecheck                          # tipos do SDK e do app contra o contrato
 npm run build                              # dashboard
-cd apps/api && python -m pytest -q          # 538 testes (precisa do Postgres)
+cd apps/api && python -m pytest -q          # 689 testes (precisa do Postgres)
 cd apps/api && python -m ruff check .
 cd apps/api && python -m scripts.smoke_test # 116 cenários ponta a ponta (API no ar)
 cd apps/mobile && npx expo export --platform android --output-dir .expo-bundle
@@ -319,10 +320,18 @@ O `verify:dashboard` é Node puro mais esbuild, sem runner, e cobre a lógica qu
 que vai para o servidor**: o diff do editor de orçamento, a validação do formulário de
 campanha, a calibração da faixa de previsão e o cálculo da multa de rescisão.
 
-O `test:dashboard` cobre o que aquele não alcança — **o que o operador lê**. As funções puras
+O `verify:mobile` é o mesmo formato aplicado ao app do motorista, que até então não tinha
+verificação automática nenhuma — `tsc --noEmit` era tudo. Typecheck garante que `corpoDaEdicao`
+devolve um objeto; não garante que ele devolve **vazio** quando nada mudou, que é a regra que
+impede uma correção de placa de reescrever o cadastro inteiro.
+
+O `test:dashboard` cobre o que aqueles não alcançam — **o que o operador lê**. As funções puras
 podiam estar todas certas e a tela ainda mentir: bastava o card ignorar `fonte` e chamar de
-"energia prevista" um número que é média móvel. São 21 testes em `apps/dashboard/tests`, com
+"energia prevista" um número que é média móvel. São 52 testes em `apps/dashboard/tests`, com
 vitest e jsdom.
+
+Nenhum dos três cobre renderização no app: isso exigiria react-native rodando em Node. É limite
+conhecido e anotado, não esquecimento.
 
 A divisão não é arbitrária: lógica pura no `verify`, decisão de apresentação no `test`. Só o
 segundo precisa de DOM, e é por isso que ele veio depois.
