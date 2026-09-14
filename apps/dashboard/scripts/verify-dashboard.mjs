@@ -57,11 +57,18 @@ const { rotuloDaAcao, mudancas, comoTexto, abasDaSecao, podeEstornar } = await i
   pathToFileURL(saidaAuditoria).href
 )
 const {
+  NOME_MAXIMO,
   SENHA_MINIMA,
+  CAMPOS_DA_CONTA,
+  alcanceDoPapel,
   corpoDaConta,
+  mensagemDeSucesso,
+  mensagemDoErro,
   podeDesligar,
   pracaDaConta,
   problemaNaConta,
+  problemasDaConta,
+  resumoDoQueFalta,
   rotuloDoPapel,
   ultimoAcesso
 } = await import(pathToFileURL(saidaContas).href)
@@ -732,6 +739,99 @@ const abasAdmin = abasDaSecao([], { rede: false, isAdmin: true }).map((a) => a.t
 const abasOperador = abasDaSecao([], { rede: false, isAdmin: false }).map((a) => a.to)
 check('admin ve a aba de contas', abasAdmin.includes('/ev/users'))
 check('operador nao ve a aba de contas', !abasOperador.includes('/ev/users'))
+
+// 40.1 Uma pendencia POR CAMPO, e nao so' a primeira. Com uma mensagem de cada
+//      vez a pessoa descobre os problemas em fila — corrige o nome e aparece o
+//      e-mail — e a mensagem solta nao diz a qual dos cinco campos se refere.
+const VAZIA = { nome: '', email: '', senha: '', papel: 'operator', siteId: '' }
+const problemasVazia = problemasDaConta(VAZIA)
+check(
+  'formulario vazio acusa os quatro campos de uma vez',
+  Boolean(
+    problemasVazia.nome && problemasVazia.email && problemasVazia.senha && problemasVazia.siteId
+  )
+)
+check(
+  'campo bom nao vira pendencia',
+  problemasDaConta(OPERADOR).nome === null && problemasDaConta(OPERADOR).siteId === null
+)
+check(
+  'so a praca pendente acusa so a praca',
+  problemasDaConta({ ...OPERADOR, siteId: '' }).siteId !== null &&
+    problemasDaConta({ ...OPERADOR, siteId: '' }).nome === null
+)
+// O mapa e a pergunta curta nao podem divergir: `problemaNaConta` e derivada.
+check(
+  'a primeira pendencia sai do mapa',
+  problemaNaConta(VAZIA) === problemasVazia.nome &&
+    problemaNaConta({ ...OPERADOR, siteId: '' }) === problemasVazia.siteId
+)
+
+// 40.2 O teto de 160 e' do servidor. Sem ele aqui, o nome comprido so' e'
+//      recusado depois do POST, com um 422 que fala de `full_name`.
+check(
+  'nome no teto passa',
+  problemasDaConta({ ...OPERADOR, nome: 'a'.repeat(NOME_MAXIMO) }).nome === null
+)
+check(
+  'nome acima do teto nao passa',
+  problemasDaConta({ ...OPERADOR, nome: 'a'.repeat(NOME_MAXIMO + 1) }).nome !== null
+)
+
+// 40.3 Botao desabilitado sem motivo visivel e' beco sem saida: o resumo diz
+//      TUDO o que falta, inclusive dos campos em que ninguem mexeu ainda.
+check(
+  'o resumo lista as quatro pendencias',
+  resumoDoQueFalta(VAZIA) === 'Ainda falta: nome, e-mail, senha e praça.'
+)
+check('formulario completo nao tem resumo', resumoDoQueFalta(OPERADOR) === null)
+check(
+  'pendencia unica sai no singular',
+  resumoDoQueFalta({ ...OPERADOR, siteId: '' }) === 'Ainda falta: praça.'
+)
+// Admin nao tem praca: cobra-la dele seria cobrar o que a tela nem oferece.
+check(
+  'o resumo do admin nunca cobra praca',
+  !/praça/.test(resumoDoQueFalta({ ...VAZIA, papel: 'admin' }) ?? '')
+)
+// A dica da senha cita o piso do servidor. Escrita a' mao, continuaria dizendo
+// "8" no dia em que `SENHA_MINIMA` virasse 10 — e dica que mente e' pior que
+// dica nenhuma.
+check('a dica da senha cita o piso real', CAMPOS_DA_CONTA.senha.dica.includes(String(SENHA_MINIMA)))
+check(
+  'a dica da senha avisa que nao ha troca no primeiro acesso',
+  /primeiro acesso/.test(CAMPOS_DA_CONTA.senha.dica)
+)
+
+// 40.4 O 409 e' o caso comum e o unico que a pessoa resolve sozinha: e-mail
+//      repetido quase sempre e' conta DESLIGADA na lista logo abaixo. O
+//      `detail` cru diz que ja' existe e para por ai'.
+check('409 manda procurar na lista', /religar/i.test(mensagemDoErro({ status: 409, detail: 'x' })))
+check('404 manda recarregar as pracas', /praça/i.test(mensagemDoErro({ status: 404, detail: 'x' })))
+check(
+  'erro sem traducao mantem o detail do servidor',
+  mensagemDoErro({ status: 400, detail: 'campo invalido' }) === 'campo invalido'
+)
+check('erro sem detail nao mostra vazio', mensagemDoErro({ status: 500 }).length > 0)
+check('sem erro, sem mensagem', mensagemDoErro(null) === null)
+
+// 40.5 Fechar o formulario e recarregar uma lista de vinte linhas nao e' aviso
+//      de sucesso: a linha nova entra no meio, em ordem alfabetica. A
+//      confirmacao repete o e-mail e lembra da senha que so' o admin conhece.
+const sucesso = mensagemDeSucesso({ ...OPERADOR, email: '  Maria@Empresa.COM ' })
+check('o sucesso repete o e-mail normalizado', sucesso.includes('maria@empresa.com'))
+check('o sucesso nomeia a pessoa', sucesso.includes('Maria Souza'))
+check('o sucesso lembra que a senha nao sera trocada', /primeiro acesso/.test(sucesso))
+check(
+  'o sucesso diz o papel criado',
+  mensagemDeSucesso({ ...OPERADOR, papel: 'admin' }).includes('administrador')
+)
+
+// 40.6 "Operador | Administrador" sozinho nao diz a ninguem qual dos dois a
+//      pessoa do caixa precisa ser. O alcance e' a unica diferenca que decide.
+check('operador enxerga so a praca', /praça/.test(alcanceDoPapel('operator')))
+check('admin enxerga a rede', /rede/.test(alcanceDoPapel('admin')))
+check('papel desconhecido nao inventa alcance', alcanceDoPapel('auditor') === null)
 
 rmSync(saidaContas, { force: true })
 // ------------------------------------------------- endereço da API por ambiente
