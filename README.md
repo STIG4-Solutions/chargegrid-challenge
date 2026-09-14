@@ -298,6 +298,26 @@ bundle quebram todo hook com *"Invalid hook call"*. Ao mexer nessas versões, co
 npm ls react           # tem que aparecer uma única
 ```
 
+## Quem vê o quê no painel
+
+Três papéis, e só dois entram no painel comercial:
+
+| Papel | No painel | Escopo |
+|---|---|---|
+| `admin` | Tudo, incluindo **Contas** (`/ev/users`) e **Auditoria** (`/ev/audit`) | A rede inteira — escolhe qualquer praça pelo seletor |
+| `operator` | Tudo menos essas duas abas | Uma praça só, a do próprio `site_id` |
+| `driver` | Só o app | — |
+
+**O front esconde, o servidor recusa.** Um motorista consegue fazer login no painel — o
+emissor de token é o mesmo do app —, e encontra um painel que responde 403 em cada chamada.
+Esconder a aba de Auditoria de um operador é conveniência, não permissão: a rota recusaria
+de qualquer jeito. Uma aba que só devolve 403 é pior que aba nenhuma.
+
+O admin não precisa de conta de operador para ver uma praça pelos olhos dela: o seletor de
+praça injeta `site_id` em toda requisição, e cada aba passa a responder como se ele fosse o
+operador daquele estabelecimento. `apps/dashboard/README.md` detalha as abas, os perfis e a
+troca de praça.
+
 ## Verificação
 
 ```bash
