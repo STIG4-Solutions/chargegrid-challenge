@@ -85,6 +85,31 @@ TAGS = [
         ),
     },
     {
+        "name": "campanhas",
+        "description": (
+            "Desconto na fatura e cashback em carteira, com missões e orçamento. Uma campanha "
+            "declara **um** tipo de benefício: desconto sai da margem do estabelecimento, "
+            "cashback sai da rede — e misturar os dois tornaria impossível dizer quanto ela "
+            "custou."
+        ),
+    },
+    {
+        "name": "plataforma",
+        "description": (
+            "O contrato entre a rede e o estabelecimento: plano, prazo mínimo, cobrança mensal "
+            "e multa de rescisão. Tabela separada de `invoices` de propósito — a direção do "
+            "dinheiro é oposta, e somar as duas envenenaria todo relatório de receita."
+        ),
+    },
+    {
+        "name": "contas",
+        "description": (
+            "Operadores e administradores da rede, criados por admin. Motorista não entra aqui: "
+            "ele se cadastra sozinho pelo app. Não há apagar — as referências de auditoria são "
+            "`SET NULL`, então desligar preserva o rastro de quem fez o quê."
+        ),
+    },
+    {
         "name": "app mobile",
         "description": (
             "Escopo do motorista: mapa de estações, início com pré-autorização, agendamento, "

@@ -119,7 +119,7 @@ uvicorn app.main:app --reload
 ## Testes
 
 ```bash
-pytest -q          # 518 testes
+pytest -q          # 730 testes
 ruff check app     # lint
 ```
 
@@ -191,7 +191,7 @@ de execução não importa. O `conftest.py` explica os detalhes.
 
 Com a API no ar, o teste de fumaça percorre o produto inteiro — login, orçamento, sessão,
 fila de espera, agendamento, cobrança Pix, carteira, missões, campanhas, assinatura, contrato
-da plataforma e previsão — em **116 cenários**:
+da plataforma e previsão — em **117 cenários**:
 
 ```bash
 python -m scripts.smoke_test                  # usa http://127.0.0.1:8000
@@ -242,6 +242,35 @@ O dashboard e o app usam o mesmo emissor. Papéis: `admin` e `operator` acessam 
 | `GET /auth/me` | Perfil e papel do usuário autenticado |
 
 O escopo do site vem do token: um operador nunca enxerga outro estabelecimento.
+
+### Contas de operação (`/users`)
+
+Operador e admin só nasciam do seed ou de um `INSERT` — e a docstring de `/auth/register` chegou
+a apontar para uma rota `/users` que **nunca existiu**. Agora existe, e é de admin.
+
+| Endpoint | Uso |
+|---|---|
+| `GET /users` | Operadores e admins, com a praça de cada um. Traz os desligados |
+| `POST /users` | Cria operador (exige `site_id`) ou admin |
+| `PATCH /users/{id}` | Liga ou desliga o acesso |
+
+**Operador exige praça, e a guarda é de segurança, não de formulário.** `get_scoped_site_id`
+devolve o *primeiro site cadastrado* para quem não tem `site_id`: um operador criado sem praça
+não ficaria sem acesso — ficaria com o acesso da praça de outra pessoa, sem nada na tela dele
+indicando isso.
+
+**Motorista não aparece.** Ele se cadastra sozinho pelo app, e são milhares. Misturar os dois
+faria "desligar" significar também "bloquear cliente", que é outra decisão. Bloquear motorista
+abusivo segue sem caminho — limite declarado, não esquecimento.
+
+**Não há apagar.** As FKs de auditoria e faturamento são `SET NULL`: apagar a conta apagaria o
+vínculo do rastro dela. Desligar tira o acesso e preserva quem fez o quê. E **ninguém desliga a
+própria conta** — a saída seria um `UPDATE` no banco, que é o estado do qual esta rota veio tirar
+o projeto.
+
+Uma guarda de "último admin ativo" chegou a ser escrita e foi **removida por ser inalcançável**:
+quem chama é um admin ativo, então desligar outro sempre deixa o solicitante de pé, e desligar a
+si mesmo esbarra na guarda acima antes.
 
 ## Os módulos
 
@@ -412,7 +441,7 @@ comportamento certo.
 #### Pix: escrito e testado, não homologado
 
 `PixProvider` fala a API Pix do BACEN — OAuth2 `client_credentials` sobre mTLS, `PUT /v2/cob/{txid}`,
-`GET /v2/cob/{txid}`, `PUT /v2/pix/{e2eid}/devolucao/{id}`. Os 33 testes o exercitam contra um PSP
+`GET /v2/cob/{txid}`, `PUT /v2/pix/{e2eid}/devolucao/{id}`. Os 34 testes o exercitam contra um PSP
 de mentira (`httpx.MockTransport`): caminho, cabeçalho, corpo, renovação de token, erro em RFC 7807
 e a travessia completa do webhook até a fatura paga.
 
@@ -690,6 +719,8 @@ que há rastro, e a pergunta só aparece no dia em que alguém precisa dele.
 | `contrato.criado` · `contrato.rescindido` | `POST /platform/contract` · `/terminate` |
 | `campanha.criada` · `campanha.encerrada` | `POST /campaigns` · `DELETE /campaigns/{id}` |
 | `metodo_de_pagamento.alterado` | `PUT /payment-methods` |
+| `conta.criada` | `POST /users` |
+| `conta.ativada` · `conta.desativada` | `PATCH /users/{id}` |
 
 **O que não entra, de propósito:** o que o worker faz sozinho — cashback concedido, mensalidade
 cobrada, cobrança vencida. São consequências de regra, não decisões de alguém; auditá-las

@@ -302,7 +302,7 @@ npm ls react           # tem que aparecer uma única
 
 ```bash
 npm run verify:api                         # 17 cenários do SDK com fetch simulado
-npm run verify:dashboard                   # 119 cenários da lógica do painel, sem navegador
+npm run verify:dashboard                   # 124 cenários da lógica do painel, sem navegador
 npm run verify:mobile                      # 49 cenários da lógica do app, sem simulador
 npm run test:dashboard                     # 63 testes de renderização (vitest + jsdom)
 npm run test:mobile                        # 13 testes de renderização do app (jest-expo + RNTL)
@@ -310,14 +310,14 @@ npm run typecheck                          # tipos do SDK e do app contra o cont
 npm run format:check                       # Prettier no lado JS (`npm run format` corrige)
 npm run build                              # dashboard
 npm run build:staging                      # dashboard apontando para api.staging.stig4.com
-cd apps/api && python -m pytest -q          # 725 testes (precisa do Postgres)
+cd apps/api && python -m pytest -q          # 730 testes (precisa do Postgres)
 cd apps/api && python -m ruff check .
 cd apps/api && python -m ruff format --check .
-cd apps/api && python -m scripts.smoke_test # 116 cenários ponta a ponta (API no ar)
+cd apps/api && python -m scripts.smoke_test # 117 cenários ponta a ponta (API no ar)
 npm run gen:contrato                       # regera openapi.json e os tipos do SDK
 npm run forecast:test                      # 4 testes do pipeline de previsão
 npm run forecast:lint                      # regra e forma no código de previsão que é deste projeto
-cd apps/mobile && npx expo export --platform android --output-dir .expo-bundle
+npm run bundle -w @chargegrid/mobile       # empacota o app (Metro + Hermes), como o CI faz
 ```
 
 **O contrato é gerado, não editado.** `openapi.json` é a fonte de
@@ -368,7 +368,7 @@ impede uma correção de placa de reescrever o cadastro inteiro.
 
 O `test:dashboard` cobre o que aqueles não alcançam — **o que o operador lê**. As funções puras
 podiam estar todas certas e a tela ainda mentir: bastava o card ignorar `fonte` e chamar de
-"energia prevista" um número que é média móvel. São 52 testes em `apps/dashboard/tests`, com
+"energia prevista" um número que é média móvel. São 63 testes em `apps/dashboard/tests`, com
 vitest e jsdom.
 
 O `test:mobile` fecha o que era o último buraco: renderização no app. Ele roda **jest-expo mais
