@@ -8,6 +8,7 @@
  */
 
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { Linhas, NovaConta } from '../src/views/ev/Contas.jsx'
 
@@ -83,11 +84,67 @@ describe('a tabela de contas', () => {
 })
 
 describe('o formulário de nova conta', () => {
-  const SITES = [{ id: 's1', name: 'Shopping Morumbi' }]
+  // A forma REAL de `GET /power/sites`, copiada da resposta da API — não
+  // inventada a partir do componente. A versão anterior deste arquivo usava
+  // `{ id, name }`, que era o que o código lia; o servidor devolve `site_id` e
+  // `nome`. O teste ficou verde e o seletor renderizava quatro opções vazias,
+  // com o formulário travado, porque a praça é obrigatória para operador.
+  const SITES = [
+    {
+      site_id: '6a8aaaad-2964-4b1d-a14e-e437ceb76e17',
+      nome: 'Shopping Morumbi - Piso G3',
+      cidade: 'Sao Paulo',
+      estado: 'SP',
+      timezone: 'America/Sao_Paulo'
+    },
+    {
+      site_id: '492bfe4f-5a29-494a-8210-f7e1c87e70e0',
+      nome: 'LAB FIAP Eco Station',
+      cidade: 'Sao Paulo',
+      estado: 'SP',
+      timezone: 'America/Sao_Paulo'
+    }
+  ]
 
   it('começa fechado, com só o botão de abrir', () => {
     render(<NovaConta sites={SITES} aoCriar={() => {}} />)
     expect(screen.getByRole('button', { name: 'Nova conta' })).toBeInTheDocument()
     expect(screen.queryByText('Papel')).not.toBeInTheDocument()
+  })
+
+  it('aberto, o seletor lista as praças pelo nome', async () => {
+    const usuario = userEvent.setup()
+    render(<NovaConta sites={SITES} aoCriar={() => {}} />)
+    await usuario.click(screen.getByRole('button', { name: 'Nova conta' }))
+
+    expect(screen.getByRole('option', { name: 'Shopping Morumbi - Piso G3' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'LAB FIAP Eco Station' })).toBeInTheDocument()
+  })
+
+  it('cada praça carrega o próprio identificador', async () => {
+    // Nome certo com valor vazio deixaria a lista bonita e o envio impossível.
+    const usuario = userEvent.setup()
+    render(<NovaConta sites={SITES} aoCriar={() => {}} />)
+    await usuario.click(screen.getByRole('button', { name: 'Nova conta' }))
+
+    const opcao = screen.getByRole('option', { name: 'Shopping Morumbi - Piso G3' })
+    expect(opcao).toHaveValue('6a8aaaad-2964-4b1d-a14e-e437ceb76e17')
+  })
+
+  it('sem praça escolhida, criar continua bloqueado', async () => {
+    const usuario = userEvent.setup()
+    render(<NovaConta sites={SITES} aoCriar={() => {}} />)
+    await usuario.click(screen.getByRole('button', { name: 'Nova conta' }))
+
+    expect(screen.getByRole('button', { name: 'Criar conta' })).toBeDisabled()
+  })
+
+  it('admin não precisa de praça, e o seletor some', async () => {
+    const usuario = userEvent.setup()
+    render(<NovaConta sites={SITES} aoCriar={() => {}} />)
+    await usuario.click(screen.getByRole('button', { name: 'Nova conta' }))
+    await usuario.selectOptions(screen.getByLabelText(/Papel/), 'admin')
+
+    expect(screen.queryByRole('option', { name: 'Shopping Morumbi - Piso G3' })).toBeNull()
   })
 })

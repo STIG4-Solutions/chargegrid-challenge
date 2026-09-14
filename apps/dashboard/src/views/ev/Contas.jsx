@@ -134,9 +134,14 @@ export function NovaConta({ sites, aoCriar }) {
             Praça
             <select value={campos.siteId} onChange={campo('siteId')}>
               <option value="">selecione…</option>
+              {/*
+                `site_id` e `nome` — as chaves que `GET /power/sites` devolve.
+                Com `id`/`name` as opções renderizavam vazias e o formulário
+                não tinha como ser enviado, porque a praça é obrigatória.
+              */}
               {sites.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
+                <option key={s.site_id} value={s.site_id}>
+                  {s.nome}
                 </option>
               ))}
             </select>
