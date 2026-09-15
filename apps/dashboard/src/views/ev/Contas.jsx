@@ -1,14 +1,20 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { admin, power, useAction, useApi } from '@chargegrid/sdk'
 
 import { Async, Empty } from '../../components/Async.jsx'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import {
+  alcanceDoPapel,
+  CAMPOS_DA_CONTA,
   CONTA_VAZIA,
   corpoDaConta,
+  mensagemDeSucesso,
+  mensagemDoErro,
   podeDesligar,
   pracaDaConta,
   problemaNaConta,
+  problemasDaConta,
+  resumoDoQueFalta,
   rotuloDoPapel,
   ultimoAcesso
 } from './contas.js'
@@ -61,105 +67,366 @@ export default function Contas() {
   )
 }
 
-/** Exportado para o teste montar com props, sem subir a aba inteira. */
-export function NovaConta({ sites, aoCriar }) {
+/**
+ * Uma célula da linha: rótulo, controle e UMA faixa embaixo que ora é dica, ora
+ * é o erro do campo.
+ *
+ * A mesma faixa para as duas coisas, com o mesmo `id`, por dois motivos. O
+ * `aria-describedby` do controle aponta sempre para um nó que existe — com dica
+ * e erro em nós separados o atributo teria de trocar de alvo e ficaria
+ * apontando para o nada metade do tempo. E o erro SUBSTITUI a dica: uma vez
+ * quebrada, repetir a regra ao lado do erro diz a mesma coisa duas vezes e
+ * ainda empurra a linha inteira para baixo.
+ *
+ * `htmlFor` em vez de `<label>` envolvendo o controle, que era como estava: o
+ * rótulo da senha divide a linha com o botão de revelar, e botão dentro de
+ * label faz o clique nele também cair no campo.
+ */
+function Campo({ id, rotulo, dica, erro, acao, children }) {
+  return (
+    <div style={{ display: 'grid', gap: 4, alignContent: 'start' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'baseline',
+          gap: 8,
+          minHeight: 18
+        }}
+      >
+        <label htmlFor={id} style={{ fontSize: 12, color: 'var(--sems-muted)' }}>
+          {rotulo}
+        </label>
+        {acao}
+      </div>
+      {children}
+      <div
+        id={`${id}-dica`}
+        className={erro ? 'red' : 'muted'}
+        style={{ fontSize: 11, lineHeight: 1.35 }}
+      >
+        {erro || dica}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Exportado para o teste montar com props, sem subir a aba inteira.
+ *
+ * `criarConta` entra por prop, com o SDK como padrão, pelo mesmo motivo de
+ * `aoResolver` em `FilaDeReportes`: o sucesso e o 409 são metade da experiência
+ * desta tela, e sem poder trocar a chamada não haveria como testar nenhum dos
+ * dois sem levantar servidor.
+ */
+export function NovaConta({ sites, aoCriar, criarConta = admin.createUser }) {
   const [campos, setCampos] = useState(CONTA_VAZIA)
   const [aberto, setAberto] = useState(false)
-  const problema = problemaNaConta(campos)
+  const [sucesso, setSucesso] = useState(null)
+  const [senhaVisivel, setSenhaVisivel] = useState(false)
+  // Em quais campos a pessoa já mexeu. Sem isto, abrir o formulário já acusa
+  // "Escreva o nome completo" num campo que ela nem viu ainda — a tela começa
+  // repreendendo alguém que não fez nada.
+  const [tocados, setTocados] = useState({})
 
-  const criar = useAction(() => admin.createUser(corpoDaConta(campos)), {
+  const idBase = useId()
+  const id = (chave) => `${idBase}-${chave}`
+
+  const problemas = problemasDaConta(campos)
+  const problema = problemaNaConta(campos)
+  const falta = resumoDoQueFalta(campos)
+  // Erro só aparece depois do primeiro contato com o campo.
+  const erro = (chave) => (tocados[chave] ? problemas[chave] : null)
+
+  const criar = useAction(() => criarConta(corpoDaConta(campos)), {
     onSuccess: () => {
+      setSucesso(mensagemDeSucesso(campos))
       setCampos(CONTA_VAZIA)
+      setTocados({})
+      setSenhaVisivel(false)
       setAberto(false)
       aoCriar?.()
     }
   })
 
-  const campo = (chave) => (e) => setCampos({ ...campos, [chave]: e.target.value })
+  const campo = (chave) => (e) => {
+    setCampos({ ...campos, [chave]: e.target.value })
+    // O erro do servidor fala do que foi ENVIADO. Assim que a pessoa muda um
+    // campo ele passa a descrever um envio que não existe mais — e um 409 de
+    // e-mail repetido parado embaixo de um e-mail novo parece recusa do novo.
+    if (criar.error) criar.clearError()
+  }
+  const tocar = (chave) => () => setTocados((atuais) => ({ ...atuais, [chave]: true }))
 
-  if (!aberto) {
-    return (
-      <div className="card" style={{ marginTop: 16 }}>
-        <button type="button" className="btn" onClick={() => setAberto(true)}>
-          Nova conta
-        </button>
-      </div>
-    )
+  const enviar = (e) => {
+    e.preventDefault()
+    // Enter num campo envia. Se ainda falta algo, em vez de não acontecer nada,
+    // todos os campos passam a tocados e cada pendência aparece na sua célula.
+    if (problema) {
+      setTocados({ nome: true, email: true, senha: true, siteId: true })
+      return
+    }
+    void criar.run()
+  }
+
+  const abrir = () => {
+    setSucesso(null)
+    setAberto(true)
   }
 
   return (
     <div className="card" style={{ marginTop: 16, display: 'grid', gap: 12 }}>
-      <div className="card-title">Nova conta</div>
-
       {/*
-        Os cinco campos numa linha só. `auto-fit` com mínimo de 160px mantém a
-        linha em tela larga e quebra sozinho no notebook — cinco campos fixos
-        num monitor estreito viram cinco campos ilegíveis.
+        Região viva SEMPRE montada, mesmo vazia: leitor de tela só anuncia
+        mudança em região que já existia antes da mudança. Se ela nascesse junto
+        com a mensagem, o sucesso passaria em silêncio — que é exatamente o que
+        acontecia antes, quando o formulário só fechava.
       */}
-      <div
-        style={{
-          display: 'grid',
-          gap: 8,
-          gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-          alignItems: 'end'
-        }}
-      >
-        <label>
-          Nome
-          <input value={campos.nome} onChange={campo('nome')} placeholder="Maria Souza" />
-        </label>
-        <label>
-          E-mail
-          <input value={campos.email} onChange={campo('email')} placeholder="maria@empresa.com" />
-        </label>
-        <label>
-          Senha inicial
-          <input type="password" value={campos.senha} onChange={campo('senha')} />
-        </label>
-        <label>
-          Papel
-          <select value={campos.papel} onChange={campo('papel')}>
-            <option value="operator">Operador</option>
-            <option value="admin">Administrador</option>
-          </select>
-        </label>
-
-        {/*
-          A praça entra na MESMA linha, e continua só para operador: admin é
-          global, e oferecer a praça a ele sugeriria que ficaria restrito a ela.
-          Some quando o papel é admin, e a linha passa a ter quatro colunas.
-        */}
-        {campos.papel === 'operator' && (
-          <label>
-            Praça
-            <select value={campos.siteId} onChange={campo('siteId')}>
-              <option value="">selecione…</option>
-              {sites.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
+      <div role="status" aria-live="polite">
+        {sucesso && <div className="form-ok">{sucesso}</div>}
       </div>
 
-      {problema && <div className="muted">{problema}</div>}
-      {criar.error && <div className="error">{criar.error.detail}</div>}
+      {!aberto ? (
+        <div>
+          <button type="button" className="btn" onClick={abrir}>
+            Nova conta
+          </button>
+        </div>
+      ) : (
+        <form onSubmit={enviar} style={{ display: 'grid', gap: 12 }}>
+          <div>
+            <div className="card-title">Nova conta</div>
+            <div className="card-sub" style={{ margin: 0 }}>
+              Conta de quem trabalha na rede. Motorista se cadastra sozinho pelo app e não entra
+              aqui.
+            </div>
+          </div>
 
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button
-          type="button"
-          className="btn primary"
-          disabled={Boolean(problema) || criar.pending}
-          onClick={() => void criar.run()}
-        >
-          {criar.pending ? 'Criando…' : 'Criar conta'}
-        </button>
-        <button type="button" className="btn" onClick={() => setAberto(false)}>
-          Cancelar
-        </button>
-      </div>
+          {/*
+            Os cinco campos numa linha só. `auto-fit` com mínimo de 180px mantém
+            a linha em tela larga e quebra sozinho no notebook — cinco campos
+            fixos num monitor estreito viram cinco campos ilegíveis. Eram 160px:
+            subiu porque agora cada célula carrega uma dica embaixo, e a 160 ela
+            quebrava em quatro linhas e desalinhava a fileira.
+
+            `alignItems: start` e não `end`: as dicas têm alturas diferentes, e
+            alinhar por baixo faria os campos flutuarem em alturas diferentes.
+          */}
+          <div
+            style={{
+              display: 'grid',
+              gap: 12,
+              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+              alignItems: 'start'
+            }}
+          >
+            <Campo
+              id={id('nome')}
+              rotulo={CAMPOS_DA_CONTA.nome.rotulo}
+              dica={CAMPOS_DA_CONTA.nome.dica}
+              erro={erro('nome')}
+            >
+              <input
+                id={id('nome')}
+                className="input"
+                value={campos.nome}
+                onChange={campo('nome')}
+                onBlur={tocar('nome')}
+                aria-describedby={`${id('nome')}-dica`}
+                aria-invalid={erro('nome') ? true : undefined}
+                autoComplete="off"
+              />
+            </Campo>
+
+            <Campo
+              id={id('email')}
+              rotulo={CAMPOS_DA_CONTA.email.rotulo}
+              dica={CAMPOS_DA_CONTA.email.dica}
+              erro={erro('email')}
+            >
+              {/*
+                `autoComplete="off"` e, na senha, `new-password`: e-mail mais
+                senha na mesma linha é a assinatura de um formulário de LOGIN
+                para o navegador, e ele oferece preencher com as credenciais de
+                quem está logado. Criar a conta de outra pessoa com o e-mail e a
+                senha do próprio admin é um acidente de um clique.
+              */}
+              <input
+                id={id('email')}
+                className="input"
+                type="email"
+                inputMode="email"
+                value={campos.email}
+                onChange={campo('email')}
+                onBlur={tocar('email')}
+                aria-describedby={`${id('email')}-dica`}
+                aria-invalid={erro('email') ? true : undefined}
+                autoComplete="off"
+                autoCapitalize="none"
+                spellCheck={false}
+              />
+            </Campo>
+
+            <Campo
+              id={id('senha')}
+              rotulo={CAMPOS_DA_CONTA.senha.rotulo}
+              dica={CAMPOS_DA_CONTA.senha.dica}
+              erro={erro('senha')}
+              acao={
+                /*
+                  Revelar a senha aqui não é conveniência: esta senha não é da
+                  pessoa que digita, é a que ela vai DITAR para outra, e o
+                  servidor não pede troca no primeiro acesso. Digitada às cegas,
+                  um erro de digitação só aparece como "não consigo entrar" dias
+                  depois, sem ninguém saber qual das duas pontas errou.
+                */
+                <button
+                  type="button"
+                  onClick={() => setSenhaVisivel((visivel) => !visivel)}
+                  aria-label={senhaVisivel ? 'Ocultar a senha inicial' : 'Mostrar a senha inicial'}
+                  style={{
+                    background: 'none',
+                    border: 0,
+                    padding: 0,
+                    color: 'var(--sems-muted)',
+                    font: 'inherit',
+                    fontSize: 11,
+                    textDecoration: 'underline',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {senhaVisivel ? 'ocultar' : 'mostrar'}
+                </button>
+              }
+            >
+              <input
+                id={id('senha')}
+                className="input"
+                type={senhaVisivel ? 'text' : 'password'}
+                value={campos.senha}
+                onChange={campo('senha')}
+                onBlur={tocar('senha')}
+                aria-describedby={`${id('senha')}-dica`}
+                aria-invalid={erro('senha') ? true : undefined}
+                autoComplete="new-password"
+              />
+            </Campo>
+
+            <Campo
+              id={id('papel')}
+              rotulo={CAMPOS_DA_CONTA.papel.rotulo}
+              /* A dica do papel é o alcance dele, e muda com a escolha: é a
+                 única diferença entre os dois que decide qual usar. */
+              dica={alcanceDoPapel(campos.papel)}
+            >
+              <select
+                id={id('papel')}
+                className="input"
+                value={campos.papel}
+                onChange={campo('papel')}
+                aria-describedby={`${id('papel')}-dica`}
+              >
+                <option value="operator">Operador</option>
+                <option value="admin">Administrador</option>
+              </select>
+            </Campo>
+
+            {campos.papel === 'operator' ? (
+              <Campo
+                id={id('praca')}
+                rotulo={CAMPOS_DA_CONTA.siteId.rotulo}
+                dica={CAMPOS_DA_CONTA.siteId.dica}
+                erro={erro('siteId')}
+              >
+                <select
+                  id={id('praca')}
+                  className="input"
+                  value={campos.siteId}
+                  onChange={campo('siteId')}
+                  onBlur={tocar('siteId')}
+                  aria-describedby={`${id('praca')}-dica`}
+                  aria-invalid={erro('siteId') ? true : undefined}
+                >
+                  {/*
+                    Nasce em branco de propósito, e a primeira praça NÃO vem
+                    pré-selecionada: escolher a primeira da lista por conta
+                    própria é literalmente o comportamento de servidor que esta
+                    obrigatoriedade existe para evitar. Aqui seria pior ainda,
+                    porque pareceria escolha de quem cadastrou.
+                  */}
+                  <option value="">Escolha a praça…</option>
+                  {/*
+                    `site_id` e `nome` — as chaves que `GET /power/sites`
+                    devolve. Com `id`/`name` as opções renderizavam vazias e o
+                    formulário não tinha como ser enviado, porque a praça é
+                    obrigatória.
+                  */}
+                  {sites.map((s) => (
+                    <option key={s.site_id} value={s.site_id}>
+                      {s.nome}
+                    </option>
+                  ))}
+                </select>
+              </Campo>
+            ) : (
+              /*
+                Admin não escolhe praça — mas o campo SUMIR fazia a linha pular
+                de cinco colunas para quatro no instante da troca, e campo que
+                some parece campo que quebrou. Aqui ele vira uma afirmação com
+                cara de campo: a linha não se mexe, e a regra ("admin é global")
+                fica escrita em vez de implícita no buraco.
+
+                O texto vem de `pracaDaConta`, o mesmo que a tabela usa na linha
+                de um admin. Escrito à mão aqui, o formulário diria "toda a
+                rede" e a tabela poderia dizer outra coisa depois.
+              */
+              <div style={{ display: 'grid', gap: 4, alignContent: 'start' }}>
+                <div style={{ fontSize: 12, color: 'var(--sems-muted)', minHeight: 18 }}>
+                  {CAMPOS_DA_CONTA.siteId.rotulo}
+                </div>
+                <div className="input somente-leitura">{pracaDaConta({ role: 'admin' })}</div>
+                <div className="muted" style={{ fontSize: 11, lineHeight: 1.35 }}>
+                  Administrador não fica preso a uma praça.
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/*
+            `role="alert"` e não texto solto: quando o POST volta 409, o foco
+            está no botão, longe daqui, e sem o anúncio a pessoa fica olhando
+            para um formulário que aparentemente não fez nada.
+          */}
+          {criar.error && (
+            <div className="form-error" role="alert">
+              {mensagemDoErro(criar.error)}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={Boolean(problema) || criar.pending}
+            >
+              {criar.pending ? 'Criando…' : 'Criar conta'}
+            </button>
+            <button type="button" className="btn" onClick={() => setAberto(false)}>
+              Cancelar
+            </button>
+            {/*
+              Por que o botão está apagado, ao lado dele. Botão desabilitado sem
+              motivo visível é beco sem saída — e o resumo entra numa região viva
+              porque `disabled` tira o botão da ordem de tabulação: quem usa
+              leitor de tela não consegue chegar nele para ouvir a explicação,
+              mas ouve a região mudar sozinha.
+            */}
+            <span className="muted" aria-live="polite" style={{ fontSize: 12 }}>
+              {falta}
+            </span>
+          </div>
+        </form>
+      )}
     </div>
   )
 }

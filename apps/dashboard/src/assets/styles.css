@@ -116,6 +116,30 @@ a {
 .btn:hover {
   border-color: rgba(255, 255, 255, 0.2);
 }
+/*
+  Botão desabilitado precisa PARECER desabilitado.
+
+  O painel desabilita botão de propósito em vários lugares — desligar a própria
+  conta, criar conta com campo faltando — e a intenção declarada era o botão
+  "nascer apagado" em vez de a pessoa descobrir a recusa depois do clique. Sem
+  esta regra ele nascia idêntico ao aceso, e o efeito era o oposto: clicava,
+  nada acontecia, e não havia como saber se faltava algo ou se a tela quebrou.
+*/
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn:disabled:hover {
+  border-color: var(--sems-border);
+}
+/*
+  Foco visível. `box-shadow` e não `border`/`outline` com espessura: sombra não
+  ocupa espaço no layout, então o anel aparece sem empurrar a linha do lado.
+*/
+.btn:focus-visible {
+  outline: 2px solid var(--sems-red);
+  outline-offset: 2px;
+}
 .btn-primary {
   background: var(--sems-red);
   border-color: var(--sems-red);
@@ -153,11 +177,50 @@ a {
 .input::placeholder {
   color: var(--sems-muted-2);
 }
+/*
+  Trocar a cor de uma borda de 1px é indicação de foco fraca demais para quem
+  navega por teclado: contra o fundo do card, some. O anel soma contraste sem
+  mexer no layout.
+*/
 .input:focus {
   border-color: var(--sems-red);
+  box-shadow: 0 0 0 3px rgba(255, 50, 58, 0.25);
+}
+.mini:focus-visible {
+  box-shadow: 0 0 0 3px rgba(255, 50, 58, 0.25);
 }
 select.input {
   cursor: pointer;
+}
+/* Campo que só mostra um valor decidido por outra escolha (a praça do admin):
+   parece campo, para a linha não desmontar, mas não convida ao clique. */
+.input.somente-leitura {
+  display: flex;
+  align-items: center;
+  color: var(--sems-muted);
+  background: var(--sems-card-2);
+  cursor: default;
+}
+/*
+  Erro de escrita dentro de um card. O `.async-error` é o mesmo desenho, mas
+  nasceu para falhar a tela inteira; aqui a falha é de um formulário só.
+*/
+.form-error {
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 50, 58, 0.35);
+  border-left: 3px solid var(--sems-red);
+  border-radius: 8px;
+  background: rgba(255, 50, 58, 0.08);
+  font-size: 13px;
+}
+/* Confirmação de escrita que deu certo. Mesmo desenho, do outro lado. */
+.form-ok {
+  padding: 10px 12px;
+  border: 1px solid rgba(52, 199, 89, 0.35);
+  border-left: 3px solid var(--sems-green);
+  border-radius: 8px;
+  background: rgba(52, 199, 89, 0.08);
+  font-size: 13px;
 }
 
 /* ---------- cards ---------- */

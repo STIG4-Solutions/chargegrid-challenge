@@ -13,6 +13,21 @@ type S = components['schemas']
 export type TokenPairOut = S['TokenPair']
 export type Usuario = S['UserOut']
 export type PapelUsuario = S['UserRole']
+/**
+ * Uma praca visivel para quem esta' logado.
+ *
+ * Escrita a mao: a rota devolve `list[dict]`. As chaves sao `site_id` e `nome`,
+ * NAO `id` e `name` - a diferenca ja' custou um seletor de praca que renderizava
+ * quatro opcoes vazias, e um formulario que nao tinha como ser enviado.
+ */
+export interface PracaVisivel {
+  site_id: string
+  nome: string
+  cidade: string | null
+  estado: string | null
+  timezone: string
+}
+
 /** Uma conta de operacao: quem opera a rede, e nao quem carrega o carro. */
 export type ContaDeOperacao = S['ContaOut']
 /** Corpo da criacao de conta. `role` aqui e' escolhido - ao contrario do cadastro publico. */
