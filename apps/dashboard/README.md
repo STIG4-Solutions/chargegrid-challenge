@@ -100,8 +100,8 @@ hospedagem: o servidor nunca vê o caminho, então **não é preciso configurar 
 ## Verificação
 
 ```bash
-npm run verify:dashboard   # 124 cenários da lógica pura, sem navegador
-npm run test:dashboard     # 63 testes de renderização (vitest + jsdom)
+npm run verify:dashboard   # 148 cenários da lógica pura, sem navegador
+npm run test:dashboard     # 90 testes de renderização (vitest + jsdom)
 ```
 
 A divisão não é arbitrária. O `verify` cobre o que decide **o que vai para o servidor** — o

@@ -2,6 +2,7 @@ import { useId, useState } from 'react'
 import { admin, power, useAction, useApi } from '@chargegrid/sdk'
 
 import { Async, Empty } from '../../components/Async.jsx'
+import { Campo } from '../../components/Campo.jsx'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import {
   alcanceDoPapel,
@@ -63,50 +64,6 @@ export default function Contas() {
           <Linhas contas={contas.data} meuId={user?.id} aoMudar={() => void contas.refetch()} />
         )}
       </Async>
-    </div>
-  )
-}
-
-/**
- * Uma célula da linha: rótulo, controle e UMA faixa embaixo que ora é dica, ora
- * é o erro do campo.
- *
- * A mesma faixa para as duas coisas, com o mesmo `id`, por dois motivos. O
- * `aria-describedby` do controle aponta sempre para um nó que existe — com dica
- * e erro em nós separados o atributo teria de trocar de alvo e ficaria
- * apontando para o nada metade do tempo. E o erro SUBSTITUI a dica: uma vez
- * quebrada, repetir a regra ao lado do erro diz a mesma coisa duas vezes e
- * ainda empurra a linha inteira para baixo.
- *
- * `htmlFor` em vez de `<label>` envolvendo o controle, que era como estava: o
- * rótulo da senha divide a linha com o botão de revelar, e botão dentro de
- * label faz o clique nele também cair no campo.
- */
-function Campo({ id, rotulo, dica, erro, acao, children }) {
-  return (
-    <div style={{ display: 'grid', gap: 4, alignContent: 'start' }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'baseline',
-          gap: 8,
-          minHeight: 18
-        }}
-      >
-        <label htmlFor={id} style={{ fontSize: 12, color: 'var(--sems-muted)' }}>
-          {rotulo}
-        </label>
-        {acao}
-      </div>
-      {children}
-      <div
-        id={`${id}-dica`}
-        className={erro ? 'red' : 'muted'}
-        style={{ fontSize: 11, lineHeight: 1.35 }}
-      >
-        {erro || dica}
-      </div>
     </div>
   )
 }
