@@ -77,6 +77,12 @@ function Planos({ aoContratar }) {
       error={planos.error}
       data={planos.data}
       onRetry={planos.refetch}
+      /*
+        Sem plano publicado não há o que contratar, e a tela precisa dizer isso:
+        a mensagem acima convida a "escolher um plano abaixo", e o vazio mudo
+        fazia parecer defeito. A causa costuma ser banco sem seed.
+      */
+      empty="Nenhum plano publicado. A rede precisa cadastrar os planos da plataforma antes de o estabelecimento poder contratar."
     >
       {planos.data && (
         <div className="grid grid-2">
