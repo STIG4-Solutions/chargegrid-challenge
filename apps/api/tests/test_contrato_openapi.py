@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import json
 
-from scripts.exportar_openapi import DESTINO, como_texto
+from scripts.exportar_openapi import DESTINO, REGISTRO, como_texto, versoes_daqui
 
 COMANDO = "npm run gen:contrato"
 
@@ -32,13 +32,35 @@ def test_o_arquivo_e_exatamente_o_que_o_app_gera():
     """
     assert DESTINO.exists(), "o contrato sumiu do repositorio"
 
-    if DESTINO.read_text(encoding="utf-8") != como_texto():
-        raise AssertionError(
-            "openapi.json esta' fora de sincronia com a API.\n\n"
-            "Nao edite o arquivo a mao - foi assim que ele divergiu em 30 rotas.\n"
-            f"Regere com:\n  {COMANDO}\n"
-            "e depois `npm run gen:types` para o SDK acompanhar."
+    if DESTINO.read_text(encoding="utf-8") == como_texto():
+        return
+
+    # Antes de acusar deriva, confere de quem e' a culpa. O formato da saida
+    # depende do FastAPI e do Pydantic, entao ambiente diferente do que gerou
+    # o arquivo produz diferenca em trinta rotas sem nenhuma rota ter mudado -
+    # e obedecer a mensagem de regerar, ali, CORROMPE o contrato.
+    gerado_com = json.loads(REGISTRO.read_text(encoding="utf-8"))
+    aqui = versoes_daqui()
+    if aqui != gerado_com:
+        divergentes = ", ".join(
+            f"{nome} {aqui[nome]} (contrato: {gerado_com[nome]})"
+            for nome in sorted(gerado_com)
+            if aqui[nome] != gerado_com[nome]
         )
+        raise AssertionError(
+            "Isto NAO e' deriva do contrato - e' este ambiente.\n\n"
+            f"Difere do que gerou o arquivo: {divergentes}.\n"
+            "O formato do OpenAPI muda com essas versoes, entao o diff aparece "
+            "sem nenhuma rota ter mudado. O arquivo commitado esta' CORRETO.\n\n"
+            f"NAO regere aqui - use {COMANDO}, que gera dentro do contêiner."
+        )
+
+    raise AssertionError(
+        "openapi.json esta' fora de sincronia com a API.\n\n"
+        "Nao edite o arquivo a mao - foi assim que ele divergiu em 30 rotas.\n"
+        f"Regere com:\n  {COMANDO}\n"
+        "e depois `npm run gen:types` para o SDK acompanhar."
+    )
 
 
 def test_o_contrato_e_json_valido_sem_bom():

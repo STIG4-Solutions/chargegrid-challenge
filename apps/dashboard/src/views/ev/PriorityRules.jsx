@@ -23,11 +23,20 @@ export default function PriorityRules() {
 
   return (
     <div>
+      {/*
+        `empty={null}` porque a SEÇÃO é dona do próprio vazio, e precisa ser.
+        O card não é só a tabela: ele carrega o botão "Nova regra". Deixar o
+        `<Async>` trocar o card inteiro pelo aviso genérico tirava da tela a
+        única saída do estado vazio — não dava para criar a primeira regra.
+        E `Lista` já diz melhor: sem regra, vale a prioridade cadastrada em
+        cada ponto, que é informação, não ausência dela.
+      */}
       <Async
         loading={regras.loading}
         error={regras.error}
         data={regras.data}
         onRetry={regras.refetch}
+        empty={null}
       >
         {regras.data && (
           <Lista

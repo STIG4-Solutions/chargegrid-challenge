@@ -13,8 +13,21 @@
 
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
-import { Lista, Previa } from '../src/views/ev/PriorityRules.jsx'
+import { describe, expect, it, vi } from 'vitest'
+import PriorityRules, { Lista, Previa } from '../src/views/ev/PriorityRules.jsx'
+
+// Só `power` é falso; o `useApi` de verdade continua rodando. É ele que decide
+// o que chega ao `<Async>`, e o defeito desta aba morava exatamente aí.
+vi.mock('@chargegrid/sdk', async (original) => ({
+  ...(await original()),
+  power: {
+    priorityRules: () => Promise.resolve(mockRegras),
+    priorityPreview: () => Promise.resolve(mockPrevia)
+  }
+}))
+
+let mockRegras = []
+let mockPrevia = { timezone: 'America/Sao_Paulo', regras_ativas: 0, pontos: [] }
 
 const REGRAS = [
   {
@@ -133,5 +146,38 @@ describe('quem tem prioridade agora', () => {
     // "—" deixaria a pessoa sem saber se falta regra ou se o ponto foi ignorado.
     render(<Previa d={PREVIA} hora="" setHora={() => {}} />)
     expect(screen.getByText(/nenhuma — vale o valor do ponto/)).toBeInTheDocument()
+  })
+})
+
+describe('a aba inteira, com a rede respondendo', () => {
+  it('sem nenhuma regra, o botão de criar a primeira CONTINUA na tela', async () => {
+    // A regressão que este teste existe para impedir: o `<Async>` passou a
+    // mostrar estado vazio por padrão e trocava o card inteiro pelo aviso —
+    // levando junto o botão "Nova regra". A tela ficava num beco sem saída,
+    // com zero regras e nenhum jeito de cadastrar a primeira.
+    mockRegras = []
+    render(<PriorityRules />)
+
+    expect(await screen.findByRole('button', { name: 'Nova regra' })).toBeInTheDocument()
+    expect(screen.queryByText('Nada por aqui ainda.')).toBeNull()
+  })
+
+  it('e o vazio ainda é dito, com a frase que informa', async () => {
+    // Silêncio era o defeito original. A seção não deixou de falar: ela fala
+    // melhor do que o aviso genérico — sem regra não é ausência de critério,
+    // é o valor cadastrado em cada ponto valendo.
+    mockRegras = []
+    render(<PriorityRules />)
+
+    expect(
+      await screen.findByText(/Nenhuma regra. A prioridade de cada ponto é o valor cadastrado nele/)
+    ).toBeInTheDocument()
+  })
+
+  it('com regra cadastrada, a tabela aparece', async () => {
+    mockRegras = REGRAS
+    render(<PriorityRules />)
+
+    expect(await screen.findByText('Frota da noite')).toBeInTheDocument()
   })
 })

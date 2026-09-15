@@ -97,11 +97,15 @@ function TariffTable({ tariffs }) {
 
       {criando && <NewTariff onCreated={recarregar} onClose={() => setCriando(false)} />}
 
+      {/* Idem: o bloco abaixo já tem o seu `<Empty>`, com frase melhor que a
+          genérica. Sem isto o `<Async>` passava na frente e aquela linha
+          virava código morto. */}
       <Async
         loading={tariffs.loading}
         error={tariffs.error}
         data={tariffs.data}
         onRetry={tariffs.refetch}
+        empty={null}
       >
         {tariffs.data?.length === 0 ? (
           <Empty label="Nenhuma tarifa cadastrada." />

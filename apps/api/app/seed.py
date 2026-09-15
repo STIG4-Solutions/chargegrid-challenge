@@ -31,6 +31,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import insert, select, text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
@@ -1103,23 +1104,25 @@ async def _montar_gamificacao(
 
     # Contrato da praca principal com a plataforma, com seis meses de vida - o
     # suficiente para a tela ter cobrancas e para o prazo minimo ainda correr.
+    # `scalar_one()` e nao `scalar_one_or_none()`: o catalogo agora e' garantido
+    # antes de qualquer coisa, e tolerar a ausencia aqui era como o site
+    # principal ficava sem contrato sem ninguem notar.
     plano = (
         await db.execute(select(PlatformPlan).where(PlatformPlan.codigo == "essencial"))
-    ).scalar_one_or_none()
-    if plano is not None:
-        inicio = (agora - timedelta(days=180)).date()
-        db.add(
-            SiteSubscription(
-                site_id=principal.id,
-                plan_id=plano.id,
-                estado="ativa",
-                starts_on=inicio,
-                minimo_ate=platform_service.somar_meses(inicio, plano.meses_minimos),
-                renova_em=platform_service.mes_seguinte(agora.date()),
-                renovacao_automatica=True,
-                multa_percentual=30.00,
-            )
+    ).scalar_one()
+    inicio = (agora - timedelta(days=180)).date()
+    db.add(
+        SiteSubscription(
+            site_id=principal.id,
+            plan_id=plano.id,
+            estado="ativa",
+            starts_on=inicio,
+            minimo_ate=platform_service.somar_meses(inicio, plano.meses_minimos),
+            renova_em=platform_service.mes_seguinte(agora.date()),
+            renovacao_automatica=True,
+            multa_percentual=30.00,
         )
+    )
     await db.flush()
 
     # Progresso a partir do historico: uma chamada por motorista basta, porque o
@@ -1137,8 +1140,57 @@ async def _montar_gamificacao(
             await campaign_service.atualizar_progresso(db, ultima, agora)
 
 
+async def garantir_planos_da_plataforma(db: AsyncSession) -> int:
+    """Publica os planos que faltam no catalogo da rede. Devolve quantos entraram.
+
+    Fica FORA do corpo de `seed()`, e o motivo e' um defeito que chegou a
+    producao. `seed()` desiste inteiro na primeira linha assim que enxerga um
+    site - "ja existem dados" -, e os planos nasciam cento e vinte linhas la
+    dentro. Num banco povoado antes de este catalogo existir, a tabela ficou
+    vazia PARA SEMPRE: nenhuma rodada de seed voltaria a mexer nela, e nao ha
+    rota que crie plano. A aba de Plano & Contrato dizia "escolha um plano
+    abaixo" e abaixo nao havia nada.
+
+    Catalogo de plano e' dado de REFERENCIA da rede, nao dado de demonstracao
+    preso a um site - e por isso pode ser re-afirmado a cada rodada.
+
+    Insere so o `codigo` que falta. NAO atualiza plano ja publicado: preco de
+    plano vivo e' clausula de contrato em vigor (`SiteSubscription.plan_id`
+    aponta para ele), e reescrever aqui mudaria por baixo o que o
+    estabelecimento assinou.
+    """
+    publicados = set((await db.execute(select(PlatformPlan.codigo))).scalars().all())
+    entraram = 0
+    for codigo, nome, desc, mensal, ponto, inclusos, taxa, meses in PLANOS_DA_PLATAFORMA:
+        if codigo in publicados:
+            continue
+        db.add(
+            PlatformPlan(
+                codigo=codigo,
+                nome=nome,
+                descricao=desc,
+                preco_mensal_brl=mensal,
+                preco_por_ponto_brl=ponto,
+                pontos_inclusos=inclusos,
+                fee_percent_transacao=taxa,
+                meses_minimos=meses,
+            )
+        )
+        entraram += 1
+    if entraram:
+        await db.flush()
+    return entraram
+
+
 async def seed() -> None:
     async with SessionLocal() as db:
+        # Antes da desistencia, de proposito: o catalogo da rede precisa chegar
+        # a banco que ja tem sites - foi exatamente o caso do staging.
+        entraram = await garantir_planos_da_plataforma(db)
+        if entraram:
+            await db.commit()
+            log.info("seed.planos_publicados", quantidade=entraram)
+
         if (await db.execute(select(Site).limit(1))).scalar_one_or_none() is not None:
             log.info("seed.skipped", reason="ja existem dados")
             return
@@ -1253,20 +1305,6 @@ async def seed() -> None:
                     desconto_pct=desconto,
                     kwh_inclusos=kwh,
                     isenta_taxa_de_conexao=isenta,
-                )
-            )
-
-        for codigo, nome, desc, mensal, ponto, inclusos, taxa, meses in PLANOS_DA_PLATAFORMA:
-            db.add(
-                PlatformPlan(
-                    codigo=codigo,
-                    nome=nome,
-                    descricao=desc,
-                    preco_mensal_brl=mensal,
-                    preco_por_ponto_brl=ponto,
-                    pontos_inclusos=inclusos,
-                    fee_percent_transacao=taxa,
-                    meses_minimos=meses,
                 )
             )
 
