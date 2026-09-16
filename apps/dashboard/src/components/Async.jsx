@@ -53,8 +53,15 @@ export function Empty({ label = 'Nada por aqui ainda.' }) {
  * um plano abaixo" aparecia e abaixo não havia nada.
  *
  * O padrão agora comunica; `empty` serve para dizer melhor, não para permitir
- * dizer. Quem quiser mesmo o silêncio — porque a seção vazia já é explicada
- * por outra coisa na tela — passa `empty={null}` e assume a escolha.
+ * dizer.
+ *
+ * `empty={null}` é para quando a SEÇÃO é dona do próprio vazio, e há dois
+ * casos em que ela precisa ser. Quando o bloco envolvido diz melhor do que o
+ * aviso genérico ("sem regra, vale a prioridade cadastrada em cada ponto" é
+ * informação; "nada por aqui" não é). E, sobretudo, quando o bloco envolvido
+ * contém a AÇÃO que tira a tela do vazio: substituí-lo pelo aviso remove o
+ * botão de criar o primeiro item, e a tela vira um beco sem saída. Foi o que
+ * aconteceu nas Regras de Prioridade assim que esta inversão entrou.
  */
 export function Async({ loading, error, data, onRetry, children, empty }) {
   if (loading && !data) return <Loading />

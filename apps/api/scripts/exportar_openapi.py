@@ -23,9 +23,30 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import fastapi
+import pydantic
+
 from app.main import app
 
 DESTINO = Path(__file__).resolve().parents[1] / "openapi.json"
+REGISTRO = DESTINO.with_name("openapi.gerado-com.json")
+
+
+def versoes_daqui() -> dict[str, str]:
+    """Quem manda no formato da saida.
+
+    Nao e' metadado decorativo. O formato do contrato depende da versao do
+    FastAPI e do Pydantic - `additionalProperties` em retorno `dict`, `int`
+    ou `float` nos limites numericos, `ctx` no `ValidationError`, `pattern`
+    nos decimais. Gerar com versao diferente da que produziu o arquivo
+    reescreve trinta rotas sem que nenhuma rota tenha mudado.
+
+    E o estrago e' silencioso: o arquivo reescrito e' JSON valido, passa no
+    teste do contrato (ele compara com o app da MESMA maquina) e so' aparece
+    depois, nos tipos do SDK, no cliente. Guardar as versoes e' o que permite
+    ao teste dizer "seu ambiente difere" em vez de "o contrato derivou".
+    """
+    return {"fastapi": fastapi.__version__, "pydantic": pydantic.VERSION}
 
 
 def como_texto() -> str:
@@ -33,10 +54,15 @@ def como_texto() -> str:
     return json.dumps(app.openapi(), indent=2, ensure_ascii=False) + "\n"
 
 
+def registro_como_texto() -> str:
+    return json.dumps(versoes_daqui(), indent=2, ensure_ascii=False) + "\n"
+
+
 def main() -> int:
     antes = DESTINO.read_text(encoding="utf-8") if DESTINO.exists() else None
     depois = como_texto()
     DESTINO.write_text(depois, encoding="utf-8")
+    REGISTRO.write_text(registro_como_texto(), encoding="utf-8")
 
     if antes == depois:
         print(f"{DESTINO.name} ja' estava em dia.")
