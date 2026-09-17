@@ -18,7 +18,13 @@ from app.db.session import SessionLocal
 from app.drivers.registry import registry
 from app.models.charge_point import ChargePoint
 from app.models.site import Site
-from app.services import events, power_manager, session_service, telemetry_service
+from app.services import (
+    events,
+    power_manager,
+    reservation_service,
+    session_service,
+    telemetry_service,
+)
 from app.workers import virtual_meter
 
 log = get_logger(__name__)
@@ -70,6 +76,14 @@ async def poll_once() -> dict:
         # Fila nao pode prender o ponto para sempre.
         await session_service.expire_queue(db)
         await db.commit()
+
+        # Aqui, e nao antes: `expirar_reservas_vencidas` acabou de mudar o
+        # estado de algumas reservas, e e' esse estado que decide o que sai do
+        # equipamento. Sincronizar antes retiraria no ciclo seguinte.
+        #
+        # E neste laco, e nao no de push: empurrar reserva e' conversa Modbus
+        # com o ponto, o mesmo assunto do poller, que ja' tem a conexao aberta.
+        await reservation_service.sincronizar(db)
 
         for site_id in touched_sites:
             await _publish_snapshot(db, site_id)
@@ -159,6 +173,14 @@ async def _enviar_push() -> dict:
         # UNIQUE (contrato, competencia) barra a segunda emissao.
         await platform_service.renovar_vencidos(db)
         await platform_service.emitir_competencia(db)
+        # Depois de emitir, e nao antes: a cobranca do mes nasce com dez dias de
+        # prazo, entao nunca vence no mesmo ciclo em que e' criada. A ordem so'
+        # importa para quem for ler - o resultado e' o mesmo.
+        await platform_service.marcar_vencidas(db)
+        # Fecha quem chegou ao fim do aviso previo. Depois de emitir, pelo
+        # mesmo motivo da linha acima: a competencia do mes de encerramento
+        # ainda e' devida, e `emitir_competencia` ja para em `encerra_em`.
+        await platform_service.encerrar_vencidos(db)
         concedidas = await campaign_service.conceder_pendentes(db)
         sessoes = await notification_service.enviar_pendentes(db)
         recompensas = await notification_service.enviar_recompensas_pendentes(db)
@@ -191,9 +213,7 @@ def start_workers() -> list[asyncio.Task]:
     # A fila de push e' drenada por worker, e nao no momento em que o evento e'
     # gravado: um servico externo lento ou fora do ar travaria a transicao de
     # estado da sessao - o carro deixaria de ser liberado porque a Expo caiu.
-    tarefas.append(
-        asyncio.create_task(_loop("push", _enviar_push, settings.push_interval_s))
-    )
+    tarefas.append(asyncio.create_task(_loop("push", _enviar_push, settings.push_interval_s)))
     # Sem medidor fisico, um worker sintetiza a curva do dia na mesma tabela.
     # Com METER_SOURCE=push, so' entram leituras enviadas por POST.
     if virtual_meter.habilitado():

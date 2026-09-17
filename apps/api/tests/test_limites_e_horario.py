@@ -21,9 +21,16 @@ def _sessao(**kw):
     from app.models.session import ChargingSession
 
     base = dict(
-        id=uuid.uuid4(), code="S-X", site_id=uuid.uuid4(), charge_point_id=uuid.uuid4(),
-        state=SessionState.CHARGING, energy_kwh=0, duration_s=0, estimated_cost=0,
-        preauth_amount=0, idle_minutes=0,
+        id=uuid.uuid4(),
+        code="S-X",
+        site_id=uuid.uuid4(),
+        charge_point_id=uuid.uuid4(),
+        state=SessionState.CHARGING,
+        energy_kwh=0,
+        duration_s=0,
+        estimated_cost=0,
+        preauth_amount=0,
+        idle_minutes=0,
     )
     base.update(kw)
     return ChargingSession(**base)
@@ -31,15 +38,18 @@ def _sessao(**kw):
 
 def test_cada_limite_encerra_pelo_proprio_motivo():
     """O motivo importa: e' o que a tela do motorista mostra e o que a fatura registra."""
-    assert session_service.reached_limit(
-        _sessao(limit_kwh=30, energy_kwh=30)
-    ) == StopReason.ENERGY_LIMIT
-    assert session_service.reached_limit(
-        _sessao(limit_minutes=40, duration_s=40 * 60)
-    ) == StopReason.TIME_LIMIT
-    assert session_service.reached_limit(
-        _sessao(limit_amount=50, estimated_cost=50)
-    ) == StopReason.AMOUNT_LIMIT
+    assert (
+        session_service.reached_limit(_sessao(limit_kwh=30, energy_kwh=30))
+        == StopReason.ENERGY_LIMIT
+    )
+    assert (
+        session_service.reached_limit(_sessao(limit_minutes=40, duration_s=40 * 60))
+        == StopReason.TIME_LIMIT
+    )
+    assert (
+        session_service.reached_limit(_sessao(limit_amount=50, estimated_cost=50))
+        == StopReason.AMOUNT_LIMIT
+    )
 
 
 def test_sem_limite_nao_encerra():
@@ -102,24 +112,46 @@ async def tarifa_com_janelas(db, site, ponto):
     from app.models.tariff import ALL_DAYS, Tariff, TariffWindow
 
     t = Tariff(
-        id=uuid.uuid4(), site_id=site.id, name="Horária", type=TariffType.TIME_OF_USE,
-        price_per_kwh=1.20, price_per_min=0, idle_fee_per_min=0,
-        session_fee=0, min_charge=0, free_minutes=0, active=True,
+        id=uuid.uuid4(),
+        site_id=site.id,
+        name="Horária",
+        type=TariffType.TIME_OF_USE,
+        price_per_kwh=1.20,
+        price_per_min=0,
+        idle_fee_per_min=0,
+        session_fee=0,
+        min_charge=0,
+        free_minutes=0,
+        active=True,
     )
     db.add(t)
     await db.flush()
-    db.add_all([
-        TariffWindow(
-            id=uuid.uuid4(), tariff_id=t.id, label="ponta", day_mask=ALL_DAYS,
-            starts_at=time(18), ends_at=time(21),
-            price_per_kwh=2.00, price_per_min=0, idle_fee_per_min=0,
-        ),
-        TariffWindow(
-            id=uuid.uuid4(), tariff_id=t.id, label="fora de ponta", day_mask=ALL_DAYS,
-            starts_at=time(21), ends_at=time(18),
-            price_per_kwh=1.00, price_per_min=0, idle_fee_per_min=0,
-        ),
-    ])
+    db.add_all(
+        [
+            TariffWindow(
+                id=uuid.uuid4(),
+                tariff_id=t.id,
+                label="ponta",
+                day_mask=ALL_DAYS,
+                starts_at=time(18),
+                ends_at=time(21),
+                price_per_kwh=2.00,
+                price_per_min=0,
+                idle_fee_per_min=0,
+            ),
+            TariffWindow(
+                id=uuid.uuid4(),
+                tariff_id=t.id,
+                label="fora de ponta",
+                day_mask=ALL_DAYS,
+                starts_at=time(21),
+                ends_at=time(18),
+                price_per_kwh=1.00,
+                price_per_min=0,
+                idle_fee_per_min=0,
+            ),
+        ]
+    )
     ponto.tariff_id = t.id
     await db.flush()
     return t
@@ -176,24 +208,46 @@ async def test_economia_irrelevante_nao_vira_conselho(db, site, ponto):
     from app.models.tariff import ALL_DAYS, Tariff, TariffWindow
 
     t = Tariff(
-        id=uuid.uuid4(), site_id=site.id, name="Quase igual", type=TariffType.TIME_OF_USE,
-        price_per_kwh=1.00, price_per_min=0, idle_fee_per_min=0,
-        session_fee=0, min_charge=0, free_minutes=0, active=True,
+        id=uuid.uuid4(),
+        site_id=site.id,
+        name="Quase igual",
+        type=TariffType.TIME_OF_USE,
+        price_per_kwh=1.00,
+        price_per_min=0,
+        idle_fee_per_min=0,
+        session_fee=0,
+        min_charge=0,
+        free_minutes=0,
+        active=True,
     )
     db.add(t)
     await db.flush()
-    db.add_all([
-        TariffWindow(
-            id=uuid.uuid4(), tariff_id=t.id, label="cara", day_mask=ALL_DAYS,
-            starts_at=time(18), ends_at=time(21),
-            price_per_kwh=1.01, price_per_min=0, idle_fee_per_min=0,
-        ),
-        TariffWindow(
-            id=uuid.uuid4(), tariff_id=t.id, label="barata", day_mask=ALL_DAYS,
-            starts_at=time(21), ends_at=time(18),
-            price_per_kwh=1.00, price_per_min=0, idle_fee_per_min=0,
-        ),
-    ])
+    db.add_all(
+        [
+            TariffWindow(
+                id=uuid.uuid4(),
+                tariff_id=t.id,
+                label="cara",
+                day_mask=ALL_DAYS,
+                starts_at=time(18),
+                ends_at=time(21),
+                price_per_kwh=1.01,
+                price_per_min=0,
+                idle_fee_per_min=0,
+            ),
+            TariffWindow(
+                id=uuid.uuid4(),
+                tariff_id=t.id,
+                label="barata",
+                day_mask=ALL_DAYS,
+                starts_at=time(21),
+                ends_at=time(18),
+                price_per_kwh=1.00,
+                price_per_min=0,
+                idle_fee_per_min=0,
+            ),
+        ]
+    )
     ponto.tariff_id = t.id
     await db.flush()
 

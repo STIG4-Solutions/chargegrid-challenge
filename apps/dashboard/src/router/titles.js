@@ -11,7 +11,9 @@ export const titles = {
   '/ev/sessions': 'Ciclo da Sessão',
   '/ev/tariff': 'Tarifação & Pagamento',
   '/ev/campaigns': 'Campanhas',
-  '/ev/contract': 'Plano & Contrato'
+  '/ev/contract': 'Plano & Contrato',
+  '/ev/users': 'Contas de operação',
+  '/ev/audit': 'Auditoria'
 }
 
 export function titleFor(pathname) {

@@ -6,12 +6,21 @@
     "",
     "  backend  CORS_ORIGINS",
     "  dashboard VITE_API_URL",
-    "  app      EXPO_PUBLIC_API_URL  (embutida no APK no momento do build)"
+    "  app      EXPO_PUBLIC_API_URL  (embutida no APK no momento do build)",
+    "",
+    "As chaves do topo sao PRODUCAO. `staging` e `desenvolvimento` sobrepoem por",
+    "ambiente: o painel escolhe por `--mode`, o app por EXPO_PUBLIC_ENV, e a API",
+    "pelo proprio ENV. Um endereco de staging escrito fora daqui e' o defeito que",
+    "este arquivo existe para impedir."
   ],
   "protocolo": "https",
   "api": "api.stig4.com",
   "dashboard": "dashboard.stig4.com",
   "site": "stig4.com",
+  "staging": {
+    "api": "api.staging.stig4.com",
+    "dashboard": "dashboard.staging.stig4.com"
+  },
   "desenvolvimento": {
     "api": "http://localhost:8000",
     "dashboard": "http://localhost:5173"

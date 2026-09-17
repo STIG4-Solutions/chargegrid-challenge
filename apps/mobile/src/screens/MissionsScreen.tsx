@@ -28,7 +28,15 @@ function medida(metrica: string, valor: number): string {
   return formata ? formata(valor) : String(valor)
 }
 
-function Barra({ progresso, alvo, concluida }: { progresso: number; alvo: number; concluida: boolean }) {
+function Barra({
+  progresso,
+  alvo,
+  concluida
+}: {
+  progresso: number
+  alvo: number
+  concluida: boolean
+}) {
   const pct = alvo > 0 ? Math.min(100, (progresso / alvo) * 100) : 0
   return (
     <View style={s.trilho}>
@@ -63,7 +71,9 @@ function CartaoDeMissao({ missao }: { missao: Missao }) {
           {medida(missao.metrica, missao.progresso)} de {medida(missao.metrica, missao.alvo)}
         </Text>
         <Text style={s.janela}>
-          {missao.concluida ? `${missao.recompensa} a caminho` : `faltam ${medida(missao.metrica, restante)}`}
+          {missao.concluida
+            ? `${missao.recompensa} a caminho`
+            : `faltam ${medida(missao.metrica, restante)}`}
         </Text>
       </View>
 
@@ -164,11 +174,21 @@ const s = StyleSheet.create({
     gap: espaco.sm
   },
   cartaoConcluido: { borderColor: cores.verde },
-  cabecalho: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: espaco.sm },
+  cabecalho: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: espaco.sm
+  },
   titulo: { color: cores.texto, fontSize: 16, fontWeight: '600', flexShrink: 1 },
   descricao: { color: cores.textoFraco, fontSize: 13 },
 
-  trilho: { height: 8, borderRadius: 999, backgroundColor: cores.superficieAlta, overflow: 'hidden' },
+  trilho: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: cores.superficieAlta,
+    overflow: 'hidden'
+  },
   preenchido: { height: 8, borderRadius: 999 },
 
   rodape: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

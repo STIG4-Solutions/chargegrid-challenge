@@ -119,7 +119,7 @@ uvicorn app.main:app --reload
 ## Testes
 
 ```bash
-pytest -q          # 518 testes
+pytest -q          # 730 testes
 ruff check app     # lint
 ```
 
@@ -144,6 +144,7 @@ ruff check app     # lint
 | `test_http_app_motorista.py` | fluxos do app por HTTP: escopo por usuário, validação e serialização |
 | `test_http_carteira.py` | crédito na carteira: idempotência, razão e recusa de valor inválido |
 | `test_razao_da_carteira.py` | que o razão **feche com o saldo** depois de crédito e débito |
+| `test_assinatura_plataforma.py` | prazo mínimo, multa, e o ciclo da inadimplência do contrato |
 | `test_http_consultas.py` | custo de consulta do mapa de estações — trava o N+1 |
 | `test_http_paginacao.py` | teto e paginação das listas |
 | `test_http_telemetria.py` | reamostragem da série — cobre a janela sem truncar |
@@ -190,7 +191,7 @@ de execução não importa. O `conftest.py` explica os detalhes.
 
 Com a API no ar, o teste de fumaça percorre o produto inteiro — login, orçamento, sessão,
 fila de espera, agendamento, cobrança Pix, carteira, missões, campanhas, assinatura, contrato
-da plataforma e previsão — em **116 cenários**:
+da plataforma e previsão — em **117 cenários**:
 
 ```bash
 python -m scripts.smoke_test                  # usa http://127.0.0.1:8000
@@ -221,6 +222,7 @@ independem do dashboard estar aberto, e são a razão de a tela mudar sozinha.
 | rebalanceador | 15 s | Recalcula o orçamento e escreve os novos tetos nos eletropostos |
 | promoção da fila | 15 s | Energiza quem espera, na ordem, enquanto o orçamento comportar |
 | expiração de agendamento | 5 s | Reserva não usada devolve a potência ao rateio |
+| sincronização de reserva | 5 s | Escreve nos regs 10020-10022 a reserva que entrou na janela de 24 h e apaga a que foi cancelada, consumida ou expirou |
 | expiração da fila | 5 s | Sessão que esperou demais libera o eletroposto |
 | marcação offline | 90 s | Ponto sem leitura recente vira `offline` — não pode aparecer saudável no dashboard |
 
@@ -240,6 +242,35 @@ O dashboard e o app usam o mesmo emissor. Papéis: `admin` e `operator` acessam 
 | `GET /auth/me` | Perfil e papel do usuário autenticado |
 
 O escopo do site vem do token: um operador nunca enxerga outro estabelecimento.
+
+### Contas de operação (`/users`)
+
+Operador e admin só nasciam do seed ou de um `INSERT` — e a docstring de `/auth/register` chegou
+a apontar para uma rota `/users` que **nunca existiu**. Agora existe, e é de admin.
+
+| Endpoint | Uso |
+|---|---|
+| `GET /users` | Operadores e admins, com a praça de cada um. Traz os desligados |
+| `POST /users` | Cria operador (exige `site_id`) ou admin |
+| `PATCH /users/{id}` | Liga ou desliga o acesso |
+
+**Operador exige praça, e a guarda é de segurança, não de formulário.** `get_scoped_site_id`
+devolve o *primeiro site cadastrado* para quem não tem `site_id`: um operador criado sem praça
+não ficaria sem acesso — ficaria com o acesso da praça de outra pessoa, sem nada na tela dele
+indicando isso.
+
+**Motorista não aparece.** Ele se cadastra sozinho pelo app, e são milhares. Misturar os dois
+faria "desligar" significar também "bloquear cliente", que é outra decisão. Bloquear motorista
+abusivo segue sem caminho — limite declarado, não esquecimento.
+
+**Não há apagar.** As FKs de auditoria e faturamento são `SET NULL`: apagar a conta apagaria o
+vínculo do rastro dela. Desligar tira o acesso e preserva quem fez o quê. E **ninguém desliga a
+própria conta** — a saída seria um `UPDATE` no banco, que é o estado do qual esta rota veio tirar
+o projeto.
+
+Uma guarda de "último admin ativo" chegou a ser escrita e foi **removida por ser inalcançável**:
+quem chama é um admin ativo, então desligar outro sempre deixa o solicitante de pé, e desligar a
+si mesmo esbarra na guarda acima antes.
 
 ## Os módulos
 
@@ -365,8 +396,80 @@ de ontem. A taxa do adquirente é separada, então o lojista vê receita bruta e
 | `GET/PUT /payment-methods` | Métodos aceitos e taxas |
 | `GET /invoices` · `GET /invoices/{id}` | Faturas geradas das sessões |
 | `POST /invoices/{id}/charge` | Dispara a cobrança (idempotente) |
+| `POST /invoices/{id}/refund` | Estorna a fatura — carteira volta na hora, PSP pelo provedor (admin) |
+| `POST /wallets/{id}/adjust` | Correção manual de saldo, com motivo e responsável (admin) |
 | `POST /payments/webhook` | Liquidação do PSP, com HMAC obrigatório |
 | `GET /revenue/summary` | Receita bruta × líquida do período |
+
+#### Estorno e ajuste: as duas origens que faltavam
+
+`origem` aceitava `estorno` e `ajuste` desde a `0021` e **nada criava nenhum dos dois**. Dar
+caminho a eles revelou um defeito de verdade: **pagamento por carteira era irreversível pela
+API**. `handle_webhook` sabia marcar `REFUNDED` quando o PSP avisava, mas carteira não gera
+webhook — é capturada na hora —, então uma recarga cobrada errado do saldo do motorista só se
+desfazia no banco.
+
+| operação | rota | quem | o que faz |
+|---|---|---|---|
+| **estorno** | `POST /invoices/{id}/refund` | admin | carteira → crédito no razão, na hora; PSP → chama `provider.refund` |
+| **ajuste** | `POST /wallets/{id}/adjust` | admin | cria ou destrói saldo por decisão humana |
+
+Admin nos dois, e não operador: devolver dinheiro é decisão da rede — o motorista não pode se
+auto-reembolsar, e o operador não devolve do caixa da plataforma.
+
+**Só o ajuste exige motivo**, e o CHECK `ajuste_com_motivo` o garante no banco. É o único
+lançamento em que alguém *escolhe* o número: não há fatura nem recarga por trás. Saldo que
+aparece na conta de alguém sem ninguém saber explicar é o defeito que um razão existe para
+impedir. O estorno fica de fora da exigência porque a fatura **é** a justificativa — e o motivo
+vai para o rótulo do extrato, não para um campo escondido.
+
+`criado_por` grava **quem** decidiu, com `SET NULL`: a saída do funcionário não apaga o
+lançamento, mas enquanto a conta existir o nome fica junto do dinheiro.
+
+Ajuste aceita valor negativo de propósito — correção existe nos dois sentidos, e um crédito
+lançado por engano precisa poder ser desfeito. O que não se aceita é deixar o saldo negativo: a
+carteira é pré-paga, e saldo devedor seria crédito que ninguém autorizou.
+
+**Um carimbo por linha, não por transação.** `created_at` de `wallet_entries` usa
+`clock_timestamp()` (migration `0026`), e não o `now()` herdado do mixin. `now()` devolve o
+instante em que a *transação* começou, e `conceder_pendentes` credita todas as recompensas
+pendentes num commit só: um motorista que concluiu duas missões na mesma passada recebia duas
+linhas com o mesmo carimbo, o extrato desempatava por `id` (UUID sorteado) e o saldo corrido
+podia parecer andar para trás. As demais tabelas continuam com `now()`, que para elas é o
+comportamento certo.
+
+#### Pix: escrito e testado, não homologado
+
+`PixProvider` fala a API Pix do BACEN — OAuth2 `client_credentials` sobre mTLS, `PUT /v2/cob/{txid}`,
+`GET /v2/cob/{txid}`, `PUT /v2/pix/{e2eid}/devolucao/{id}`. Os 34 testes o exercitam contra um PSP
+de mentira (`httpx.MockTransport`): caminho, cabeçalho, corpo, renovação de token, erro em RFC 7807
+e a travessia completa do webhook até a fatura paga.
+
+O que **não** existe é uma execução contra um PSP real — não há conta contratada. Trate como
+integração escrita e testada, não homologada; o primeiro contato com um PSP de verdade vai achar
+divergência de detalhe, porque sempre acha.
+
+Três coisas da especificação que custam caro descobrir tarde:
+
+| detalhe | por quê |
+|---|---|
+| `txid` é `[a-zA-Z0-9]{26,35}` | `INV-1042` tem hífen e oito caracteres — o PSP recusa. O nosso é derivado da fatura, **determinístico**, e começa pelo código dela para a conciliação manual continuar possível |
+| `PUT /v2/cob/{txid}`, não `POST /v2/cob` | com txid próprio a chamada é idempotente por construção: o retry de uma resposta perdida reaproveita a cobrança em vez de abrir a segunda |
+| valor é **string** com duas casas | `Decimal("10.1")` vira `"10.1"` e o PSP recusa; `float` chega a `"10.100000000000001"` |
+
+O corpo do webhook do Pix é `{"pix": [...]}` — uma lista, sem campo de status, e **sem referência
+no topo**. Por isso `provedor_do_evento` olha dentro de `pix[]` e `traduzir_webhook` desmonta a
+lista: sem esses dois, o evento cai no provedor global, nunca é traduzido, e a fatura fica aberta
+com o dinheiro já recebido.
+
+Configuração em `SitePaymentMethod.provider_config`, por estabelecimento — o dinheiro cai direto no
+lojista: `base_url`, `client_id`, `client_secret`, `chave_pix`, `certificado`, `chave_privada`,
+`verify`, `expiracao_segundos`, `webhook_secret`.
+
+**Uma ressalva de segurança que o código não resolve sozinho:** o Pix autentica o webhook por
+**mTLS**, não por HMAC. Aqui o HMAC continua obrigatório porque é o que dá para verificar dentro da
+aplicação; num deploy real, o proxy que termina o TLS precisa exigir e validar o certificado de
+cliente do PSP. Sem isso, a autenticação do webhook vale o quanto vale o segredo compartilhado.
 
 ---
 
@@ -433,8 +536,9 @@ errado devolveria 200 vazio, indistinguível de uma praça sem movimento.
 
 ### 7. Campanhas e recompensas
 
-Duas tabelas para duas perguntas diferentes: `campaigns` diz **quem paga**, `missions` diz **o
-que precisa acontecer**.
+Duas tabelas para duas perguntas diferentes: `campaigns` diz **onde vale e quem administra**,
+`missions` diz **o que precisa acontecer**. Quem paga é outra coisa — segue o tipo de benefício,
+como o parágrafo abaixo explica.
 
 Uma campanha declara **um único** `beneficio_tipo`, garantido por check constraint. Nunca "20%
 de desconto E 5% de cashback" — é o caminho para ninguém conseguir dizer quanto a campanha
@@ -462,6 +566,61 @@ guarda: `enviar_pendentes` trata `session is None` como evento órfão a descart
 `IDADE_MAXIMA_MIN` **não se aplica** aqui — "venha buscar o carro" perde valor em 30 minutos,
 "você ganhou R$ 12" não perde nunca.
 
+
+#### Frota: elegibilidade, não patrocínio
+
+**A decisão de escopo que faltava, resolvida.** `patrocinador = 'frota'` **saiu**; `fleet_id`
+virou **elegibilidade**.
+
+O motivo estava no próprio modelo, e a pergunta original o ignorava: **`patrocinador` nunca foi
+quem paga.** O bolso é determinado pelo *tipo de benefício* — desconto sai do estabelecimento
+(é a margem dele naquela sessão), cashback sai da rede (crédito só vale dentro da plataforma).
+Não há um terceiro. `patrocinador` responde **onde** a campanha vale e quem a administra.
+
+Então `'frota'` como patrocinador era um valor sem mecanismo atrás: o schema aceitava, a
+validação recusava com 422 e a consulta de elegibilidade filtrava fora — inalcançável pelos três
+lados. Mesma classe de defeito que `inadimplente` era antes da `0023`.
+
+Fazer dele verdade exigiria dar bolso à frota: `fleet_invoices` com ciclo, cobrança e
+inadimplência, como a plataforma tem. Seria inventar um modelo comercial que ninguém pediu, a
+partir de um `billing_email` que é a única pista de que alguém pensou nisso.
+
+O que sobrou é a parte que **não precisa de bolso nenhum**: campanha restrita aos motoristas de
+uma frota, paga por quem sempre pagou. A coluna já existia; mudou o papel dela — de "quem
+financia" para "para quem vale". Isso a torna combinável com os dois patrocinadores:
+
+| combinação | quem paga | para quem vale |
+|---|---|---|
+| `rede` + `fleet_id` | a rede | só os motoristas daquela frota |
+| `site` + `fleet_id` | o estabelecimento | só os da frota, só naquele site |
+| `rede` sem `fleet_id` | a rede | todos |
+
+A segunda linha era **proibida** pelo CHECK antigo: `patrocinador='frota'` exigia
+`site_id IS NULL`, então uma praça não tinha como dirigir campanha à frota da empresa vizinha.
+
+**A feature não tinha dado nenhum por trás.** Zero frotas, zero motoristas com frota, zero
+veículos com centro de custo — com modelo, rotas (`/app/fleet/report`) e tela (`FleetScreen`)
+existindo desde a `0013`. A aba do app abria vazia para todos. O seed agora cria uma frota com
+**dois dos cinco** motoristas: dois e não cinco de propósito, porque é o que torna visível a
+diferença entre campanha dirigida e campanha para todos. Conferido na API: o motorista da frota
+vê 4 missões, o de fora vê 3.
+
+No painel, o formulário de campanha tem o seletor **"Para quem vale"** — "Todos os motoristas"
+ou uma frota. A lista vem de `GET /campaigns/fleets`, que devolve **só id e nome**: CNPJ e
+e-mail de cobrança são dados comerciais de uma empresa que não é cliente do operador, e
+preencher um `<option>` não precisa deles. A rota fica sob `/campaigns` porque é isso que ela
+serve; uma `/fleets` de propósito geral prometeria administração de frota, que este painel não
+faz.
+
+`fleet_id` **não** entra na lista de campos editáveis do `PATCH`, pelo mesmo motivo que
+`patrocinador` não entra: mudar a quem a campanha se aplica depois de alguém ter acumulado
+progresso reescreveria a história.
+
+E **um dos dois é gestor**. `require_fleet_manager` exige as duas coisas — `fleet_manager` *e*
+`fleet_id` —, então pertencer à frota não basta para ver o consolidado: `maria.souza` abre o
+relatório, `carlos.lima` toma 403 na mesma empresa. Com os dois marcados, o recorte de leitura
+que `deps.py` descreve não apareceria em lugar nenhum.
+
 ### 8. Assinatura do motorista
 
 O plano entrega desconto percentual, kWh inclusos e isenção da taxa de conexão, tudo pelo mesmo
@@ -487,9 +646,110 @@ pagou.
 `minimo_ate` **não avança na renovação automática**. A rescisão antecipada gera multa
 proporcional às mensalidades que faltavam; passado o prazo, sair é livre.
 
-**Escopo honesto:** o serviço emite cobranças, não as liquida. Não há integração bancária nem
-relógio de competência, e a baixa é manual — de admin, porque deixar o próprio devedor declarar
-que pagou não seria baixa manual.
+O ciclo fecha: **`encerrar_vencidos`** leva a `encerrada` o contrato cujo aviso prévio terminou.
+Antes, nada fazia essa transição — `rescindir` gravava `encerra_em` e o contrato ficava em
+`em_aviso_previo` para sempre. O efeito não era cosmético: `vigente_do_site` filtra
+`estado <> 'encerrada'` e `contratar` recusa quem já tem vigente, então **quem rescindia ficava
+sem saída** — sem ser faturado, marcado como "Em aviso prévio" para sempre, e sem poder assinar
+outro plano.
+
+**Dívida não segura o encerramento.** O período de serviço acabou na data combinada, e prender o
+cadastro aberto para cobrar seria usar o contrato como instrumento de cobrança. As cobranças
+continuam existindo — a FK é `RESTRICT` justamente para o histórico não sumir junto.
+
+E é por isso que `contrato_do_site` lê **`ultimo_do_site`**, não `vigente_do_site`: sem isso,
+encerrar viraria um jeito de sumir com dívida da tela — o contrato encerrado devolveria
+`contratado: false` e o que ficou em aberto sairia junto. As duas leituras respondem perguntas
+diferentes e **não podem ser trocadas uma pela outra**: `ultimo_do_site` serve a tela,
+`vigente_do_site` decide se cabe contratar. Trocar a segunda pela primeira faria um contrato
+encerrado bloquear o próximo — de volta ao defeito.
+
+O que **não** existe, e vale dizer: nenhuma regra impede um devedor de assinar de novo. Isso é
+política comercial, e inventá-la aqui seria decidir sozinho uma coisa que não é técnica.
+
+**Um limite conhecido**, verificado na stack e registrado em vez de descoberto depois: quando a
+praça contrata um plano novo, `ultimo_do_site` passa a devolver o contrato vigente, e as
+cobranças do contrato anterior saem da tela — inclusive as em aberto. Mostrá-las misturadas com
+as do contrato novo seria pior (são contratos diferentes, com competências próprias); o certo é
+uma visão de histórico de contratos, que não existe. Enquanto não existir, o dado continua no
+banco e acessível por `platform_invoices`, só não tem tela.
+
+**A decisão de escopo, resolvida.** Não há liquidação bancária B2B, e isso é escolha declarada,
+não lacuna: cobrar o estabelecimento por Pix exigiria credencial de PSP **da plataforma** — a
+chave da GoodWe, não a do lojista, que é o que `SitePaymentMethod` guarda. Essa conta não
+existe, e `liquidacao_automatica: false` na resposta continua dizendo a verdade. A baixa é
+manual e de **admin**, porque deixar o próprio devedor declarar que pagou não seria baixa
+manual.
+
+O que foi construído no lugar é o **ciclo**, que não depende de banco nenhum:
+
+| passo | o que acontece |
+|---|---|
+| passou de `vence_em` | a cobrança vira `vencida` — o dia do vencimento é do devedor, vence no seguinte |
+| há cobrança vencida | o contrato vira `inadimplente` na mesma passada do worker |
+| contrato inadimplente | **para de renovar sozinho** — `renovar_vencidos` só olha `ativa` |
+| última dívida quitada | a baixa devolve o contrato para `ativa` |
+
+Isso existe porque as duas pontas eram decorativas: `vence_em` era escrita desde a migration
+`0019` e **nunca lida**, e `inadimplente` estava no CHECK e no badge vermelho do painel sem que
+nada no sistema jamais o atribuísse. Uma dívida de três meses era indistinguível de uma cobrança
+emitida ontem.
+
+**O que deliberadamente não acontece: o serviço não é cortado.** Quem deixou de pagar foi o
+estabelecimento; quem ficaria sem recarregar seria o motorista, que não tem nada com isso. Há um
+teste (`test_o_servico_nao_e_cortado`) cuja única função é garantir que ligar o corte seja uma
+decisão deliberada, e não algo que entre de carona.
+
+`em_aviso_previo` não vira `inadimplente`: quem já pediu rescisão está de saída, o desfecho não
+muda, e sobrescrever o estado apagaria a data em que o contrato acaba.
+
+### Trilha de auditoria
+
+`audit_logs` existia desde a migration `0001` — ator, ação, entidade, antes, depois, IP — e
+**nada nunca gravou uma linha**. Tabela de auditoria vazia é pior que nenhuma: dá a impressão de
+que há rastro, e a pergunta só aparece no dia em que alguém precisa dele.
+
+**O que entra:** ação de *pessoa* que move dinheiro ou muda quem pode o quê.
+
+| ação | rota |
+|---|---|
+| `carteira.ajustada` | `POST /wallets/{id}/adjust` |
+| `fatura.estornada` | `POST /invoices/{id}/refund` |
+| `cobranca_da_plataforma.baixada` | `POST /platform/invoices/{id}/settle` |
+| `contrato.criado` · `contrato.rescindido` | `POST /platform/contract` · `/terminate` |
+| `campanha.criada` · `campanha.encerrada` | `POST /campaigns` · `DELETE /campaigns/{id}` |
+| `metodo_de_pagamento.alterado` | `PUT /payment-methods` |
+| `conta.criada` | `POST /users` |
+| `conta.ativada` · `conta.desativada` | `PATCH /users/{id}` |
+
+**O que não entra, de propósito:** o que o worker faz sozinho — cashback concedido, mensalidade
+cobrada, cobrança vencida. São consequências de regra, não decisões de alguém; auditá-las
+encheria a tabela de linhas sem ator, que é exatamente o que ela não serve para guardar (o rastro
+delas já existe: log estruturado e linha própria no razão). Leitura também não: auditar consulta
+transforma a tabela num log de acesso e afoga o que importa.
+
+**Na rota, não no serviço.** Ator e IP só existem na borda HTTP, e o mesmo serviço é chamado pelo
+worker — `_creditar` roda nos dois. Auditar por dentro gravaria linha sem responsável toda vez que
+o worker passasse.
+
+**Não vaza segredo.** `provider_config` carrega `client_secret` e `webhook_secret`; a máscara
+desce recursivamente por dicionários e listas. Auditoria que vaza credencial trocaria um defeito
+por outro pior — e é o caso que o `PUT /payment-methods` exercita, porque o segredo aparece no
+*antes* ao alterar um método já configurado.
+
+**Mesma transação do que auditou.** `registrar` não commita: ou a operação e o registro acontecem,
+ou nenhum dos dois. Uma trilha que registra o que foi desfeito por rollback mente tanto quanto uma
+que perde o registro do que aconteceu.
+
+`GET /audit` lê a trilha — **admin**, porque ela diz quem mexeu em quê e de qual IP, e isso não é
+assunto de operador de praça. Sem essa rota, o dado existiria no banco e a pergunta continuaria
+dependendo de alguém com acesso a produção.
+
+No painel é a aba **Auditoria**, que só aparece para admin. A tabela mostra o que *mudou* — o
+par antes/depois casado por chave — e não o retrato de cada lado: quem audita quer a diferença.
+O `***` que o servidor mascarou passa direto, porque esconder a máscara esconderia que ali
+existia um segredo. Estornar uma fatura fica na linha dela, em **Tarifação & Pagamento**, e só
+para admin e só em fatura paga.
 
 ### 10. Previsão de demanda
 
@@ -629,6 +889,47 @@ agrega: três pessoas descrevendo o mesmo cabo rompido com palavras diferentes v
 problemas num relatório que deveria mostrar um.
 
 A lista de reportes de um ponto é informação do operador — o motorista só recupera os próprios.
+
+**A fila agora drena.** O motorista reportava e **ninguém conseguia resolver**: `resolved_at`
+era *lido* — a resposta do app expõe `resolvido`, e `ix_charge_point_reports_abertos` é a fila de
+abertos — e nenhuma rota o escrevia. O CHECK `resolucao_completa` mantinha `resolved_by`
+inalcançável junto.
+
+| rota | o que faz |
+|---|---|
+| `GET /power/maintenance/reports` | os reportes da praça; `abertos=true` por padrão |
+| `POST /power/maintenance/reports/{id}/resolve` | fecha, dizendo o que foi feito |
+
+`/maintenance/attention` agrupa por categoria e diz **quantos** estão abertos; esta lista diz
+**quais** — é dela que sai o trabalho de quem vai até o ponto.
+
+**A descrição do que foi feito é obrigatória.** Fechar sem dizer transforma a fila num botão de
+sumir com a reclamação: o próximo motorista que reportar o mesmo cabo não tem como saber que já
+olharam, e o relatório de manutenção perde a única informação que o distingue de uma contagem de
+reclamações.
+
+**Fechar duas vezes não reescreve o primeiro fechamento.** Quem resolveu e quando são fato
+consumado; a segunda chamada devolve o que já estava lá em vez de trocar o responsável pelo
+último que clicou.
+
+O escopo vem do **JOIN com o ponto**: `charge_point_reports` não tem `site_id`, e ler sem ele
+devolveria a reclamação do vizinho. Reporte de outra praça responde **404**, e não 403 — dizer
+"existe, mas não é seu" já entrega que ele existe.
+
+**E quem reportou fica sabendo.** `ReportarProblema`, no app, lista os próprios reportes daquele
+ponto com o desfecho — "Em análise" ou a resolução que o estabelecimento escreveu. Sem isso o
+ciclo não fechava de verdade: a API devolvia `resolvido` desde sempre e nenhuma tela chamava
+`myReports`, então o motorista mandava o problema e nunca ficava sabendo se alguém olhou.
+
+A lista do operador traz o e-mail de quem reportou **e nada além dele**. O reporte já é uma reclamação;
+enriquecer a linha com o resto do cadastro exporia o motorista a quem ele reclamou.
+
+No painel, a fila fica na aba **Gerenciamento de potência**, abaixo da manutenção preditiva —
+aquele card agrupa por categoria e diz *quantos* estão abertos, este diz *quais*. Fechar abre um
+campo na própria linha, e o botão só habilita com descrição: o piso de 3 caracteres espelha o
+`min_length` do `ResolucaoIn`, porque descobrir no 422 é a mesma informação chegando tarde. Ao
+fechar, os dois cards são recarregados — sem isso o de cima continuaria dizendo "3 abertos" com
+a fila já em 2.
 
 ### Missões e recompensas
 
@@ -999,6 +1300,19 @@ pelo rateio — agendar não segurava capacidade nenhuma. O laço agora fecha: a
 orçamento enquanto a janela corre, é consumida quando a sessão começa (senão a mesma potência
 seria contada duas vezes) e expira sozinha se ninguém aparecer. Mesma regra vale para
 `Tariff.type`, que agora restringe os componentes de preço em vez de ser rótulo.
+
+A mesma régua pegou `Reservation.pushed_to_hardware`, e desta vez o que faltava era o chamador.
+Os registradores 10020-10022 estavam mapeados, `ModbusDriver.push_reservation` escrevia os três, o
+simulador respondia e `COMMANDS` conhecia o nome — **e nada nunca chamou**: a coluna era `false` em
+todas as linhas do banco. A reserva existia só no servidor, então quem chegasse com cartão na
+frente do titular era atendido pelo equipamento. O laço fecha por **reconciliação**, e não por um
+empurrão no `POST /app/reservations`, por três motivos: o reg 10021 guarda **hora:minuto, sem
+data** — o equipamento tem relógio, não calendário, e empurrar hoje uma reserva de terça bloquearia
+a vaga hoje naquele horário, por isso só entra o que começa dentro de 24 h; cancelar precisa
+**retirar**, senão o ponto recusa todo mundo até a janela passar; e carregador que reinicia perde o
+registrador, o que um empurrão único não tem como saber. A reserva continua valendo pelo servidor
+mesmo quando a escrita falha — `pushed_to_hardware` responde "o equipamento também sabe?", e
+`false` agora significa "vale só no software", não "ninguém nunca escreveu".
 
 **A cobertura das janelas tarifárias precisa ser total.** Se algum instante da semana não casar
 com nenhuma janela, a cobrança cai no preço base da tarifa em silêncio. O teste

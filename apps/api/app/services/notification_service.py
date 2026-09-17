@@ -246,9 +246,7 @@ async def enviar_recompensas_pendentes(db: AsyncSession, limite: int = LOTE) -> 
     donos = {r.user_id for r in recompensas}
     por_usuario: dict[str, list[PushDevice]] = {}
     for aparelho in (
-        (await db.execute(select(PushDevice).where(PushDevice.user_id.in_(donos))))
-        .scalars()
-        .all()
+        (await db.execute(select(PushDevice).where(PushDevice.user_id.in_(donos)))).scalars().all()
     ):
         por_usuario.setdefault(str(aparelho.user_id), []).append(aparelho)
 

@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { power, useApi } from '@chargegrid/sdk'
 import { Async } from '../../components/Async.jsx'
+import { Campo } from '../../components/Campo.jsx'
 
 /**
  * Regras de prioridade nomeadas.
@@ -22,11 +23,20 @@ export default function PriorityRules() {
 
   return (
     <div>
+      {/*
+        `empty={null}` porque a SEÇÃO é dona do próprio vazio, e precisa ser.
+        O card não é só a tabela: ele carrega o botão "Nova regra". Deixar o
+        `<Async>` trocar o card inteiro pelo aviso genérico tirava da tela a
+        única saída do estado vazio — não dava para criar a primeira regra.
+        E `Lista` já diz melhor: sem regra, vale a prioridade cadastrada em
+        cada ponto, que é informação, não ausência dela.
+      */}
       <Async
         loading={regras.loading}
         error={regras.error}
         data={regras.data}
         onRetry={regras.refetch}
+        empty={null}
       >
         {regras.data && (
           <Lista
@@ -68,10 +78,16 @@ const VAZIA = {
   janela_fim: ''
 }
 
-function Lista({ regras, onMudou }) {
+/** Exportado para o teste montar com props, sem subir a aba inteira. */
+export function Lista({ regras, onMudou }) {
   const [editando, setEditando] = useState(null)
   const [erro, setErro] = useState('')
   const [salvando, setSalvando] = useState(false)
+
+  // `useId` em vez de id fixo: a tela pode montar o formulário mais de uma vez
+  // por praça, e id repetido faz o `htmlFor` apontar para o controle errado.
+  const idBase = useId()
+  const id = (chave) => `${idBase}-${chave}`
 
   async function salvar(e) {
     e.preventDefault()
@@ -109,12 +125,19 @@ function Lista({ regras, onMudou }) {
 
   return (
     <div className="card">
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          gap: 12
+        }}
+      >
         <div>
           <h3 style={{ margin: '0 0 4px', fontSize: 15 }}>Regras de prioridade</h3>
           <p className="muted" style={{ margin: '0 0 16px', fontSize: 13 }}>
-            Quando a potência não dá para todos, as faixas maiores são servidas primeiro. A
-            primeira regra que casa decide — por isso a ordem importa.
+            Quando a potência não dá para todos, as faixas maiores são servidas primeiro. A primeira
+            regra que casa decide — por isso a ordem importa.
           </p>
         </div>
         {!editando && (
@@ -124,58 +147,90 @@ function Lista({ regras, onMudou }) {
         )}
       </div>
 
+      {/* `role="alert"` para o leitor de tela anunciar — a mensagem nasce longe
+          do controle que a causou, e sem isso passaria despercebida. */}
       {erro && (
-        <p style={{ color: 'var(--sems-red)', fontSize: 13, margin: '0 0 12px' }}>{erro}</p>
+        <div className="form-error" role="alert" style={{ marginBottom: 12 }}>
+          {erro}
+        </div>
       )}
 
       {editando && (
-        <form onSubmit={salvar} style={{ marginBottom: 16, padding: 12, border: '1px solid var(--borda, rgba(127,127,127,0.25))', borderRadius: 6 }}>
+        <form
+          onSubmit={salvar}
+          style={{
+            marginBottom: 16,
+            padding: 12,
+            border: '1px solid var(--borda, rgba(127,127,127,0.25))',
+            borderRadius: 6
+          }}
+        >
+          {/*
+            Mesmo padrão do formulário de contas: `Campo` cuida do rótulo, da
+            associação por `htmlFor` e da faixa única que é dica ou erro. Os
+            controles levam `className="input"` — sem ela renderizavam sem
+            estilo nenhum, que era o caso aqui.
+
+            As dicas são FIXAS, não placeholders: placeholder some justamente
+            quando a pessoa começa a digitar, que é quando a regra ainda importa,
+            e leitor de tela costuma anunciá-lo como se fosse valor preenchido.
+          */}
           <div className="grid grid-3" style={{ gap: 12, marginBottom: 12 }}>
-            <label style={{ fontSize: 13 }}>
-              Nome
+            <Campo id={id('nome')} rotulo="Nome" dica="Como esta regra aparece na prévia abaixo.">
               <input
+                id={id('nome')}
+                className="input"
                 required
                 maxLength={80}
                 value={editando.nome}
                 onChange={(e) => setEditando({ ...editando, nome: e.target.value })}
-                placeholder="Frota da noite"
-                style={{ width: '100%' }}
+                aria-describedby={`${id('nome')}-dica`}
               />
-            </label>
-            <label style={{ fontSize: 13 }}>
-              Prioridade
+            </Campo>
+
+            <Campo
+              id={id('prioridade')}
+              rotulo="Prioridade"
+              dica="Maior é servido primeiro quando a potência não dá para todos."
+            >
               <input
+                id={id('prioridade')}
+                className="input"
                 type="number"
                 min={0}
                 max={1000}
                 value={editando.prioridade}
                 onChange={(e) => setEditando({ ...editando, prioridade: Number(e.target.value) })}
-                style={{ width: '100%' }}
+                aria-describedby={`${id('prioridade')}-dica`}
               />
-              <span className="muted" style={{ fontSize: 11 }}>maior = servido primeiro</span>
-            </label>
-            <label style={{ fontSize: 13 }}>
-              Ordem
+            </Campo>
+
+            <Campo
+              id={id('ordem')}
+              rotulo="Ordem de avaliação"
+              dica="Menor decide antes. A primeira regra que casa é a que vale."
+            >
               <input
+                id={id('ordem')}
+                className="input"
                 type="number"
                 min={0}
                 value={editando.ordem}
                 onChange={(e) => setEditando({ ...editando, ordem: Number(e.target.value) })}
-                style={{ width: '100%' }}
+                aria-describedby={`${id('ordem')}-dica`}
               />
-              <span className="muted" style={{ fontSize: 11 }}>menor decide antes</span>
-            </label>
+            </Campo>
           </div>
-
           <div className="grid grid-3" style={{ gap: 12, marginBottom: 12 }}>
-            <label style={{ fontSize: 13 }}>
-              Aplica-se a
+            <Campo id={id('criterio')} rotulo="Aplica-se a" dica="Quais pontos esta regra alcança.">
               <select
+                id={id('criterio')}
+                className="input"
                 value={editando.criterio_tipo}
                 onChange={(e) =>
                   setEditando({ ...editando, criterio_tipo: e.target.value, criterio_valor: '' })
                 }
-                style={{ width: '100%' }}
+                aria-describedby={`${id('criterio')}-dica`}
               >
                 {Object.entries(CRITERIOS).map(([v, r]) => (
                   <option key={v} value={v}>
@@ -183,55 +238,88 @@ function Lista({ regras, onMudou }) {
                   </option>
                 ))}
               </select>
-            </label>
+            </Campo>
+
+            {/*
+              O campo do valor só existe para critério que precisa dele — com
+              "Todos os pontos" não há o que listar, e um campo vazio e inerte
+              ao lado convidaria a preenchê-lo.
+            */}
             {editando.criterio_tipo !== 'sempre' && (
-              <label style={{ fontSize: 13, gridColumn: 'span 2' }}>
-                {editando.criterio_tipo === 'ponto' ? 'Códigos dos pontos' : 'Conectores'}
-                <input
-                  required
-                  value={editando.criterio_valor || ''}
-                  onChange={(e) => setEditando({ ...editando, criterio_valor: e.target.value })}
-                  placeholder={editando.criterio_tipo === 'ponto' ? 'CP-01, CP-02' : 'TYPE2, CCS2'}
-                  style={{ width: '100%' }}
-                />
-                <span className="muted" style={{ fontSize: 11 }}>separe por vírgula</span>
-              </label>
+              <div style={{ gridColumn: 'span 2' }}>
+                <Campo
+                  id={id('valor')}
+                  rotulo={editando.criterio_tipo === 'ponto' ? 'Códigos dos pontos' : 'Conectores'}
+                  dica={
+                    editando.criterio_tipo === 'ponto'
+                      ? 'Separe por vírgula, como aparecem na prévia: CP-01, CP-02.'
+                      : 'Separe por vírgula: TYPE2, CCS2.'
+                  }
+                >
+                  <input
+                    id={id('valor')}
+                    className="input"
+                    required
+                    value={editando.criterio_valor || ''}
+                    onChange={(e) => setEditando({ ...editando, criterio_valor: e.target.value })}
+                    aria-describedby={`${id('valor')}-dica`}
+                  />
+                </Campo>
+              </div>
             )}
           </div>
-
           <div className="grid grid-3" style={{ gap: 12, marginBottom: 12 }}>
-            <label style={{ fontSize: 13 }}>
-              Vale a partir de
+            <Campo
+              id={id('inicio')}
+              rotulo="Vale a partir de"
+              dica="Vazio nos dois = o dia inteiro."
+            >
               <input
+                id={id('inicio')}
+                className="input"
                 type="time"
                 value={editando.janela_inicio || ''}
                 onChange={(e) => setEditando({ ...editando, janela_inicio: e.target.value })}
-                style={{ width: '100%' }}
+                aria-describedby={`${id('inicio')}-dica`}
               />
-            </label>
-            <label style={{ fontSize: 13 }}>
-              Até
+            </Campo>
+
+            <Campo
+              id={id('fim')}
+              rotulo="Até"
+              dica="22:00 → 06:00 é aceito e cobre a virada da meia-noite."
+            >
               <input
+                id={id('fim')}
+                className="input"
                 type="time"
                 value={editando.janela_fim || ''}
                 onChange={(e) => setEditando({ ...editando, janela_fim: e.target.value })}
-                style={{ width: '100%' }}
+                aria-describedby={`${id('fim')}-dica`}
               />
-            </label>
-            <label style={{ fontSize: 13, alignSelf: 'end' }}>
-              <input
-                type="checkbox"
-                checked={editando.ativo}
-                onChange={(e) => setEditando({ ...editando, ativo: e.target.checked })}
-              />{' '}
-              Ativa
-            </label>
-          </div>
-          <p className="muted" style={{ fontSize: 11, margin: '0 0 12px' }}>
-            Deixe os dois horários vazios para valer o dia inteiro. Janela que cruza a
-            meia-noite (22:00 → 06:00) é aceita e cobre a virada.
-          </p>
+            </Campo>
 
+            <Campo
+              id={id('ativo')}
+              rotulo="Situação"
+              dica={
+                editando.ativo
+                  ? 'Entra no rateio assim que for salva.'
+                  : 'Fica cadastrada sem efeito nenhum.'
+              }
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 34 }}>
+                <input
+                  id={id('ativo')}
+                  type="checkbox"
+                  checked={editando.ativo}
+                  onChange={(e) => setEditando({ ...editando, ativo: e.target.checked })}
+                  aria-describedby={`${id('ativo')}-dica`}
+                />
+                <span style={{ fontSize: 13 }}>{editando.ativo ? 'Ativa' : 'Inativa'}</span>
+              </div>
+            </Campo>
+          </div>
           <button className="btn" type="submit" disabled={salvando}>
             {salvando ? 'Salvando…' : 'Salvar'}
           </button>{' '}
@@ -269,7 +357,9 @@ function Lista({ regras, onMudou }) {
                   <td>
                     {CRITERIOS[r.criterio_tipo] || r.criterio_tipo}
                     {r.criterio_valor && (
-                      <div className="muted" style={{ fontSize: 12 }}>{r.criterio_valor}</div>
+                      <div className="muted" style={{ fontSize: 12 }}>
+                        {r.criterio_valor}
+                      </div>
                     )}
                   </td>
                   <td>
@@ -306,7 +396,11 @@ function Lista({ regras, onMudou }) {
   )
 }
 
-function Previa({ d, hora, setHora }) {
+/** Exportado para o teste montar com props, sem subir a aba inteira. */
+export function Previa({ d, hora, setHora }) {
+  const idBase = useId()
+  const idHora = `${idBase}-hora`
+
   return (
     <div className="card" style={{ marginTop: 16 }}>
       <h3 style={{ margin: '0 0 4px', fontSize: 15 }}>Quem tem prioridade agora</h3>
@@ -315,15 +409,39 @@ function Previa({ d, hora, setHora }) {
         {d.timezone}. {d.regras_ativas} regra(s) ativa(s).
       </p>
 
-      <label style={{ fontSize: 13, display: 'block', marginBottom: 12 }}>
-        Horário{' '}
-        <input type="time" value={hora} onChange={(e) => setHora(e.target.value)} />{' '}
-        {hora && (
-          <button className="btn" onClick={() => setHora('')}>
-            Voltar para agora
-          </button>
-        )}
-      </label>
+      {/*
+        Mesmo `Campo` do formulário acima. O botão de voltar vai no `acao`, ao
+        lado do rótulo, e não dentro do `<label>`: botão dentro de label faz o
+        clique nele cair também no campo de horário, abrindo o seletor de hora
+        justamente quando a pessoa quis fechá-lo.
+
+        A tabela abaixo é o resultado, então o campo cabe numa coluna estreita —
+        esticá-lo pela largura do cartão sugeriria que ele filtra a tabela
+        inteira, quando o que ele faz é mover o relógio da simulação.
+      */}
+      <div style={{ maxWidth: 260, marginBottom: 12 }}>
+        <Campo
+          id={idHora}
+          rotulo="Horário simulado"
+          dica={hora ? `Mostrando as regras como às ${hora}.` : 'Vazio = agora.'}
+          acao={
+            hora ? (
+              <button className="btn btn-sm" onClick={() => setHora('')}>
+                Voltar para agora
+              </button>
+            ) : null
+          }
+        >
+          <input
+            id={idHora}
+            className="input"
+            type="time"
+            value={hora}
+            onChange={(e) => setHora(e.target.value)}
+            aria-describedby={`${idHora}-dica`}
+          />
+        </Campo>
+      </div>
 
       <div style={{ overflowX: 'auto' }}>
         <table className="table" style={{ minWidth: 560 }}>
@@ -342,7 +460,9 @@ function Previa({ d, hora, setHora }) {
                 <tr key={p.code}>
                   <td>
                     <strong>{p.code}</strong>
-                    <div className="muted" style={{ fontSize: 12 }}>{p.name}</div>
+                    <div className="muted" style={{ fontSize: 12 }}>
+                      {p.name}
+                    </div>
                   </td>
                   <td>
                     {p.regra || <span className="muted">nenhuma — vale o valor do ponto</span>}

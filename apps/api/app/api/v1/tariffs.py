@@ -9,7 +9,15 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
-from app.core.deps import CurrentUser, DbSession, OperatorUser, ScopedSiteId, get_scoped_site_id
+from app.core.deps import (
+    AdminUser,
+    Auditor,
+    CurrentUser,
+    DbSession,
+    OperatorUser,
+    ScopedSiteId,
+    get_scoped_site_id,
+)
 from app.models.billing import Invoice, SitePaymentMethod
 from app.models.charge_point import ChargePoint
 from app.models.enums import InvoiceStatus, UserRole
@@ -19,6 +27,7 @@ from app.models.tariff import Tariff, TariffWindow
 from app.models.user import User
 from app.schemas.common import Page
 from app.schemas.ev import (
+    AjusteDeCarteiraIn,
     ChargeRequestIn,
     InvoiceOut,
     PaymentMethodIn,
@@ -32,7 +41,13 @@ from app.schemas.ev import (
     TariffUpdate,
     TariffWindowIn,
 )
-from app.services import billing_service, payment_service, tariff_rules
+from app.services import (
+    audit_service,
+    billing_service,
+    payment_service,
+    tariff_rules,
+    wallet_service,
+)
 from app.services.tariff_engine import simulate
 
 router = APIRouter(tags=["recarga ev · tarifação e pagamento"])
@@ -208,9 +223,19 @@ async def list_payment_methods(db: DbSession, site_id: ScopedSiteId, _: Operator
 
 @router.put("/payment-methods", response_model=PaymentMethodOut)
 async def upsert_payment_method(
-    payload: PaymentMethodIn, db: DbSession, site_id: ScopedSiteId, _: OperatorUser
+    payload: PaymentMethodIn,
+    db: DbSession,
+    site_id: ScopedSiteId,
+    _: OperatorUser,
+    aud: Auditor,
 ):
-    """Habilita ou atualiza um metodo. Um por tipo por site."""
+    """Habilita ou atualiza um metodo. Um por tipo por site.
+
+    AUDITADO, e e' o caso que exigiu mascara: `provider_config` carrega
+    `client_secret` e `webhook_secret`. Gravar o "antes e depois" cru escreveria
+    a credencial do PSP numa tabela feita para ser lida por gente - trocaria um
+    defeito por outro pior.
+    """
     method = (
         await db.execute(
             select(SitePaymentMethod).where(
@@ -218,11 +243,36 @@ async def upsert_payment_method(
             )
         )
     ).scalar_one_or_none()
+    antes = (
+        {}
+        if method is None
+        else {
+            "enabled": method.enabled,
+            "provider": method.provider,
+            "fee_percent": float(method.fee_percent),
+            "provider_config": method.provider_config,
+        }
+    )
     if method is None:
         method = SitePaymentMethod(site_id=site_id, kind=payload.kind)
         db.add(method)
     for field, value in payload.model_dump(exclude={"kind"}).items():
         setattr(method, field, value)
+
+    await aud.registrar(
+        db,
+        "metodo_de_pagamento.alterado",
+        "site_payment_method",
+        entidade_id=site_id,
+        antes=antes,
+        depois={
+            "kind": str(payload.kind),
+            "enabled": method.enabled,
+            "provider": method.provider,
+            "fee_percent": float(method.fee_percent),
+            "provider_config": method.provider_config,
+        },
+    )
     await db.commit()
     await db.refresh(method)
     return method
@@ -313,9 +363,107 @@ async def charge_invoice(
     )
 
 
+@router.post("/invoices/{invoice_id}/refund", response_model=PaymentOut)
+async def refund_invoice(invoice_id: uuid.UUID, db: DbSession, admin: AdminUser, aud: Auditor):
+    """Estorna a fatura: devolve o que foi cobrado.
+
+    ADMIN, e nao operador nem motorista. Devolver dinheiro e' decisao da rede -
+    o motorista nao pode se auto-reembolsar, e o operador nao pode devolver do
+    caixa da plataforma. Mesmo criterio da baixa da cobranca da plataforma.
+
+    Pagamento por CARTEIRA volta como credito no razao, na hora. Por PSP, quem
+    devolve e' o provedor - marcar `REFUNDED` sem chama-lo seria dizer que
+    devolveu sem devolver.
+    """
+    invoice = (
+        await db.execute(select(Invoice).where(Invoice.id == invoice_id))
+    ).scalar_one_or_none()
+    if invoice is None:
+        raise HTTPException(status_code=404, detail="fatura não encontrada")
+    antes = str(invoice.status)
+    pagamento = await payment_service.estornar(db, invoice, autor=admin)
+    await aud.registrar(
+        db,
+        "fatura.estornada",
+        "invoice",
+        entidade_id=invoice.id,
+        antes={"status": antes},
+        depois={"status": str(invoice.status), "valor": float(pagamento.amount)},
+    )
+    await db.commit()
+    return pagamento
+
+
+@router.get("/audit")
+async def audit_trail(
+    db: DbSession,
+    _: AdminUser,
+    limit: int = Query(default=100, ge=1, le=500),
+    action: str | None = None,
+    entity: str | None = None,
+) -> list[dict]:
+    """A trilha de auditoria. So' admin.
+
+    Existe porque trilha que ninguem consegue ler e' meio caminho do defeito que
+    ela veio consertar: o dado estaria no banco e a pergunta continuaria
+    dependendo de alguem com acesso a producao.
+
+    Admin porque a propria trilha e' informacao sensivel - ela diz quem mexeu em
+    que e de qual IP, e isso nao e' assunto de operador de praca.
+    """
+    return await audit_service.listar(db, limite=limit, acao=action, entidade=entity)
+
+
+@router.post("/wallets/{user_id}/adjust")
+async def adjust_wallet(
+    user_id: uuid.UUID,
+    payload: AjusteDeCarteiraIn,
+    db: DbSession,
+    admin: AdminUser,
+    aud: Auditor,
+) -> dict:
+    """Correcao manual de saldo, com motivo e responsavel.
+
+    ADMIN, e nao operador. E' o unico lancamento do razao em que alguem escolhe
+    o numero, sem fatura nem recarga por tras - e quem pode criar saldo do nada
+    precisa ser o menor grupo possivel.
+
+    Devolve o extrato atualizado, e nao so' o saldo: quem acabou de mexer no
+    dinheiro de alguem tem de ver a linha que criou.
+    """
+    dono = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+    if dono is None:
+        raise HTTPException(status_code=404, detail="motorista não encontrado")
+    antes = float(dono.wallet_balance)
+    extrato = await wallet_service.ajustar(
+        db,
+        dono,
+        payload.valor,
+        payload.motivo,
+        autor=admin,
+        idempotency_key=payload.idempotency_key,
+    )
+    await aud.registrar(
+        db,
+        "carteira.ajustada",
+        "user",
+        entidade_id=dono.id,
+        antes={"saldo": antes},
+        depois={"saldo": extrato["saldo"], "valor": float(payload.valor), "motivo": payload.motivo},
+    )
+    await db.commit()
+    return extrato
+
+
 @router.post("/payments/webhook", include_in_schema=True)
 async def payment_webhook(request: Request, db: DbSession) -> dict:
-    """Liquidacao assincrona do PSP. Assinatura HMAC obrigatoria."""
+    """Liquidacao assincrona do PSP. Assinatura HMAC obrigatoria.
+
+    Um POST pode trazer MAIS DE UM pagamento: o Pix notifica em lote, com uma
+    lista de recebimentos no mesmo corpo. Quem sabe desmontar isso e' o
+    provedor - a rota nao supoe a forma do corpo, e por isso a resposta e'
+    sempre `{"eventos": [...]}`, com um elemento no caso comum.
+    """
     body = await request.body()
     signature = request.headers.get("x-signature") or request.headers.get("x-hub-signature-256")
 
@@ -325,7 +473,14 @@ async def payment_webhook(request: Request, db: DbSession) -> dict:
     provedor = await payment_service.provedor_do_evento(db, body)
     if not provedor.verify_webhook(body, signature):
         raise HTTPException(status_code=401, detail="assinatura de webhook inválida")
-    return await payment_service.handle_webhook(db, await request.json())
+
+    eventos = provedor.traduzir_webhook(await request.json())
+    if not eventos:
+        raise HTTPException(status_code=422, detail="webhook sem pagamento reconhecível")
+    # Um a um, e cada um no proprio commit: o lote do PSP pode citar um
+    # pagamento que nao e' nosso, e derrubar os outros por causa dele faria o
+    # PSP reenviar o lote inteiro para sempre.
+    return {"eventos": [await payment_service.handle_webhook(db, e) for e in eventos]}
 
 
 @router.get("/revenue/summary", response_model=RevenueSummary)

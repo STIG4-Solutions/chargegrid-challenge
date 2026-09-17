@@ -88,12 +88,8 @@ async def test_valor_minimo_entra_como_complemento(db, ponto, motorista, tarifa)
     # subtotal 1,00 com total 5,00 - um documento de prestacao de contas cujas
     # linhas nao somam o proprio subtotal. Agora o complemento entra no subtotal,
     # e `subtotal - desconto == total` vale em toda fatura.
-    outras = sum(
-        float(linha.amount) for linha in fatura.lines if linha.kind != "min_charge"
-    )
-    assert float(complemento[0].amount) == pytest.approx(
-        float(tarifa.min_charge) - outras
-    )
+    outras = sum(float(linha.amount) for linha in fatura.lines if linha.kind != "min_charge")
+    assert float(complemento[0].amount) == pytest.approx(float(tarifa.min_charge) - outras)
     assert float(fatura.subtotal) == pytest.approx(float(fatura.total))
 
 

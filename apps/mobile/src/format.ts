@@ -28,14 +28,20 @@ export function quando(iso?: string | null): string {
   return `${alvo.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} às ${hora}`
 }
 
-export const statusAgendamento: Record<string, { label: string; cor: 'verde' | 'ambar' | 'fraco' }> = {
+export const statusAgendamento: Record<
+  string,
+  { label: string; cor: 'verde' | 'ambar' | 'fraco' }
+> = {
   confirmed: { label: 'Confirmado', cor: 'verde' },
   consumed: { label: 'Utilizado', cor: 'fraco' },
   cancelled: { label: 'Cancelado', cor: 'fraco' },
   expired: { label: 'Expirado', cor: 'ambar' }
 }
 
-export const statusFatura: Record<string, { label: string; cor: 'verde' | 'ambar' | 'vermelho' | 'fraco' }> = {
+export const statusFatura: Record<
+  string,
+  { label: string; cor: 'verde' | 'ambar' | 'vermelho' | 'fraco' }
+> = {
   draft: { label: 'Rascunho', cor: 'fraco' },
   open: { label: 'Em aberto', cor: 'ambar' },
   paid: { label: 'Paga', cor: 'verde' },

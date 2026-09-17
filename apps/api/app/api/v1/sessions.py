@@ -307,18 +307,14 @@ async def session_telemetry(
         TelemetrySample.recorded_at >= since,
     )
 
-    total = (
-        await db.execute(select(func.count()).select_from(base.subquery()))
-    ).scalar_one()
+    total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
 
     consulta = base.order_by(TelemetrySample.recorded_at)
     if total > max_points:
         # Um a cada N pela posicao na serie. O ultimo ponto entra sempre: e' o
         # estado atual da recarga, e some justamente quando o passo nao fecha.
         passo = -(-total // max_points)  # divisao para cima
-        posicao = (
-            func.row_number().over(order_by=TelemetrySample.recorded_at).label("posicao")
-        )
+        posicao = func.row_number().over(order_by=TelemetrySample.recorded_at).label("posicao")
         numeradas = base.add_columns(posicao).subquery()
         escolhidas = select(numeradas.c.id).where(
             (numeradas.c.posicao % passo == 1) | (numeradas.c.posicao == total)

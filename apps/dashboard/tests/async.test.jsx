@@ -81,19 +81,48 @@ describe('vazio', () => {
     expect(screen.getByText('1.234 kWh')).toBeInTheDocument()
   })
 
-  it('lista vazia SEM rótulo renderiza o conteúdo', () => {
+  it('lista vazia SEM rótulo ainda assim FALA', () => {
+    // Inversão deliberada, e este teste afirmava o contrário — sem explicar por
+    // quê, ao contrário do vizinho acima. O silêncio era o padrão: 23 dos 25
+    // usos do painel não passavam `empty`, e uma lista vazia renderizava o
+    // `children` sobre zero itens, ficando indistinguível de tela quebrada.
+    // Foi o que aconteceu em Plano & Contrato: "escolha um plano abaixo"
+    // seguido de nada.
     render(
       <Async loading={false} data={[]}>
         <Conteudo />
       </Async>
     )
+    expect(screen.getByText('Nada por aqui ainda.')).toBeInTheDocument()
+    expect(screen.queryByText('1.234 kWh')).not.toBeInTheDocument()
+  })
+
+  it('`empty={null}` é a saída para quem quer mesmo o silêncio', () => {
+    // Existe porque há seção cujo vazio já é explicado por outra coisa na tela.
+    // A diferença é que agora essa escolha é EXPLÍCITA.
+    render(
+      <Async loading={false} data={[]} empty={null}>
+        <Conteudo />
+      </Async>
+    )
     expect(screen.getByText('1.234 kWh')).toBeInTheDocument()
+  })
+
+  it('lista vazia com rótulo próprio diz a frase do chamador', () => {
+    render(
+      <Async loading={false} data={[]} empty="Nenhum plano publicado.">
+        <Conteudo />
+      </Async>
+    )
+    expect(screen.getByText('Nenhum plano publicado.')).toBeInTheDocument()
   })
 })
 
 describe('offline', () => {
   it('explica como subir o backend', () => {
-    render(<Async loading={false} error={{ isOffline: true, detail: 'falha de rede' }} data={null} />)
+    render(
+      <Async loading={false} error={{ isOffline: true, detail: 'falha de rede' }} data={null} />
+    )
     expect(screen.getByText('API indisponível')).toBeInTheDocument()
     expect(screen.getByText('npm run infra:up')).toBeInTheDocument()
   })

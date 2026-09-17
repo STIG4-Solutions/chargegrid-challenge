@@ -54,6 +54,7 @@ MOTORISTA = ("joao.silva@email.com", _MOTORISTA_SENHA)
 # por configuracao - que nao e' o que um teste de fumaca deve reportar.
 ADMIN = ("admin@chargegrid.com.br", _ADMIN_SENHA)
 
+
 def _exigir_credenciais() -> None:
     """Checagem na execucao, nao na importacao: o pytest coleta este arquivo
     (o nome casa com *_test.py) e um SystemExit aqui derrubaria a coleta."""
@@ -62,6 +63,7 @@ def _exigir_credenciais() -> None:
             "Defina SEED_OPERATOR_PASSWORD e SEED_DRIVER_PASSWORD (as mesmas que o "
             "seed usou) antes de rodar o teste de fumaca."
         )
+
 
 ATIVOS = {"authorizing", "queued", "starting", "charging", "suspended", "finishing"}
 
@@ -592,8 +594,6 @@ def coerencia_da_tarifa(client: httpx.Client, op: dict) -> None:
     check("tarifa com historico e protegida", r.status_code == 409, f"HTTP {r.status_code}")
 
 
-
-
 # ---------------------------------------------------------------------------
 # Fases 2 a 5: carteira, gamificacao, campanhas, assinatura e contrato.
 #
@@ -607,8 +607,23 @@ def coerencia_da_tarifa(client: httpx.Client, op: dict) -> None:
 # ---------------------------------------------------------------------------
 
 
+# Teto da rota. Conferir a invariante exige TODOS os movimentos, e o extrato
+# pagina - `saldo` e' a soma de tudo, `movimentos` e' a pagina pedida.
+TETO_DO_EXTRATO = 200
+
+
+def _extrato(client: httpx.Client, drv: dict, limite: int = TETO_DO_EXTRATO) -> dict:
+    return client.get(f"{API}/app/wallet/statement", params={"limit": limite}, headers=drv).json()
+
+
 def _fecha(extrato: dict) -> bool:
-    """A invariante da carteira: os movimentos somam o saldo."""
+    """A invariante da carteira: os movimentos somam o saldo.
+
+    So' vale sobre o extrato COMPLETO. A primeira versao somava a pagina padrao
+    de 50 e comparava com o saldo total: passou por varias rodadas e comecou a
+    falhar sozinha no dia em que o motorista do seed chegou ao 51o movimento -
+    uma falha que parecia defeito do produto e era do teste.
+    """
     return abs(round(sum(m["valor"] for m in extrato["movimentos"]), 2) - extrato["saldo"]) < 0.01
 
 
@@ -621,7 +636,7 @@ def carteira(client: httpx.Client, drv: dict) -> None:
     """
     secao("Carteira e razao")
 
-    extrato = client.get(f"{API}/app/wallet/statement", headers=drv).json()
+    extrato = _extrato(client, drv)
     perfil = client.get(f"{API}/auth/me", headers=drv).json()
     check(
         "extrato bate com o saldo do perfil",
@@ -666,7 +681,7 @@ def carteira(client: httpx.Client, drv: dict) -> None:
         f"R$ {r.json().get('wallet_balance')}",
     )
 
-    depois = client.get(f"{API}/app/wallet/statement", headers=drv).json()
+    depois = _extrato(client, drv)
     creditos = len([m for m in depois["movimentos"] if m["origem"] == "topup"])
     check(
         "o credito virou UMA linha no razao",
@@ -713,7 +728,7 @@ def gamificacao(client: httpx.Client, drv: dict) -> None:
     # O elo que so' aparece aqui: recompensa creditada PRECISA ter dinheiro
     # correspondente no razao. Sem esta checagem, `estado='creditada'` podia ser
     # uma etiqueta sem lastro nenhum.
-    extrato = client.get(f"{API}/app/wallet/statement", headers=drv).json()
+    extrato = _extrato(client, drv)
     cashbacks = [m for m in extrato["movimentos"] if m["origem"] == "cashback"]
     check(
         "toda recompensa creditada tem credito no razao",
@@ -886,7 +901,7 @@ def assinatura_do_motorista(client: httpx.Client, drv: dict) -> None:
         f"R$ {saldo_antes:.2f} -> R$ {saldo_depois:.2f} (plano R$ {mensalidade:.2f})",
     )
 
-    extrato = client.get(f"{API}/app/wallet/statement", headers=drv).json()
+    extrato = _extrato(client, drv)
     ultimo = extrato["movimentos"][0] if extrato["movimentos"] else {}
     check(
         "o debito da mensalidade esta no razao",
@@ -966,11 +981,31 @@ def contrato_da_plataforma(client: httpx.Client, op: dict, drv: dict) -> None:
 
     cobrancas = c.get("cobrancas", [])
     check("cobrancas emitidas", len(cobrancas) > 0, f"{len(cobrancas)}")
-    competencias = [b["competencia"] for b in cobrancas]
+    # A UNIQUE do banco e' (contrato, competencia), e e' essa a invariante: o
+    # MESMO contrato nao e' faturado duas vezes no mesmo mes.
+    #
+    # Contar so' `competencia` era equivalente enquanto a lista vinha de um
+    # contrato so'. Deixou de ser: ela passou a ter escopo de SITE, para a
+    # divida nao sumir quando o estabelecimento assina de novo, e ai duas
+    # cobrancas da mesma competencia vindas de contratos diferentes sao
+    # CORRETAS - o seed produz exatamente isso, com o contrato encerrado e o
+    # ativo cobrando 2026-09.
+    #
+    # `contrato_anterior` e' o que separa os dois grupos. Com mais de um
+    # contrato encerrado a checagem fica aproximada, e isso e' o limite dela -
+    # o que ela continua pegando e' a regressao que importa: a mesma cobranca
+    # emitida duas vezes para o contrato que esta' correndo.
+    pares = [(b["competencia"], b["contrato_anterior"]) for b in cobrancas]
     check(
-        "nenhuma competencia faturada duas vezes",
-        len(competencias) == len(set(competencias)),
-        f"{len(set(competencias))} competencia(s)",
+        "nenhum contrato faturado duas vezes na mesma competencia",
+        len(pares) == len(set(pares)),
+        f"{len(pares)} cobranca(s) em {len(set(pares))} par(es) contrato/competencia",
+    )
+    check(
+        "a divida do contrato anterior continua na lista",
+        any(b["contrato_anterior"] for b in cobrancas),
+        "o seed encerra um contrato e assina outro; sem escopo de site, "
+        "a cobranca do encerrado sumiria da tela",
     )
 
     aberta = next((b for b in cobrancas if b["estado"] != "paga"), None)

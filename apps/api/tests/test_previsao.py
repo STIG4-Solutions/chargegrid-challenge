@@ -120,7 +120,11 @@ async def test_sem_banda_na_tela_nao_se_avisa_sobre_a_banda(db, site):
     ignorado junto.
     """
     await _previsao(
-        db, site, fonte="media_movel", kwh_p10=None, kwh_p90=None,
+        db,
+        site,
+        fonte="media_movel",
+        kwh_p10=None,
+        kwh_p90=None,
         cobertura_medida_pct=Decimal("56.5"),
     )
 
@@ -169,8 +173,13 @@ async def test_os_dois_fallbacks_dizem_coisas_diferentes(db, site, segundo_site)
     sem_historico = await forecast_service.previsao_do_site(db, site.id)
 
     await _previsao(
-        db, segundo_site, fonte="media_movel", kwh_p10=None, kwh_p90=None,
-        wape_modelo_pct=Decimal("9.05"), wape_baseline_pct=Decimal("7.61"),
+        db,
+        segundo_site,
+        fonte="media_movel",
+        kwh_p10=None,
+        kwh_p90=None,
+        wape_modelo_pct=Decimal("9.05"),
+        wape_baseline_pct=Decimal("7.61"),
     )
     modelo_pior = await forecast_service.previsao_do_site(db, segundo_site.id)
 
@@ -181,8 +190,11 @@ async def test_os_dois_fallbacks_dizem_coisas_diferentes(db, site, segundo_site)
 
 async def test_modelo_que_ganha_da_regua_e_usado(db, site):
     await _previsao(
-        db, site, fonte="modelo",
-        wape_modelo_pct=Decimal("7.5"), wape_baseline_pct=Decimal("10.4"),
+        db,
+        site,
+        fonte="modelo",
+        wape_modelo_pct=Decimal("7.5"),
+        wape_baseline_pct=Decimal("10.4"),
     )
 
     saida = await forecast_service.previsao_do_site(db, site.id)
@@ -242,9 +254,7 @@ async def test_rota_responde_e_respeita_o_papel(
     assert negado.status_code == 403
 
 
-async def test_rota_nao_vaza_previsao_do_vizinho(
-    api, db, segundo_site, como_operador_do_site
-):
+async def test_rota_nao_vaza_previsao_do_vizinho(api, db, segundo_site, como_operador_do_site):
     await _previsao(db, segundo_site, kwh_previsto=Decimal("777"))
 
     r = await api.get("/api/v1/power/demand/energy-forecast", headers=como_operador_do_site)

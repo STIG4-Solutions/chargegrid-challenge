@@ -177,7 +177,12 @@ class SimulatedChargePointDriver(ChargePointDriver):
         return CommandResult(ok=True, command="remove_rfid_card", payload={"uid": uid})
 
     async def push_reservation(self, hour: int, minute: int, duration_min: int) -> CommandResult:
+        self.state["reservation"] = {"hour": hour, "minute": minute, "duration_min": duration_min}
         return CommandResult(ok=True, command="push_reservation")
+
+    async def clear_reservation(self) -> CommandResult:
+        self.state.pop("reservation", None)
+        return CommandResult(ok=True, command="clear_reservation")
 
     # ---- gatilhos usados pelos testes e pela rota /simulator do ambiente dev ----
     def plug_in(self, battery_kwh: float = 60.0, soc: float = 0.25) -> None:

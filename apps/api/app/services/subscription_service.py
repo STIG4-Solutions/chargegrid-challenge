@@ -346,9 +346,7 @@ async def cobrar_mensalidades(db: AsyncSession, limite: int = LOTE) -> int:
         except PaymentError as erro:
             assinatura.estado = "inadimplente"
             await db.commit()
-            log.info(
-                "assinatura.inadimplente", motorista=str(pagador.id), motivo=str(erro)
-            )
+            log.info("assinatura.inadimplente", motorista=str(pagador.id), motivo=str(erro))
             continue
 
         assinatura.current_period_start = competencia

@@ -79,9 +79,7 @@ async def test_saldo_insuficiente_nao_deixa_negativo(db, site, ponto, motorista,
     fatura = await _fatura(db, ponto, motorista)  # R$ 20
 
     with pytest.raises(PaymentError):
-        await payment_service.charge_invoice(
-            db, fatura, PaymentMethodKind.WALLET, payer=motorista
-        )
+        await payment_service.charge_invoice(db, fatura, PaymentMethodKind.WALLET, payer=motorista)
 
     assert float(motorista.wallet_balance) == pytest.approx(5.0)
     assert fatura.status != InvoiceStatus.PAID

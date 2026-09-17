@@ -31,6 +31,11 @@ psycopg[binary]==3.3.5
 # Testes do pipeline (apps/forecast/tests). Fora do pytest da API de proposito:
 # lightgbm e numpy nao entram na imagem que roda o rebalanceamento de potencia.
 pytest==8.4.2
+# Fixo como os demais, e aqui o pin importa mais do que parece: foi justamente a
+# ausencia de configuracao + versao livre que fez o lint deste diretorio cobrar
+# um conjunto de regras diferente em cada maquina. Com `ruff.toml` e versao
+# presa, o resultado e' o mesmo em qualquer lugar.
+ruff==0.16.7
 
 # NAO estao aqui, e o motivo importa:
 #   pymodbus   - a camada Modbus do pipeline original tem enderecos de

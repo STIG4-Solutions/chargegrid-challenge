@@ -47,7 +47,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin, UUIDMixin
 
 ESTADOS_DO_CONTRATO = ("ativa", "em_aviso_previo", "encerrada", "inadimplente")
-ESTADOS_DA_COBRANCA = ("aberta", "paga", "cancelada")
+ESTADOS_DA_COBRANCA = ("aberta", "vencida", "paga", "cancelada")
 
 # Os nomes de constraint aqui vao SEM o prefixo `ck_<tabela>_`: a
 # NAMING_CONVENTION o acrescenta sozinha. Escrever o nome completo o duplica, e
@@ -81,9 +81,7 @@ class PlatformPlan(UUIDMixin, TimestampMixin, Base):
     preco_por_ponto_brl: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=0, nullable=False)
     pontos_inclusos: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     # A parte que realmente importa: percentual sobre o que o site faturou.
-    fee_percent_transacao: Mapped[Decimal] = mapped_column(
-        Numeric(6, 3), default=0, nullable=False
-    )
+    fee_percent_transacao: Mapped[Decimal] = mapped_column(Numeric(6, 3), default=0, nullable=False)
 
     meses_minimos: Mapped[int] = mapped_column(Integer, default=12, nullable=False)
     ativo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -102,9 +100,7 @@ class SiteSubscription(UUIDMixin, TimestampMixin, Base):
         CheckConstraint(
             "estado <> 'encerrada' OR encerra_em IS NOT NULL", name="encerramento_completo"
         ),
-        CheckConstraint(
-            "multa_percentual >= 0 AND multa_percentual <= 100", name="multa_ate_cem"
-        ),
+        CheckConstraint("multa_percentual >= 0 AND multa_percentual <= 100", name="multa_ate_cem"),
         # Um contrato vivo por site. Encerrados nao contam: o estabelecimento
         # pode voltar depois, e barrar isso o obrigaria a apagar o historico.
         Index(
@@ -157,7 +153,7 @@ class PlatformInvoice(UUIDMixin, TimestampMixin, Base):
             "site_subscription_id", "competencia", name="uq_platform_invoices_competencia"
         ),
         CheckConstraint(
-            "estado IN ('aberta', 'paga', 'cancelada')", name="estado_conhecido"
+            "estado IN ('aberta', 'vencida', 'paga', 'cancelada')", name="estado_conhecido"
         ),
         CheckConstraint("total_brl >= 0", name="total_nao_negativo"),
         # Declarar-se paga exige dizer quando. Sem a data nao ha como conciliar.
@@ -173,6 +169,9 @@ class PlatformInvoice(UUIDMixin, TimestampMixin, Base):
     )
     competencia: Mapped[date] = mapped_column(Date, nullable=False)
     emitida_em: Mapped[date] = mapped_column(Date, nullable=False)
+    # Lido por `marcar_vencidas`. Passou daqui, a cobranca vira `vencida` e o
+    # contrato vira `inadimplente` - ate a 0023 esta coluna era escrita e nunca
+    # consultada, e uma divida de tres meses era indistinguivel de uma de ontem.
     vence_em: Mapped[date] = mapped_column(Date, nullable=False)
     paga_em: Mapped[date | None] = mapped_column(Date)
 
@@ -187,9 +186,7 @@ class PlatformInvoice(UUIDMixin, TimestampMixin, Base):
     # A base de calculo, guardada junto: sem ela, conferir a taxa exigiria
     # reprocessar o mes inteiro de faturas do site.
     pontos_cobrados: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    faturamento_base_brl: Mapped[Decimal] = mapped_column(
-        Numeric(12, 2), default=0, nullable=False
-    )
+    faturamento_base_brl: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0, nullable=False)
 
     estado: Mapped[str] = mapped_column(String(12), default="aberta", nullable=False)
 

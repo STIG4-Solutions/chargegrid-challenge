@@ -125,7 +125,10 @@ export default function HistoryScreen() {
             !faturas.error ? <Aviso tom="info" mensagem="Nenhuma fatura emitida." /> : null
           }
           renderItem={({ item }) => {
-            const rotulo = statusFatura[item.status] ?? { label: item.status, cor: 'fraco' as const }
+            const rotulo = statusFatura[item.status] ?? {
+              label: item.status,
+              cor: 'fraco' as const
+            }
             return (
               <View style={s.card}>
                 <View style={s.cardTopo}>

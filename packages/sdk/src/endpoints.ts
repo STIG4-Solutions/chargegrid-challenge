@@ -21,7 +21,6 @@ function chaveDeIdempotencia(): string {
   return `${Date.now().toString(36)}-${sequencia.toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 }
 
-
 // ---- autenticação (os dois clientes) ----------------------------------------
 export const auth = {
   login: (email: string, senha: string) =>
@@ -30,7 +29,18 @@ export const auth = {
       body: { email, password: senha },
       auth: false
     }),
-  register: (dados: { email: string; full_name: string; password: string }) =>
+  /**
+   * Cadastro publico do app do motorista. Sem token, e sempre motorista.
+   *
+   * O tipo vem do contrato (`RegistroPublicoIn`), e nao escrito a mao: e' o que
+   * garante que `role` e `site_id` nao tenham como ser enviados daqui nem por
+   * engano - o servidor tambem os recusa, mas errar isso no cliente daria um
+   * 422 no lugar de um erro de compilacao.
+   *
+   * Devolve o usuario, e NAO um par de tokens: quem cadastra ainda precisa
+   * fazer login em seguida.
+   */
+  register: (dados: T.RegistroPublico) =>
     request<T.Usuario>('/auth/register', { method: 'POST', body: dados, auth: false }),
   me: () => api.get<T.Usuario>('/auth/me')
 }
@@ -53,11 +63,23 @@ export const power = {
   /** Pontos que vem falhando com frequencia. */
   maintenanceAttention: (dias = 30) =>
     api.get<Record<string, unknown>>('/power/maintenance/attention', { dias }),
+  /**
+   * A fila de problemas reportados por quem esteve no ponto.
+   *
+   * `maintenanceAttention` agrupa e diz QUANTOS estao abertos; esta diz QUAIS.
+   */
+  maintenanceReports: (abertos = true, limit = 100) =>
+    api.get<T.ReporteDoPonto[]>('/power/maintenance/reports', { abertos, limit }),
+  /** Fecha um reporte. A descricao do que foi feito e' obrigatoria. */
+  resolveReport: (id: string, resolucao: string) =>
+    api.post<{ id: string; resolvido: boolean; resolvido_em: string; resolucao: string }>(
+      `/power/maintenance/reports/${id}/resolve`,
+      { resolucao }
+    ),
   /** Sites que o usuario pode escolher no seletor (operador ve so o proprio). */
-  visibleSites: () => api.get<Record<string, unknown>[]>('/power/sites'),
+  visibleSites: () => api.get<T.PracaVisivel[]>('/power/sites'),
   /** As pracas lado a lado. So admin. */
-  portfolio: (dias = 30) =>
-    api.get<Record<string, unknown>>('/power/sites/portfolio', { dias }),
+  portfolio: (dias = 30) => api.get<Record<string, unknown>>('/power/sites/portfolio', { dias }),
   /** Regras de prioridade nomeadas do site. */
   /**
    * Quanto o site deve VENDER no proximo mes, em kWh e em reais.
@@ -102,7 +124,9 @@ export const sessions = {
     api.post<T.SessaoDetalhada>(`/sessions/${id}/stop`, dados),
   preview: (id: string) => api.get<T.Precificacao>(`/sessions/${id}/preview`),
   telemetry: (id: string, minutes = 120) =>
-    api.get<Array<Record<string, number | string | null>>>(`/sessions/${id}/telemetry`, { minutes }),
+    api.get<Array<Record<string, number | string | null>>>(`/sessions/${id}/telemetry`, {
+      minutes
+    }),
   bill: (id: string) => api.post<Record<string, unknown>>(`/sessions/${id}/bill`)
 }
 
@@ -137,9 +161,54 @@ export const payments = {
 // Gestao pelo operador. O `site_id` NAO viaja no corpo: o servidor o tira do
 // escopo do token, e mandar um daqui so' criaria a impressao de que a tela
 // escolhe quem paga.
+/**
+ * O que so' admin pode: devolver dinheiro, corrigir saldo e ler a trilha.
+ *
+ * Bloco proprio porque o criterio e' o mesmo nas tres - mexer no dinheiro de
+ * terceiro, ou ler quem mexeu. O servidor recusa as tres para operador; a tela
+ * as esconde pelo mesmo motivo.
+ */
+export const admin = {
+  /** Estorna a fatura. Carteira volta na hora; PSP, pelo provedor. */
+  refundInvoice: (invoiceId: string) => api.post<T.Pagamento>(`/invoices/${invoiceId}/refund`, {}),
+  /** Correcao manual de saldo. O motivo e' obrigatorio, e vai para o extrato. */
+  adjustWallet: (userId: string, valor: number, motivo: string) =>
+    api.post<T.ExtratoDaCarteira>(`/wallets/${userId}/adjust`, {
+      valor: valor.toFixed(2),
+      motivo
+    }),
+  /** Quem fez o que, com dinheiro e com permissao. */
+  auditTrail: (limit = 100, action?: string, entity?: string) =>
+    api.get<T.LinhaDeAuditoria[]>('/audit', { limit, action, entity }),
+
+  // ---- contas de operacao ----------------------------------------------
+  //
+  // Motorista NAO aparece aqui: ele se cadastra sozinho pelo app, e sao
+  // milhares. Esta e' a lista de quem opera a rede.
+
+  /** Operadores e admins, com a praca de cada um. Traz os desligados. */
+  users: (inativas = true) => api.get<T.ContaDeOperacao[]>('/users', { inativas }),
+  /** Cria operador (exige `site_id`) ou admin. So admin da rede. */
+  createUser: (dados: T.ContaNova) => api.post<T.ContaDeOperacao>('/users', dados),
+  /**
+   * Liga ou desliga o acesso. Nao ha apagar: as FKs de auditoria e faturamento
+   * sao SET NULL, entao apagar a conta apaga o vinculo do rastro dela.
+   */
+  setUserActive: (userId: string, ativa: boolean) =>
+    api.patch<T.ContaDeOperacao>(`/users/${userId}`, { is_active: ativa })
+}
+
 export const campaigns = {
   /** Campanhas desta praca, mais as de rede que agem sobre ela. */
   list: () => api.get<T.Campanha[]>('/campaigns'),
+  /**
+   * Frotas as quais uma campanha pode ser dirigida - so' id e nome.
+   *
+   * Sob `/campaigns` porque e' o que ela serve: preencher o seletor do
+   * formulario. Uma `/fleets` de proposito geral prometeria administracao de
+   * frota, que este painel nao faz.
+   */
+  fleets: () => api.get<T.FrotaParaCampanha[]>('/campaigns/fleets'),
   /** Cria a campanha junto com as missoes, numa transacao so'. */
   create: (corpo: T.CampanhaNova) => api.post<T.Campanha>('/campaigns', corpo),
   /** Edicao parcial: so' os campos tocados viajam. */
@@ -179,8 +248,7 @@ export const app = {
   /** Plano do proprio motorista, com franquia restante e proxima cobranca. */
   subscription: () => api.get<Record<string, unknown>>('/app/subscription'),
   /** Assina e cobra a primeira mensalidade da carteira. 402 = sem saldo. */
-  subscribe: (codigo: string) =>
-    api.post<Record<string, unknown>>('/app/subscription', { codigo }),
+  subscribe: (codigo: string) => api.post<Record<string, unknown>>('/app/subscription', { codigo }),
   /** Cancela a renovacao. O mes ja pago continua valendo ate o fim. */
   unsubscribe: () => api.del<void>('/app/subscription'),
   /** Missoes vigentes com o progresso de quem esta pedindo. */
@@ -211,16 +279,21 @@ export const app = {
     chargePointId: string,
     dados: { categoria: string; descricao?: string; session_id?: string }
   ) => api.post<Record<string, unknown>>(`/app/charge-points/${chargePointId}/reports`, dados),
-  /** Os reportes que ESTE motorista fez neste ponto. */
+  /**
+   * Os reportes que ESTE motorista fez neste ponto, com o desfecho.
+   *
+   * E' o que fecha o ciclo de quem reportou: sem isto ele manda o problema e
+   * nunca fica sabendo se alguem olhou.
+   */
   myReports: (chargePointId: string) =>
-    api.get<Record<string, unknown>[]>(`/app/charge-points/${chargePointId}/reports`),
+    api.get<T.MeuReporte[]>(`/app/charge-points/${chargePointId}/reports`),
   /** Relatorio mensal da frota, por centro de custo. So gestor. */
-  fleetReport: (mes: string) =>
-    api.get<Record<string, unknown>>('/app/fleet/report', { mes }),
-  /** Carros da frota e seus centros de custo. */
-  fleetVehicles: () => api.get<Record<string, unknown>[]>('/app/fleet/vehicles'),
+  fleetReport: (mes: string) => api.get<Record<string, unknown>>('/app/fleet/report', { mes }),
+  /** Carros da frota e seus centros de custo. So gestor. */
+  fleetVehicles: () => api.get<T.VeiculoDaFrota[]>('/app/fleet/vehicles'),
+  /** Define (ou limpa, com null) a area do carro. Vazio ou so espaco limpa. */
   setCostCenter: (vehicleId: string, centro: string | null) =>
-    api.put<Record<string, unknown>>(`/app/fleet/vehicles/${vehicleId}/cost-center`, {
+    api.put<T.VeiculoDaFrota>(`/app/fleet/vehicles/${vehicleId}/cost-center`, {
       centro_de_custo: centro
     }),
   /** Registra (ou reaponta) o aparelho que recebe notificacao push. */
@@ -233,14 +306,13 @@ export const app = {
   receipt: (invoiceId: string) =>
     api.get<Record<string, unknown>>(`/app/invoices/${invoiceId}/receipt`),
   /** O documento em HTML, pronto para virar PDF no aparelho. */
-  receiptHtml: (invoiceId: string) =>
-    api.getText(`/app/invoices/${invoiceId}/receipt.html`),
+  receiptHtml: (invoiceId: string) => api.getText(`/app/invoices/${invoiceId}/receipt.html`),
   /** Quando compensa comecar: compara agora com o melhor horario a frente. */
   whenToStart: (chargePointId: string, kwh = 30, horas = 12) =>
-    api.get<Record<string, unknown>>(
-      `/app/charge-points/${chargePointId}/when-to-start`,
-      { kwh, horas }
-    ),
+    api.get<Record<string, unknown>>(`/app/charge-points/${chargePointId}/when-to-start`, {
+      kwh,
+      horas
+    }),
   mySessions: (limit = 20) => api.get<T.Sessao[]>('/app/sessions', { limit }),
   activeSession: () => api.get<T.SessaoDetalhada | null>('/app/sessions/active'),
   sessionPreview: (id: string) => api.get<T.Precificacao>(`/app/sessions/${id}/preview`),

@@ -162,9 +162,7 @@ async def quando_comecar(
     # Duas barreiras, não uma: 5% de R$ 3 continua sendo troco, e R$ 1 de
     # economia numa recarga de R$ 200 não justifica esperar.
     vale = (
-        melhor.inicio > agora
-        and economia >= ECONOMIA_MINIMA_BRL
-        and fracao >= ECONOMIA_MINIMA_PCT
+        melhor.inicio > agora and economia >= ECONOMIA_MINIMA_BRL and fracao >= ECONOMIA_MINIMA_PCT
     )
 
     ocupado = cp.status not in {ChargePointStatus.AVAILABLE}

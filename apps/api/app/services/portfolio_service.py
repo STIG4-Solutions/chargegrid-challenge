@@ -88,9 +88,7 @@ class SiteNaRede:
         }
 
 
-async def visao_da_rede(
-    db: AsyncSession, *, dias: int = 30, agora: datetime | None = None
-) -> dict:
+async def visao_da_rede(db: AsyncSession, *, dias: int = 30, agora: datetime | None = None) -> dict:
     """Numeros comparaveis de cada site da rede.
 
     Uma consulta agregada por assunto, e nao uma por site: com vinte pracas o
@@ -116,8 +114,9 @@ async def visao_da_rede(
     }
 
     pontos = await db.execute(
-        select(ChargePoint.site_id, ChargePoint.status, func.count())
-        .group_by(ChargePoint.site_id, ChargePoint.status)
+        select(ChargePoint.site_id, ChargePoint.status, func.count()).group_by(
+            ChargePoint.site_id, ChargePoint.status
+        )
     )
     for site_id, status, quantos in pontos:
         alvo = por_id.get(str(site_id))
@@ -189,9 +188,7 @@ def _totais(sites: list[SiteNaRede]) -> dict:
         # Media ponderada pelos pontos, nao media das medias: uma praca de dois
         # pontos toda quebrada nao pode pesar igual a uma de vinte inteira.
         "disponibilidade_pct": (
-            round(
-                (pontos - sum(s.pontos_em_falha for s in sites)) / pontos * 100, 1
-            )
+            round((pontos - sum(s.pontos_em_falha for s in sites)) / pontos * 100, 1)
             if pontos
             else 0.0
         ),

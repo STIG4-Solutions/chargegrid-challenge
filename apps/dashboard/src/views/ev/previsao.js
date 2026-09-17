@@ -14,7 +14,9 @@
 /**
  * A faixa p10–p90 contém o valor real com a frequência que anuncia?
  *
- * O backtest do modelo mediu 62,3%; a faixa promete 80%. Isso não é detalhe de
+ * O backtest mede bem menos do que os 80% que a faixa promete — 65,2% no
+ * retreino atual, e o número muda a cada reseed, por isso ele chega pela linha
+ * (`cobertura_medida_pct`) em vez de ficar escrito aqui. Não é detalhe de
  * calibração: significa que o "pior caso" desenhado na tela é otimista, e quem
  * dimensiona contrato pelo extremo inferior vai errar mais do que espera.
  *

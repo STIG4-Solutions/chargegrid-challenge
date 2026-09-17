@@ -224,6 +224,7 @@ def build_plan(
     def regra_de(cp: ChargePoint) -> str:
         r = resolvidas.get(str(cp.id))
         return (r.regra or "") if r is not None else ""
+
     # `starting` entra por fora do is_dispatchable porque o ponto ainda esta
     # AVAILABLE - mas nao por fora do corte manual: admitir um ponto cortado
     # dava potencia a quem o operador mandou parar, e como is_dispatchable

@@ -75,6 +75,10 @@ export function AuthProvider({ children }) {
       error,
       isAuthenticated: status === 'authenticated',
       isOperator: user?.role === 'admin' || user?.role === 'operator',
+      // Estorno, ajuste de saldo e trilha de auditoria sao so' de admin no
+      // servidor. A tela esconde o que a API recusaria - botao que sempre
+      // volta 403 e' pior que botao nenhum.
+      isAdmin: user?.role === 'admin',
       login,
       logout,
       clearError: () => setError(null)

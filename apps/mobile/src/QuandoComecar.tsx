@@ -45,7 +45,13 @@ function espera(minutos: number): string {
   return m === 0 ? `${h} h` : `${h} h ${m} min`
 }
 
-export function QuandoComecar({ chargePointId, kwh = 30 }: { chargePointId: string; kwh?: number }) {
+export function QuandoComecar({
+  chargePointId,
+  kwh = 30
+}: {
+  chargePointId: string
+  kwh?: number
+}) {
   const conselho = useApi<Conselho>(
     () => app.whenToStart(chargePointId, kwh) as unknown as Promise<Conselho>,
     [chargePointId, kwh]

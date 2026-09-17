@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime, time
+from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -384,6 +385,34 @@ class InvoiceOut(ORMModel):
 class ChargeRequestIn(BaseModel):
     method: PaymentMethodKind
     idempotency_key: str | None = Field(default=None, max_length=80)
+
+
+class AjusteDeCarteiraIn(BaseModel):
+    """Correcao manual de saldo.
+
+    `valor` sem piso nem teto de sinal: correcao existe nos dois sentidos, e um
+    credito lancado por engano precisa poder ser desfeito. O que o servico
+    recusa e' zero - ajuste de nada nao corrige nada - e deixar o saldo
+    negativo.
+
+    `motivo` e' obrigatorio AQUI e no banco. Duas guardas para a mesma coisa
+    porque as duas respondem perguntas diferentes: esta devolve 422 legivel a
+    quem chamou, e o CHECK garante que nenhum caminho futuro escape dela.
+    """
+
+    valor: Decimal = Field(max_digits=12, decimal_places=2)
+    motivo: str = Field(min_length=3, max_length=200)
+    idempotency_key: str | None = Field(default=None, max_length=80)
+
+
+class ResolucaoIn(BaseModel):
+    """O que foi feito para fechar o reporte.
+
+    Obrigatorio, com piso de tamanho: "ok" nao explica nada ao proximo
+    motorista que reportar o mesmo cabo, nem ao relatorio de manutencao.
+    """
+
+    resolucao: str = Field(min_length=3, max_length=2000)
 
 
 class RevenueSummary(BaseModel):

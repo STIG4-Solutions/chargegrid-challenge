@@ -1,0 +1,30 @@
+# Gerado, e nao nosso para formatar.
+#
+# Mesma regra que o `apps/api` aplica a `alembic/versions` e o `apps/forecast` a
+# `pipeline/`: reformatar saida de gerador so' cria ruido de diff e briga com a
+# proxima geracao.
+packages/sdk/src/schema.ts
+
+# O contrato tem formato ASSERTADO por teste (`test_contrato_openapi.py` compara
+# byte a byte com o que o FastAPI gera). Deixar o Prettier reindenta-lo quebraria
+# a suite da API a partir do painel, que e' o tipo de acoplamento que ninguem
+# espera.
+apps/api/openapi.json
+
+node_modules
+dist
+.expo-bundle
+package-lock.json
+apps/forecast/modelos
+
+# Markdown fica de fora, e nao por preguica: os READMEs deste projeto sao prosa
+# quebrada A MAO, com paragrafos que explicam decisao e tabelas alinhadas. O
+# Prettier requebra tudo por largura, e o resultado seria um diff de milhares de
+# linhas em cima da parte do repositorio que mais depende de leitura humana.
+# A pendencia que originou este arquivo era sobre CODIGO.
+*.md
+
+# `compose.yaml` tem comentario alinhado a bloco, e o formatador de YAML nao
+# entende esse alinhamento como significado.
+*.yaml
+*.yml

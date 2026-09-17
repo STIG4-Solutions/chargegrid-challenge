@@ -43,12 +43,8 @@ class PriorityRule(UUIDMixin, TimestampMixin, Base):
     # acrescenta, e escrever o nome completo o duplicaria.
     __table_args__ = (
         Index("ix_priority_rules_site_ordem", "site_id", "ordem"),
-        CheckConstraint(
-            "(janela_inicio IS NULL) = (janela_fim IS NULL)", name="janela_completa"
-        ),
-        CheckConstraint(
-            "criterio_tipo IN ('sempre', 'ponto', 'conector')", name="criterio"
-        ),
+        CheckConstraint("(janela_inicio IS NULL) = (janela_fim IS NULL)", name="janela_completa"),
+        CheckConstraint("criterio_tipo IN ('sempre', 'ponto', 'conector')", name="criterio"),
         # 'sempre' casa com tudo e nao usa valor; os outros dois sao inuteis sem ele.
         CheckConstraint(
             "criterio_tipo = 'sempre' OR criterio_valor IS NOT NULL",

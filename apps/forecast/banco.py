@@ -135,9 +135,7 @@ def carregar(engine, ate: date | None = None) -> tuple[pd.DataFrame, pd.DataFram
     medido["date"] = pd.to_datetime(medido["date"])
 
     painel = _grade_completa(estacoes, medido, ate or date.today())
-    painel = painel.merge(
-        tarifas[["location_id", "price_per_kwh"]], on="location_id", how="left"
-    )
+    painel = painel.merge(tarifas[["location_id", "price_per_kwh"]], on="location_id", how="left")
     # O ChargeGrid nao registra indisponibilidade por DIA - `charge_point_faults`
     # guarda falhas por ponto, com inicio e fim, e reduzi-las a um booleano
     # diario e' uma decisao que ainda nao foi tomada. True em tudo e' honesto

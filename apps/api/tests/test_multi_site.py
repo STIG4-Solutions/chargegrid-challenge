@@ -183,10 +183,19 @@ async def test_ranking_e_por_receita_por_ponto(db, site, segundo_site, ponto, mo
 
     def novo_cp(site_id, code):
         return ChargePoint(
-            id=uuid.uuid4(), site_id=site_id, code=code, name=code,
-            connector=ConnectorType.TYPE2, phase_type=PhaseType.THREE, rated_kw=22,
-            min_kw=4.2, limit_kw=22, operator_max_kw=22,
-            status=ChargePointStatus.AVAILABLE, priority=100, enabled=True,
+            id=uuid.uuid4(),
+            site_id=site_id,
+            code=code,
+            name=code,
+            connector=ConnectorType.TYPE2,
+            phase_type=PhaseType.THREE,
+            rated_kw=22,
+            min_kw=4.2,
+            limit_kw=22,
+            operator_max_kw=22,
+            status=ChargePointStatus.AVAILABLE,
+            priority=100,
+            enabled=True,
         )
 
     # O primeiro site fica GRANDE: 4 pontos no total, faturando R$ 100 -> 25/ponto.
@@ -194,26 +203,44 @@ async def test_ranking_e_por_receita_por_ponto(db, site, segundo_site, ponto, mo
 
     # O segundo ganha UM ponto faturando R$ 80: menos no total, 80/ponto.
     unico = ChargePoint(
-        id=uuid.uuid4(), site_id=segundo_site.id, code="CP-U", name="Unico",
-        connector=ConnectorType.TYPE2, phase_type=PhaseType.THREE, rated_kw=22,
-        min_kw=4.2, limit_kw=22, operator_max_kw=22,
-        status=ChargePointStatus.AVAILABLE, priority=100, enabled=True,
+        id=uuid.uuid4(),
+        site_id=segundo_site.id,
+        code="CP-U",
+        name="Unico",
+        connector=ConnectorType.TYPE2,
+        phase_type=PhaseType.THREE,
+        rated_kw=22,
+        min_kw=4.2,
+        limit_kw=22,
+        operator_max_kw=22,
+        status=ChargePointStatus.AVAILABLE,
+        priority=100,
+        enabled=True,
     )
     db.add(unico)
     await db.flush()
 
     def sessao(site_id, cp_id, brl, code):
         return ChargingSession(
-            id=uuid.uuid4(), code=code, site_id=site_id, charge_point_id=cp_id,
-            user_id=motorista.id, state=SessionState.BILLED,
-            started_at=agora - timedelta(hours=2), ended_at=agora - timedelta(hours=1),
-            duration_s=3600, energy_kwh=10, estimated_cost=brl,
+            id=uuid.uuid4(),
+            code=code,
+            site_id=site_id,
+            charge_point_id=cp_id,
+            user_id=motorista.id,
+            state=SessionState.BILLED,
+            started_at=agora - timedelta(hours=2),
+            ended_at=agora - timedelta(hours=1),
+            duration_s=3600,
+            energy_kwh=10,
+            estimated_cost=brl,
         )
 
-    db.add_all([
-        sessao(site.id, ponto.id, 100, "S-A"),      # site com mais pontos
-        sessao(segundo_site.id, unico.id, 80, "S-B"),  # menos total, mais por ponto
-    ])
+    db.add_all(
+        [
+            sessao(site.id, ponto.id, 100, "S-A"),  # site com mais pontos
+            sessao(segundo_site.id, unico.id, 80, "S-B"),  # menos total, mais por ponto
+        ]
+    )
     await db.flush()
 
     r = await pf.visao_da_rede(db, dias=30, agora=agora)
@@ -234,10 +261,19 @@ async def test_disponibilidade_da_rede_e_ponderada_por_pontos(db, site, segundo_
 
     def cp(site_id, code, status):
         return ChargePoint(
-            id=uuid.uuid4(), site_id=site_id, code=code, name=code,
-            connector=ConnectorType.TYPE2, phase_type=PhaseType.THREE, rated_kw=22,
-            min_kw=4.2, limit_kw=22, operator_max_kw=22, status=status,
-            priority=100, enabled=True,
+            id=uuid.uuid4(),
+            site_id=site_id,
+            code=code,
+            name=code,
+            connector=ConnectorType.TYPE2,
+            phase_type=PhaseType.THREE,
+            rated_kw=22,
+            min_kw=4.2,
+            limit_kw=22,
+            operator_max_kw=22,
+            status=status,
+            priority=100,
+            enabled=True,
         )
 
     # Site grande: 4 pontos, todos bons. Site pequeno: 1 ponto, quebrado.

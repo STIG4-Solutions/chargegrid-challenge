@@ -6,7 +6,7 @@ import uuid
 from typing import Annotated
 
 import jwt
-from fastapi import Depends, HTTPException, Query, status
+from fastapi import Depends, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -74,6 +74,7 @@ require_admin = require_roles(UserRole.ADMIN)
 # conta administrativa.
 require_driver = require_roles(UserRole.DRIVER)
 
+
 async def require_fleet_manager(user: DriverUser) -> User:
     """Gestor de frota: um recorte de LEITURA sobre o papel de motorista.
 
@@ -89,18 +90,66 @@ async def require_fleet_manager(user: DriverUser) -> User:
     return user
 
 
+class Auditoria:
+    """Ator e IP prontos para a rota registrar o que acabou de acontecer.
+
+    Vem de DEPENDENCIA, e nao de dentro do servico, porque os dois dados so'
+    existem na borda HTTP - e o mesmo servico e' chamado pelo worker, onde nao
+    ha ator nenhum. Auditar por dentro gravaria linha sem responsavel toda vez
+    que o worker passasse.
+
+    O `db` NAO vem daqui: a rota passa o dela, e a auditoria entra na mesma
+    transacao da operacao auditada. Ou as duas acontecem, ou nenhuma.
+    """
+
+    def __init__(self, ator: User, ip: str | None):
+        self.ator = ator
+        self.ip = ip
+
+    async def registrar(self, db: AsyncSession, acao: str, entidade: str, **kwargs):
+        from app.services import audit_service
+
+        return await audit_service.registrar(
+            db, ator=self.ator, ip=self.ip, acao=acao, entidade=entidade, **kwargs
+        )
+
+
+def _ip_do_cliente(request: Request) -> str | None:
+    """`x-forwarded-for` antes de `client.host`.
+
+    Em producao ha proxy na frente, e `client.host` seria sempre o IP dele. O
+    primeiro da lista e' o cliente original; os demais sao saltos.
+    """
+    encaminhado = request.headers.get("x-forwarded-for")
+    if encaminhado:
+        return encaminhado.split(",")[0].strip()[:64]
+    return request.client.host[:64] if request.client else None
+
+
+async def get_auditoria(request: Request, user: CurrentUser) -> Auditoria:
+    """Dependencia de FUNCAO, e nao a classe direto em `Depends`.
+
+    `Depends(Auditoria)` parecia mais curto e nao funciona aqui: com
+    `from __future__ import annotations` as anotacoes do `__init__` chegam como
+    string, o FastAPI nao as resolve nesse caminho e trata `request` e `user`
+    como parametros de QUERY - a rota passa a exigir dois campos que ninguem
+    manda e responde 422. As dependencias de funcao deste modulo resolvem
+    normalmente.
+    """
+    return Auditoria(user, _ip_do_cliente(request))
+
+
 OperatorUser = Annotated[User, Depends(require_operator)]
 AdminUser = Annotated[User, Depends(require_admin)]
 DriverUser = Annotated[User, Depends(require_driver)]
 FleetManager = Annotated[User, Depends(require_fleet_manager)]
+Auditor = Annotated[Auditoria, Depends(get_auditoria)]
 
 
 async def get_scoped_site_id(
     db: DbSession,
     user: OperatorUser,
-    site_id: Annotated[
-        uuid.UUID | None, Query(description="admin: escolhe o site da rede")
-    ] = None,
+    site_id: Annotated[uuid.UUID | None, Query(description="admin: escolhe o site da rede")] = None,
 ) -> uuid.UUID:
     """Site em que a requisicao opera.
 
@@ -124,9 +173,7 @@ async def get_scoped_site_id(
         return user.site_id
 
     if user.role == UserRole.ADMIN and site_id is not None:
-        existe = (
-            await db.execute(select(Site.id).where(Site.id == site_id))
-        ).scalar_one_or_none()
+        existe = (await db.execute(select(Site.id).where(Site.id == site_id))).scalar_one_or_none()
         if existe is None:
             raise HTTPException(status_code=404, detail="site não encontrado")
         return existe

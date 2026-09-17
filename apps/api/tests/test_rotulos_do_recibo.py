@@ -52,9 +52,7 @@ def _kinds_emitidos() -> set[str]:
             ended_at=fim,
             charging_stopped_at=INICIO.replace(hour=14),
         )
-        resultado = rate_session(
-            sessao, tarifa, [], timezone=SP, now=fim, beneficio=beneficio
-        )
+        resultado = rate_session(sessao, tarifa, [], timezone=SP, now=fim, beneficio=beneficio)
         kinds.update(linha.kind for linha in resultado.lines)
     return kinds
 
@@ -74,7 +72,7 @@ def test_todo_kind_emitido_tem_rotulo():
 
 
 def test_valor_negativo_leva_o_sinal_antes_do_simbolo():
-    """"R$ -5,60" se le como erro de formatacao; "-R$ 5,60" se le como credito.
+    """ "R$ -5,60" se le como erro de formatacao; "-R$ 5,60" se le como credito.
 
     Nao dava para notar enquanto nenhuma linha podia ser negativa. As linhas de
     plano e de desconto sao, e este e' o documento que a empresa do motorista
@@ -102,6 +100,4 @@ def test_rotulos_nao_guardam_chaves_que_o_motor_nao_emite():
     conexao e o complemento de minimo. Cobriam nomes que nao existiam.
     """
     orfas = sorted(set(ROTULOS) - _kinds_emitidos())
-    assert not orfas, (
-        f"estes rotulos nao correspondem a nenhuma linha que o motor emite: {orfas}"
-    )
+    assert not orfas, f"estes rotulos nao correspondem a nenhuma linha que o motor emite: {orfas}"

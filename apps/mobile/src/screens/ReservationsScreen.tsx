@@ -80,7 +80,10 @@ export default function ReservationsScreen({ navigation }: PropsAba<'Agenda'>) {
           ) : null
         }
         renderItem={({ item }) => {
-          const rotulo = statusAgendamento[item.status] ?? { label: item.status, cor: 'fraco' as const }
+          const rotulo = statusAgendamento[item.status] ?? {
+            label: item.status,
+            cor: 'fraco' as const
+          }
           const podeCancelar = item.status === 'confirmed'
           return (
             <View style={s.card}>
@@ -135,7 +138,12 @@ const s = StyleSheet.create({
     padding: espaco.md,
     gap: espaco.sm
   },
-  cardTopo: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: espaco.sm },
+  cardTopo: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: espaco.sm
+  },
   ident: { gap: 2, flexShrink: 1 },
   cardQuando: { color: cores.texto, fontSize: 16, fontWeight: '700' },
   cardOnde: { color: cores.textoFraco, fontSize: 13 },

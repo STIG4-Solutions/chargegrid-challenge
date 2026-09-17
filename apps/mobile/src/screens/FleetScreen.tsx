@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native'
 import { app, brl, num, useApi } from '@chargegrid/sdk'
 import { Aviso, Carregando, Tela, useRecuoInferior } from '../components'
+import CentroDeCusto from '../CentroDeCusto'
 import { cores, espaco, raio } from '../theme'
 
 /**
@@ -40,8 +41,18 @@ interface Relatorio {
 }
 
 const MESES = [
-  'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
-  'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'
+  'janeiro',
+  'fevereiro',
+  'março',
+  'abril',
+  'maio',
+  'junho',
+  'julho',
+  'agosto',
+  'setembro',
+  'outubro',
+  'novembro',
+  'dezembro'
 ]
 
 /** Últimos seis meses, do mais recente para o mais antigo. */
@@ -132,17 +143,22 @@ export default function FleetScreen() {
 
                 {(d.sem_centro_brl ?? 0) > 0 && (
                   <Aviso
-                    mensagem={`${brl(d.sem_centro_brl ?? 0)} sem centro de custo. Cadastre a área dos carros para o rateio fechar.`}
+                    mensagem={`${brl(d.sem_centro_brl ?? 0)} sem centro de custo. Cadastre a área dos carros abaixo para o rateio fechar.`}
                   />
                 )}
               </>
             )}
+
+            {/*
+              Logo abaixo do aviso que cobra a área, e nao em aba separada: o
+              aviso mandava cadastrar e nao dizia onde. Ler a cobranca e agir
+              sao o mesmo gesto.
+            */}
+            <CentroDeCusto aoAtribuir={() => void relatorio.refetch()} />
           </View>
         }
         ListEmptyComponent={
-          d?.disponivel ? (
-            <Aviso tom="info" mensagem="Nenhuma recarga faturada neste mês." />
-          ) : null
+          d?.disponivel ? <Aviso tom="info" mensagem="Nenhuma recarga faturada neste mês." /> : null
         }
         renderItem={({ item }) => (
           <View style={s.card}>
@@ -151,16 +167,11 @@ export default function FleetScreen() {
               <Text style={s.cardTotal}>{brl(item.total_brl)}</Text>
             </View>
             <Text style={s.cardMeta}>
-              {item.sessoes} recarga(s) · {num(item.energia_kwh, 1)} kWh ·{' '}
-              {item.veiculos} carro(s)
+              {item.sessoes} recarga(s) · {num(item.energia_kwh, 1)} kWh · {item.veiculos} carro(s)
             </Text>
             <View style={s.metricas}>
-              <Text style={s.metrica}>
-                {brl(item.custo_medio_por_sessao_brl)} por recarga
-              </Text>
-              <Text style={s.metrica}>
-                {brl(item.custo_por_kwh_brl)} por kWh
-              </Text>
+              <Text style={s.metrica}>{brl(item.custo_medio_por_sessao_brl)} por recarga</Text>
+              <Text style={s.metrica}>{brl(item.custo_por_kwh_brl)} por kWh</Text>
             </View>
           </View>
         )}
@@ -225,7 +236,12 @@ const s = StyleSheet.create({
     padding: espaco.md,
     gap: 4
   },
-  cardTopo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: espaco.sm },
+  cardTopo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    gap: espaco.sm
+  },
   cardNome: { color: cores.texto, fontSize: 16, fontWeight: '700', flexShrink: 1 },
   cardTotal: { color: cores.texto, fontSize: 16, fontWeight: '700' },
   cardMeta: { color: cores.textoFraco, fontSize: 12 },

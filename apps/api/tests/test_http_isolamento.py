@@ -149,12 +149,8 @@ async def sessao_do_site(db, ponto, motorista):
     return await session_service.authorize(db, ponto, user=motorista)
 
 
-@pytest.mark.parametrize(
-    "rota", ["", "/preview", "/telemetry"]
-)
-async def test_operador_vizinho_nao_le_sessao(
-    api, como_operador_vizinho, sessao_do_site, rota
-):
+@pytest.mark.parametrize("rota", ["", "/preview", "/telemetry"])
+async def test_operador_vizinho_nao_le_sessao(api, como_operador_vizinho, sessao_do_site, rota):
     r = await api.get(f"/api/v1/sessions/{sessao_do_site.id}{rota}", headers=como_operador_vizinho)
     assert r.status_code == 404, f"rota '{rota}' vazou a sessão: {r.text}"
 
@@ -166,9 +162,7 @@ async def test_operador_vizinho_nao_fatura_sessao_alheia(
     assert r.status_code == 404, r.text
 
 
-async def test_operador_do_site_le_a_propria_sessao(
-    api, como_operador_do_site, sessao_do_site
-):
+async def test_operador_do_site_le_a_propria_sessao(api, como_operador_do_site, sessao_do_site):
     r = await api.get(f"/api/v1/sessions/{sessao_do_site.id}", headers=como_operador_do_site)
     assert r.status_code == 200, r.text
     assert r.json()["id"] == str(sessao_do_site.id)
