@@ -7,6 +7,9 @@ import { abasDaSecao } from './auditoria.js'
 
 // Wrapper da nova seção "Recarga EV": sub-navegação + <Outlet> dos módulos filhos.
 const modules = [
+  // Primeira de proposito: e' a leitura de quem decide, e as abas seguintes
+  // sao o detalhe operacional de cada pergunta que ela levanta.
+  { to: '/ev/analytics', label: 'Analytics' },
   { to: '/ev/power', label: 'Gerenciamento de Potência' },
   { to: '/ev/sessions', label: 'Ciclo da Sessão' },
   { to: '/ev/tariff', label: 'Tarifação & Pagamento' },

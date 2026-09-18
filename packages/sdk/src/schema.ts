@@ -492,6 +492,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/power/analytics/daily": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Analytics Daily
+         * @description Sessoes, energia e receita de CADA DIA da janela.
+         *
+         *     As outras rotas de analise devolvem total de janela, que responde "quanto" e
+         *     nao responde "para onde esta indo" - duas quinzenas com a mesma receita sao
+         *     negocios diferentes se uma sobe e a outra cai.
+         *
+         *     Dia sem movimento vem com zero, e nao omitido: serie furada desenha uma linha
+         *     continua por cima do buraco e some justamente com a queda. O agrupamento e'
+         *     pelo fuso do site, senao toda sessao do fim da noite migra de dia.
+         */
+        get: operations["analytics_daily_api_v1_power_analytics_daily_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/power/utilization/by-point": {
         parameters: {
             query?: never;
@@ -4454,6 +4482,41 @@ export interface operations {
                 "application/json": components["schemas"]["ResolucaoIn"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    analytics_daily_api_v1_power_analytics_daily_get: {
+        parameters: {
+            query?: {
+                dias?: number;
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

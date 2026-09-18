@@ -417,6 +417,28 @@ async def resolve_report(
     )
 
 
+@router.get("/analytics/daily")
+async def analytics_daily(
+    db: DbSession,
+    site_id: ScopedSiteId,
+    _: OperatorUser,
+    dias: int = Query(default=30, ge=1, le=365),
+) -> dict:
+    """Sessoes, energia e receita de CADA DIA da janela.
+
+    As outras rotas de analise devolvem total de janela, que responde "quanto" e
+    nao responde "para onde esta indo" - duas quinzenas com a mesma receita sao
+    negocios diferentes se uma sobe e a outra cai.
+
+    Dia sem movimento vem com zero, e nao omitido: serie furada desenha uma linha
+    continua por cima do buraco e some justamente com a queda. O agrupamento e'
+    pelo fuso do site, senao toda sessao do fim da noite migra de dia.
+    """
+    from app.services import analytics_service
+
+    return await analytics_service.serie_diaria(db, site_id, dias=dias)
+
+
 @router.get("/utilization/by-point")
 async def utilization_by_point(
     db: DbSession,

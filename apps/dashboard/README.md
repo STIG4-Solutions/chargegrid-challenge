@@ -14,6 +14,7 @@ O painel tem duas metades, e a diferença importa para quem for demonstrá-lo.
 
 | Aba | Rota | O que faz | Quem vê |
 |---|---|---|---|
+| **Analytics** | `/ev/analytics` | Visão executiva: evolução diária de receita e energia, tendência e concentração por ponto | operador · admin |
 | Gerenciamento de Potência | `/ev/power` | Orçamento do site, rateio por prioridade, corte de emergência, fila de reportes | operador · admin |
 | Ciclo da Sessão | `/ev/sessions` | Da autorização ao faturamento, com a linha do tempo de eventos | operador · admin |
 | Tarifação & Pagamento | `/ev/tariff` | Tarifas, janelas horárias, faturas e cobrança | operador · admin |
@@ -100,8 +101,8 @@ hospedagem: o servidor nunca vê o caminho, então **não é preciso configurar 
 ## Verificação
 
 ```bash
-npm run verify:dashboard   # 148 cenários da lógica pura, sem navegador
-npm run test:dashboard     # 90 testes de renderização (vitest + jsdom)
+npm run verify:dashboard   # 165 cenários da lógica pura, sem navegador
+npm run test:dashboard     # 105 testes de renderização (vitest + jsdom)
 ```
 
 A divisão não é arbitrária. O `verify` cobre o que decide **o que vai para o servidor** — o

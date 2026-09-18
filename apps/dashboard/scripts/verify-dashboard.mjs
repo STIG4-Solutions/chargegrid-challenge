@@ -10,7 +10,7 @@
 // exige DOM e traria dependências. Está anotado como limite conhecido, não
 // como esquecimento.
 import { build } from 'esbuild'
-import { mkdirSync, rmSync } from 'node:fs'
+import { mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
@@ -25,6 +25,7 @@ const saidaContrato = join(cache, 'contrato.mjs')
 const saidaManutencao = join(cache, 'manutencao.mjs')
 const saidaAuditoria = join(cache, 'auditoria.mjs')
 const saidaContas = join(cache, 'contas.mjs')
+const saidaAnalytics = join(cache, 'analytics.mjs')
 
 // Só os módulos puros entram. Importar um `.jsx` puxaria React e o SDK inteiro
 // para dentro do Node — e o que se quer verificar não depende de nenhum deles.
@@ -39,7 +40,8 @@ for (const [entrada, destino] of [
   ['src/views/ev/contrato.js', saidaContrato],
   ['src/views/ev/manutencao.js', saidaManutencao],
   ['src/views/ev/auditoria.js', saidaAuditoria],
-  ['src/views/ev/contas.js', saidaContas]
+  ['src/views/ev/contas.js', saidaContas],
+  ['src/views/ev/analytics.js', saidaAnalytics]
 ]) {
   await build({
     entryPoints: [join(raiz, entrada)],
@@ -90,6 +92,10 @@ const { mesesRestantes, multaPorRescisao, pontosExcedentes, proximaCobranca } = 
 // `.mjs` e não depende de JSX. É a única peça daqui que lê o disco, e é de
 // propósito — o que se quer verificar é justamente a leitura de
 // `config/domains.json`.
+const { tendencia, topoDaEscala, rotulosDoEixo, participacao } = await import(
+  pathToFileURL(saidaAnalytics).href
+)
+
 const { enderecoDaApi } = await import('./dominios.mjs')
 
 let falhas = 0
@@ -854,11 +860,142 @@ check('staging aponta para o dominio de staging', /^https:\/\/api\.staging\./.te
 check('staging e producao NAO sao o mesmo endereco', stg !== prod)
 check('nenhum dos tres sai vazio', Boolean(dev && prod && stg))
 
+// ---------------------------------------------------------------------------
+// Analytics: o que faz um grafico afirmar o que o dado nao sustenta.
+
+const serieZerada = [
+  { dia: '2026-09-17', receita_brl: 0, energia_kwh: 0 },
+  { dia: '2026-09-18', receita_brl: 0, energia_kwh: 0 }
+]
+const serieCheia = [
+  { dia: '2026-09-12', receita_brl: 100, energia_kwh: 40 },
+  { dia: '2026-09-13', receita_brl: 0, energia_kwh: 0 },
+  { dia: '2026-09-14', receita_brl: 120, energia_kwh: 45 },
+  { dia: '2026-09-15', receita_brl: 200, energia_kwh: 70 },
+  { dia: '2026-09-16', receita_brl: 210, energia_kwh: 75 },
+  { dia: '2026-09-17', receita_brl: 180, energia_kwh: 60 }
+]
+
+// Serie zerada dividindo a altura da barra por zero produz Infinity/NaN, e o
+// estrago vai para ATRIBUTO de SVG - nao aparece como texto na tela, entao
+// teste de renderizacao que procura 'NaN' no conteudo passa batido.
+check('topo da escala nunca e zero', topoDaEscala(serieZerada, 'receita_brl') === 1)
+check(
+  'altura da barra continua finita com serie zerada',
+  Number.isFinite((0 / topoDaEscala(serieZerada, 'receita_brl')) * 100)
+)
+check('topo da escala e o maior valor da serie', topoDaEscala(serieCheia, 'receita_brl') === 210)
+check(
+  'topo considera todos os campos pedidos',
+  topoDaEscala(serieCheia, ['receita_brl', 'energia_kwh']) === 210
+)
+
+// Duas amostras de um dia cada nao sao tendencia, sao ruido - e uma seta verde
+// sobre ruido e' pior que seta nenhuma.
+check('tendencia recusa amostra curta', tendencia(serieCheia.slice(0, 3), 'receita_brl') === null)
+check('tendencia recusa o que nao e lista', tendencia(null, 'receita_brl') === null)
+check(
+  'tendencia recusa primeira metade zerada (divisao por zero)',
+  tendencia(
+    [{ receita_brl: 0 }, { receita_brl: 0 }, { receita_brl: 50 }, { receita_brl: 50 }],
+    'receita_brl'
+  ) === null
+)
+check('tendencia sobe quando a segunda metade rende mais', tendencia(serieCheia, 'receita_brl') > 0)
+check(
+  'tendencia cai quando a segunda metade rende menos',
+  tendencia([...serieCheia].reverse(), 'receita_brl') < 0
+)
+
+// O ultimo dia e' o que a pessoa procura primeiro: nao pode faltar no eixo.
+const eixo = rotulosDoEixo(serieCheia, 3)
+check('o eixo sempre inclui o ultimo dia', eixo[eixo.length - 1] === serieCheia.length - 1)
+check('o eixo nao repete indice', new Set(eixo).size === eixo.length)
+check('eixo de serie vazia nao estoura', mesmo(rotulosDoEixo([], 6), []))
+
+const fatias = participacao(
+  [
+    { code: 'CP-02', receita_brl: 200 },
+    { code: 'CP-01', receita_brl: 700 },
+    { code: 'CP-03', receita_brl: 100 }
+  ],
+  'receita_brl'
+)
+check('participacao ordena do maior para o menor', fatias[0].code === 'CP-01')
+check('participacao soma 100%', Math.round(fatias.reduce((s, f) => s + f.pct, 0)) === 100)
+check('participacao sem receita devolve lista vazia', mesmo(participacao([], 'receita_brl'), []))
+check(
+  'participacao com tudo zerado nao divide por zero',
+  mesmo(participacao([{ code: 'CP-01', receita_brl: 0 }], 'receita_brl'), [])
+)
+
+// ---------------------------------------------------------------------------
+// Todo `className` tem regra no CSS?
+//
+// Isto nasceu de um defeito real: a coluna de situacao da aba Contas usava
+// `badge ok` e `badge warn`, e nenhuma das duas existia na folha de estilo. As
+// pilulas "Ativa" e "Desligada" saiam com a MESMA aparencia - exatamente o
+// oposto do que aquela coluna serve para mostrar.
+//
+// Classe que nao existe nao quebra nada: o navegador ignora em silencio, a tela
+// carrega, e so' quem conhece o desenho pretendido percebe. Por isso e' o tipo
+// de defeito que sobrevive a revisao e a teste de renderizacao - `getByText`
+// acha "Ativa" do mesmo jeito.
+//
+// Cobre tambem className montado por template literal, que e' onde o defeito
+// estava: o pedaco de texto dentro de `${cond ? 'x' : 'y'}` entra na conta.
+const fontesJsx = []
+const varrer = (dir) => {
+  for (const entrada of readdirSync(dir, { withFileTypes: true })) {
+    const caminho = join(dir, entrada.name)
+    if (entrada.isDirectory()) varrer(caminho)
+    else if (entrada.name.endsWith('.jsx')) fontesJsx.push(caminho)
+  }
+}
+varrer(join(raiz, 'src'))
+
+const css = []
+const varrerCss = (dir) => {
+  for (const entrada of readdirSync(dir, { withFileTypes: true })) {
+    const caminho = join(dir, entrada.name)
+    if (entrada.isDirectory()) varrerCss(caminho)
+    else if (entrada.name.endsWith('.css')) css.push(readFileSync(caminho, 'utf8'))
+  }
+}
+varrerCss(join(raiz, 'src'))
+const definidas = new Set([...css.join('\n').matchAll(/\.([a-zA-Z][\w-]*)/g)].map((m) => m[1]))
+
+const semRegra = new Map()
+for (const arquivo of fontesJsx) {
+  const fonte = readFileSync(arquivo, 'utf8')
+  const pedacos = []
+  for (const m of fonte.matchAll(/className=["']([^"']+)["']/g)) pedacos.push(m[1])
+  for (const m of fonte.matchAll(/className=\{`([^`]*)`\}/g)) {
+    // fora das interpolacoes, e os literais de texto de dentro delas
+    pedacos.push(m[1].replace(/\$\{[^}]*\}/g, ' '))
+    for (const lit of m[1].matchAll(/['"]([\w -]+)['"]/g)) pedacos.push(lit[1])
+  }
+  for (const m of fonte.matchAll(/className=\{['"]([^'"]+)['"]/g)) pedacos.push(m[1])
+  for (const classe of pedacos.join(' ').split(/\s+/).filter(Boolean)) {
+    if (!definidas.has(classe)) {
+      const onde = semRegra.get(classe) ?? new Set()
+      onde.add(arquivo.split(/[\\/]/).pop())
+      semRegra.set(classe, onde)
+    }
+  }
+}
+check(
+  'todo className do painel tem regra no CSS',
+  semRegra.size === 0,
+  [...semRegra].map(([c, onde]) => `${c} (${[...onde].join(', ')})`).join('; ')
+)
+
 rmSync(saida, { force: true })
 rmSync(saidaCampanha, { force: true })
 rmSync(saidaManutencao, { force: true })
 rmSync(saidaAuditoria, { force: true })
 rmSync(saidaPrevisao, { force: true })
 rmSync(saidaContrato, { force: true })
+rmSync(saidaAnalytics, { force: true })
 console.log(falhas === 0 ? '\nTodos os cenarios passaram.' : `\n${falhas} falha(s).`)
 process.exit(falhas === 0 ? 0 : 1)
