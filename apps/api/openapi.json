@@ -1559,6 +1559,78 @@
         }
       }
     },
+    "/api/v1/power/analytics/daily": {
+      "get": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "Analytics Daily",
+        "description": "Sessoes, energia e receita de CADA DIA da janela.\n\nAs outras rotas de analise devolvem total de janela, que responde \"quanto\" e\nnao responde \"para onde esta indo\" - duas quinzenas com a mesma receita sao\nnegocios diferentes se uma sobe e a outra cai.\n\nDia sem movimento vem com zero, e nao omitido: serie furada desenha uma linha\ncontinua por cima do buraco e some justamente com a queda. O agrupamento e'\npelo fuso do site, senao toda sessao do fim da noite migra de dia.",
+        "operationId": "analytics_daily_api_v1_power_analytics_daily_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "dias",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 365,
+              "minimum": 1,
+              "default": 30,
+              "title": "Dias"
+            }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Analytics Daily Api V1 Power Analytics Daily Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/power/utilization/by-point": {
       "get": {
         "tags": [

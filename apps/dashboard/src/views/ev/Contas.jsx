@@ -419,7 +419,11 @@ export function Linhas({ contas, meuId, aoMudar }) {
               <td>{pracaDaConta(c)}</td>
               <td>{ultimoAcesso(c.last_login_at)}</td>
               <td>
-                <span className={`badge ${c.is_active ? 'ok' : 'warn'}`}>
+                {/* `badge-green`/`badge-gray` e nao `ok`/`warn`: estas duas nao
+                    existem no CSS, e as pilulas sairam sem cor nenhuma - as duas
+                    situacoes pintadas igual, que e' o oposto do que a coluna serve
+                    para mostrar. */}
+                <span className={`badge ${c.is_active ? 'badge-green' : 'badge-gray'}`}>
                   {c.is_active ? 'Ativa' : 'Desligada'}
                 </span>
               </td>

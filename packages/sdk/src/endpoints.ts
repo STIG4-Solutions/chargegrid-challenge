@@ -97,6 +97,14 @@ export const power = {
   /** Qual regra pegaria cada ponto, no horario informado (HH:MM local). */
   priorityPreview: (hora?: string) =>
     api.get<Record<string, unknown>>('/power/priority-rules/preview', hora ? { hora } : {}),
+  /**
+   * Sessoes, energia e receita de CADA DIA da janela.
+   *
+   * As outras rotas de analise devolvem total de janela - respondem "quanto", e
+   * nao "para onde esta indo". Dia parado vem com zero, e nao omitido.
+   */
+  dailyAnalytics: (dias = 30) =>
+    api.get<Record<string, unknown>>('/power/analytics/daily', { dias }),
   /** Ocupacao, receita e ociosidade de cada ponto. */
   utilizationByPoint: (dias = 30) =>
     api.get<Record<string, unknown>>('/power/utilization/by-point', { dias }),

@@ -13,6 +13,7 @@ import Statistics from './views/Statistics.jsx'
 import Maintenance from './views/Maintenance.jsx'
 
 import EvCharging from './views/ev/EvCharging.jsx'
+import Analytics from './views/ev/Analytics.jsx'
 import PowerManagement from './views/ev/PowerManagement.jsx'
 import SessionCycle from './views/ev/SessionCycle.jsx'
 import TariffPayment from './views/ev/TariffPayment.jsx'
@@ -57,6 +58,7 @@ export default function App() {
             {/* ====== NOVA SEÇÃO: RECARGA EV (conectada à API ChargeGrid) ====== */}
             <Route path="/ev" element={<EvCharging />}>
               <Route index element={<Navigate to="/ev/power" replace />} />
+              <Route path="analytics" element={<Analytics />} />
               <Route path="power" element={<PowerManagement />} />
               <Route path="sessions" element={<SessionCycle />} />
               <Route path="tariff" element={<TariffPayment />} />
