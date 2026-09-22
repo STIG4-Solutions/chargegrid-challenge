@@ -1,0 +1,139 @@
+# Treina o modelo de previsao e publica a previsao do mes no staging.
+#
+# DUAS PENDENCIAS, UMA SOLUCAO. O pipeline existia, treinava e media - e nada o
+# executava: `npm run forecast` era um comando que alguem precisava lembrar de
+# dar. Enquanto isso a aba Demanda Contratada mostrava media movel, porque
+# `site_forecasts` nunca recebia linha nenhuma.
+#
+# A segunda pendencia parecia independente: `modelos/*.joblib` esta no
+# `.gitignore` - e deve continuar, um pickle de 300 kB versionado a cada
+# retreino e' exatamente o que faz um repositorio inchar -, entao nao havia
+# artefato para a nuvem carregar.
+#
+# Treinar e exportar NO MESMO JOB resolve as duas: o artefato nasce no passo
+# anterior, e' lido pelo seguinte e morre com o runner. Ele nunca precisa
+# atravessar o repositorio, porque nunca precisa sobreviver ao job.
+#
+# MENSAL, e nao diario: o alvo da previsao e' o mes seguinte, e `exportar.py`
+# grava uma linha por competencia. Rodar todo dia reescreveria a mesma linha com
+# um modelo treinado sobre quase o mesmo historico - custo de CI sem informacao
+# nova. Dia 1, depois de o mes anterior ter fechado, que e' o corte que
+# `treinar.py` usa por padrao.
+name: Forecast staging
+
+on:
+  schedule:
+    # 06:00 UTC = 03:00 em Sao Paulo. Fora do horario de operacao, e o cron do
+    # GitHub so' aceita UTC.
+    - cron: "0 6 1 * *"
+  workflow_dispatch:
+    inputs:
+      mes_alvo:
+        description: "Competencia a prever (AAAA-MM-01). Vazio = mes seguinte."
+        required: false
+        type: string
+
+concurrency:
+  # Dois treinos concorrentes gravariam a mesma competencia em `site_forecasts`.
+  # O upsert nao corrompe, mas o resultado passaria a depender de quem terminou
+  # por ultimo - e dois artefatos diferentes venceriam em ordem aleatoria.
+  group: staging-forecast
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  prever:
+    name: Treinar e publicar a previsao
+    runs-on: ubuntu-latest
+    # O treino e' LightGBM sobre alguns milhares de linhas: minutos, nao horas.
+    # O teto existe para que um banco inalcancavel falhe rapido em vez de
+    # segurar o runner ate o limite da conta.
+    timeout-minutes: 30
+
+    defaults:
+      run:
+        working-directory: apps/forecast
+
+    env:
+      # O MESMO segredo do workflow de migrations. `banco.py` troca o driver
+      # para psycopg; duplicar o segredo seria criar duas formas de dizer a
+      # mesma coisa, e elas saem de sincronia.
+      DATABASE_URL_OVERRIDE: ${{ secrets.STAGING_DATABASE_URL }}
+      PGSSLROOTCERT: /etc/ssl/certs/ca-certificates.crt
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/forecast/requirements.txt
+
+      # `requirements.txt` tem versoes EXATAS, e e' o que faz o artefato ser
+      # reproduzivel: com pisos, dois runs de meses diferentes treinariam
+      # arvores diferentes e as metricas deixariam de ser conferiveis.
+      - name: Install pipeline dependencies
+        run: pip install -r requirements.txt
+
+      - name: Train
+        run: python treinar.py
+
+      # Le `modelos/modelo_atual.joblib`, escrito pelo passo acima. E' a unica
+      # razao de os dois passos viverem no mesmo job.
+      - name: Publish the forecast
+        run: |
+          if [ -n "${{ inputs.mes_alvo }}" ]; then
+            python exportar.py --mes-alvo "${{ inputs.mes_alvo }}"
+          else
+            python exportar.py
+          fi
+
+      # O numero que decide se o modelo entra ou se a media movel prevalece.
+      # Vai para o resumo do job porque e' a leitura que interessa a quem abrir
+      # a execucao - sem isso seria preciso baixar um JSON para saber se o
+      # retreino serviu para alguma coisa.
+      - name: Report the metrics
+        if: always()
+        run: |
+          arquivo=modelos/metricas_atual.json
+          if [ ! -f "$arquivo" ]; then
+            echo "Sem metricas: o treino nao chegou ao fim." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json, pathlib
+
+          m = json.loads(pathlib.Path("modelos/metricas_atual.json").read_text())["metricas"]
+          modelo, regua = m.get("wape_mensal"), m.get("wape_mensal_baseline_m28")
+          venceu = modelo is not None and regua is not None and modelo < regua
+          print("## Previsao do staging\n")
+          print(f"- Erro do modelo (WAPE mensal): **{modelo}%**")
+          print(f"- Erro da regua (media movel 28d): **{regua}%**")
+          print(f"- Cobertura p10-p90: {m.get('cobertura_p10_p90_diaria')}% (promete 80%)")
+          print()
+          if venceu:
+              print("O modelo supera a regua: `fonte = modelo`, com banda de incerteza na tela.")
+          else:
+              print(
+                  "O modelo NAO supera a regua, entao o valor publicado e' a propria media "
+                  "movel e a tela declara isso. Nao e' falha do job - e' a guarda "
+                  "funcionando; ele volta sozinho quando passar a acertar mais."
+              )
+          PY
+
+      # As metricas ficam como artefato em vez de commit: o workflow tem
+      # `contents: read` de proposito, e dar escrita a um job agendado so' para
+      # versionar um JSON de medicao e' trocar um incomodo por um risco.
+      - name: Keep the metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: metricas-${{ github.run_number }}
+          path: apps/forecast/modelos/metricas_atual.json
+          if-no-files-found: warn
+          retention-days: 90

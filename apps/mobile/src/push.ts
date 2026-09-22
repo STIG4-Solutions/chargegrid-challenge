@@ -32,11 +32,6 @@ Notifications.setNotificationHandler({
 
 let tokenAtual: string | null = null
 
-/** O token registrado nesta sessão, ou null. */
-export function tokenRegistrado(): string | null {
-  return tokenAtual
-}
-
 /**
  * Pede permissão, obtém o token e registra no servidor.
  *

@@ -1,10 +1,18 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { admin, payments, tariffs as tariffsApi } from '@chargegrid/sdk'
 import { brl, dateTime, invoiceStatus, meta, num, paymentKind, tariffType } from '@chargegrid/sdk'
 import { useAction, useApi } from '@chargegrid/sdk'
 import { Async, Empty, ErrorState, Spinner } from '../../components/Async.jsx'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { podeEstornar } from './auditoria.js'
+import { Campo } from '../../components/Campo.jsx'
+import {
+  MOTIVO_MAXIMO,
+  corpoDoAjuste,
+  deixariaNegativo,
+  mensagemDoAjuste,
+  problemaNoAjuste
+} from './carteira.js'
 
 export default function TariffPayment() {
   const tariffs = useApi(() => tariffsApi.list(), [])
@@ -542,6 +550,7 @@ function Invoices({ invoices, onPaid }) {
             <thead>
               <tr>
                 <th>Fatura</th>
+                <th>Motorista</th>
                 <th>Itens</th>
                 <th>Valor</th>
                 <th>Líquido</th>
@@ -565,6 +574,7 @@ function Invoices({ invoices, onPaid }) {
 function InvoiceRow({ invoice, onPaid }) {
   const status = meta(invoiceStatus, invoice.status)
   const [method, setMethod] = useState('pix')
+  const [ajustando, setAjustando] = useState(false)
 
   // Uma chave por TENTATIVA, não por fatura.
   //
@@ -609,73 +619,246 @@ function InvoiceRow({ invoice, onPaid }) {
   const { isAdmin } = useAuth()
   const estorno = useAction(() => admin.refundInvoice(invoice.id), { onSuccess: onPaid })
 
+  // Ajustar saldo e' de admin, como estornar - e pelo mesmo motivo: e' o unico
+  // lancamento do razao em que alguem escolhe o numero, sem fatura nem recarga
+  // por tras. Sem `user_id` nao ha carteira a ajustar.
+  const podeAjustar = Boolean(isAdmin && invoice.user_id)
+
   return (
-    <tr>
-      <td style={{ fontWeight: 600 }}>
-        {invoice.code}
-        {charge.error && <div className="row-error">{charge.error.detail}</div>}
-        {payment?.qr_code && (
-          <div className="muted pix-code" title={payment.qr_code}>
-            Pix copia-e-cola gerado
-          </div>
-        )}
-      </td>
-      <td className="muted" style={{ fontSize: 12 }}>
-        {(invoice.lines || []).map((line) => line.description).join(' · ') || '—'}
-      </td>
-      <td>{brl(invoice.total)}</td>
-      <td className="muted">{brl(invoice.net_amount)}</td>
-      <td>
-        <span className={'badge ' + status.cls}>{status.label}</span>
-      </td>
-      <td className="muted">{invoice.issued_on}</td>
-      <td>
-        {canCharge ? (
-          <div className="flex gap-8 items-center">
-            <select
-              className="input mini-select"
-              value={method}
-              onChange={(e) => setMethod(e.target.value)}
-              disabled={charge.pending}
-            >
-              <option value="pix">Pix</option>
-              <option value="credit_card">Cartão</option>
-              <option value="wallet">Carteira</option>
-            </select>
-            <button
-              className="btn btn-sm btn-primary"
-              onClick={() => charge.run()}
-              disabled={charge.pending}
-            >
-              {charge.pending ? <Spinner size={12} /> : null} Cobrar
-            </button>
-          </div>
-        ) : (
-          <div className="flex gap-8 items-center">
-            <span className="muted" style={{ fontSize: 12 }}>
-              {invoice.paid_at ? dateTime(invoice.paid_at) : '—'}
+    <>
+      <tr>
+        <td style={{ fontWeight: 600 }}>
+          {invoice.code}
+          {charge.error && <div className="row-error">{charge.error.detail}</div>}
+          {payment?.qr_code && (
+            <div className="muted pix-code" title={payment.qr_code}>
+              Pix copia-e-cola gerado
+            </div>
+          )}
+        </td>
+        {/*
+        Quem deve. A lista de faturas e' o unico lugar do painel onde um
+        motorista aparece, e ate aqui a tabela nao dizia de quem era a cobranca
+        - `user_id` e' UUID, que nao identifica ninguem para quem le.
+      */}
+        <td style={{ fontSize: 12 }}>
+          {invoice.user_email ? (
+            <>
+              <div>{invoice.user_email}</div>
+              {podeAjustar && (
+                <button
+                  className="btn btn-sm"
+                  style={{ marginTop: 4 }}
+                  aria-expanded={ajustando}
+                  onClick={() => setAjustando((antes) => !antes)}
+                >
+                  {ajustando ? 'Cancelar ajuste' : 'Ajustar saldo'}
+                </button>
+              )}
+            </>
+          ) : (
+            // Recarga por cartao RFID sem conta atrelada. Dizer o motivo evita
+            // que a lacuna pareca dado faltando.
+            <span className="muted" title="Cobranca sem conta atrelada">
+              sem conta
             </span>
-            {/*
+          )}
+        </td>
+        <td className="muted" style={{ fontSize: 12 }}>
+          {(invoice.lines || []).map((line) => line.description).join(' · ') || '—'}
+        </td>
+        <td>{brl(invoice.total)}</td>
+        <td className="muted">{brl(invoice.net_amount)}</td>
+        <td>
+          <span className={'badge ' + status.cls}>{status.label}</span>
+        </td>
+        <td className="muted">{invoice.issued_on}</td>
+        <td>
+          {canCharge ? (
+            <div className="flex gap-8 items-center">
+              <select
+                className="input mini-select"
+                value={method}
+                onChange={(e) => setMethod(e.target.value)}
+                disabled={charge.pending}
+              >
+                <option value="pix">Pix</option>
+                <option value="credit_card">Cartão</option>
+                <option value="wallet">Carteira</option>
+              </select>
+              <button
+                className="btn btn-sm btn-primary"
+                onClick={() => charge.run()}
+                disabled={charge.pending}
+              >
+                {charge.pending ? <Spinner size={12} /> : null} Cobrar
+              </button>
+            </div>
+          ) : (
+            <div className="flex gap-8 items-center">
+              <span className="muted" style={{ fontSize: 12 }}>
+                {invoice.paid_at ? dateTime(invoice.paid_at) : '—'}
+              </span>
+              {/*
               Estornar só aparece para admin e só em fatura paga. O servidor
               recusa nos dois casos; esconder aqui evita um botão que promete o
               que a API não faz — e "estornar" é a última coisa que deveria
               parecer disponível por engano.
             */}
-            {podeEstornar(invoice, isAdmin) && (
-              <button
-                className="btn btn-sm"
-                onClick={() => estorno.run()}
-                disabled={estorno.pending}
-                title="Devolve o valor: carteira volta na hora, PSP pelo provedor"
-              >
-                {estorno.pending ? <Spinner size={12} /> : null} Estornar
-              </button>
-            )}
-          </div>
+              {podeEstornar(invoice, isAdmin) && (
+                <button
+                  className="btn btn-sm"
+                  onClick={() => estorno.run()}
+                  disabled={estorno.pending}
+                  title="Devolve o valor: carteira volta na hora, PSP pelo provedor"
+                >
+                  {estorno.pending ? <Spinner size={12} /> : null} Estornar
+                </button>
+              )}
+            </div>
+          )}
+          {estorno.error && <div className="row-error">{estorno.error.detail}</div>}
+        </td>
+      </tr>
+      {ajustando && podeAjustar && (
+        <tr>
+          {/* Linha inteira: o formulario nao cabe dentro de uma celula da
+            tabela sem espremer as vizinhas, e mexer em dinheiro de alguem
+            nao e' uma acao para fazer num campo de 80 pixels. */}
+          <td colSpan={8} style={{ background: 'rgba(255,255,255,0.03)' }}>
+            <AjusteDeSaldo
+              email={invoice.user_email}
+              userId={invoice.user_id}
+              aoConcluir={() => setAjustando(false)}
+            />
+          </td>
+        </tr>
+      )}
+    </>
+  )
+}
+
+/**
+ * Ajuste manual do saldo de um motorista.
+ *
+ * Exportado para o teste montar com props, sem subir a aba inteira.
+ *
+ * Duas coisas que o formulario faz de proposito:
+ *
+ * - NOMEIA A PESSOA no titulo. E' a ultima chance de perceber que se abriu o
+ *   ajuste na linha errada, e a lista de faturas costuma ter varias do mesmo
+ *   dia com valores parecidos.
+ * - DIZ O SENTIDO em palavras, antes e depois. "-50" e "+50" diferem por um
+ *   caractere facil de nao ver, e aqui o erro cria ou apaga dinheiro real.
+ */
+export function AjusteDeSaldo({ email, userId, aoConcluir, ajustar = admin.adjustWallet }) {
+  const idBase = useId()
+  const id = (chave) => `${idBase}-${chave}`
+  const [valor, setValor] = useState('')
+  const [motivo, setMotivo] = useState('')
+  const [feito, setFeito] = useState(null)
+
+  const problema = problemaNoAjuste({ valor, motivo })
+  const numero = Number(String(valor).replace(',', '.'))
+  const sentido = Number.isFinite(numero) && numero !== 0 ? (numero < 0 ? 'Débito' : 'Crédito') : ''
+
+  const envio = useAction(
+    () => {
+      const corpo = corpoDoAjuste({ valor, motivo })
+      return ajustar(userId, corpo.valor, corpo.motivo)
+    },
+    {
+      onSuccess: (extrato) => {
+        setFeito(mensagemDoAjuste({ valor: numero, saldoNovo: extrato?.saldo ?? 0 }))
+        setValor('')
+        setMotivo('')
+      }
+    }
+  )
+
+  if (feito) {
+    return (
+      <div style={{ padding: '12px 0', display: 'grid', gap: 8, justifyItems: 'start' }}>
+        <div role="status">{feito}</div>
+        <button className="btn btn-sm" onClick={aoConcluir}>
+          Fechar
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ padding: '12px 0', display: 'grid', gap: 12 }}>
+      <div>
+        <strong style={{ fontSize: 13 }}>Ajustar o saldo de {email}</strong>
+        <p className="muted" style={{ margin: '2px 0 0', fontSize: 12 }}>
+          Lançamento manual no razão da carteira. Fica registrado com o seu nome e o motivo.
+        </p>
+      </div>
+
+      <div className="grid grid-2" style={{ gap: 12, maxWidth: 640 }}>
+        <Campo
+          id={id('valor')}
+          rotulo="Valor"
+          dica={
+            sentido
+              ? `${sentido}: negativo tira do saldo, positivo põe.`
+              : 'Negativo tira do saldo, positivo põe. Zero não é aceito.'
+          }
+        >
+          <input
+            id={id('valor')}
+            className="input"
+            type="number"
+            step="0.01"
+            value={valor}
+            onChange={(e) => setValor(e.target.value)}
+            aria-describedby={`${id('valor')}-dica`}
+          />
+        </Campo>
+
+        <Campo
+          id={id('motivo')}
+          rotulo="Motivo"
+          dica="Quem ler o extrato depois precisa entender o lançamento."
+        >
+          <input
+            id={id('motivo')}
+            className="input"
+            maxLength={MOTIVO_MAXIMO}
+            value={motivo}
+            onChange={(e) => setMotivo(e.target.value)}
+            aria-describedby={`${id('motivo')}-dica`}
+          />
+        </Campo>
+      </div>
+
+      {envio.error && (
+        <div className="form-error" role="alert">
+          {envio.error.detail}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <button
+          className="btn btn-primary btn-sm"
+          disabled={Boolean(problema) || envio.pending}
+          onClick={() => envio.run()}
+        >
+          {envio.pending ? <Spinner size={12} /> : null} Lançar ajuste
+        </button>
+        <button className="btn btn-sm" onClick={aoConcluir} disabled={envio.pending}>
+          Cancelar
+        </button>
+        {/* O que falta, e nao "preencha os campos": o botao desabilitado sem
+            explicacao e' a forma mais comum de uma tela travar em silencio. */}
+        {problema && (
+          <span className="muted" style={{ fontSize: 12 }}>
+            {problema}
+          </span>
         )}
-        {estorno.error && <div className="row-error">{estorno.error.detail}</div>}
-      </td>
-    </tr>
+      </div>
+    </div>
   )
 }
 

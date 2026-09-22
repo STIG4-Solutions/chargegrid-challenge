@@ -135,9 +135,14 @@ npm run infra:up          # API em http://localhost:8000
 npm run forecast          # treina o modelo e grava a previsão do mês
 ```
 
-O `forecast` é **uma vez por ambiente**: o modelo não vai para o git (2 MB por retreino, diff
-irrevisável), então um clone novo mostra "nenhuma previsão calculada" até esse comando rodar.
-Depois disso, uma vez por mês para exportar e por trimestre para retreinar.
+O `forecast` é **uma vez por ambiente local**: o modelo não vai para o git (2 MB por retreino,
+diff irrevisável), então um clone novo mostra "nenhuma previsão calculada" até esse comando rodar.
+
+**No staging isso é automático.** O workflow `forecast-staging.yml` roda todo dia 1 e faz as duas
+coisas no MESMO job — treina e exporta. É por isso que o `.joblib` nunca precisa atravessar o
+repositório: ele nasce num passo, é lido pelo seguinte e morre com o runner. O resumo da execução
+traz o WAPE do modelo contra o da régua, que é a decisão de o modelo entrar ou a média móvel
+prevalecer.
 
 **Dashboard:**
 
@@ -322,9 +327,9 @@ troca de praça.
 
 ```bash
 npm run verify:api                         # 17 cenários do SDK com fetch simulado
-npm run verify:dashboard                   # 165 cenários da lógica do painel, sem navegador
+npm run verify:dashboard                   # 180 cenários da lógica do painel, sem navegador
 npm run verify:mobile                      # 49 cenários da lógica do app, sem simulador
-npm run test:dashboard                     # 105 testes de renderização (vitest + jsdom)
+npm run test:dashboard                     # 113 testes de renderização (vitest + jsdom)
 npm run test:mobile                        # 13 testes de renderização do app (jest-expo + RNTL)
 npm run typecheck                          # tipos do SDK e do app contra o contrato
 npm run format:check                       # Prettier no lado JS (`npm run format` corrige)
@@ -388,7 +393,7 @@ impede uma correção de placa de reescrever o cadastro inteiro.
 
 O `test:dashboard` cobre o que aqueles não alcançam — **o que o operador lê**. As funções puras
 podiam estar todas certas e a tela ainda mentir: bastava o card ignorar `fonte` e chamar de
-"energia prevista" um número que é média móvel. São 105 testes em `apps/dashboard/tests`, com
+"energia prevista" um número que é média móvel. São 113 testes em `apps/dashboard/tests`, com
 vitest e jsdom.
 
 O `test:mobile` fecha o que era o último buraco: renderização no app. Ele roda **jest-expo mais

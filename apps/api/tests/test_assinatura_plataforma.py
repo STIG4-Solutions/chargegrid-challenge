@@ -27,6 +27,17 @@ HOJE = date.today()
 
 
 async def _plano(db, **kwargs) -> PlatformPlan:
+    """Um plano para o teste usar - reaproveitando o do catalogo quando ha.
+
+    `0027_catalogo_de_planos` publica "essencial" e "rede" em todo banco
+    migrado, inclusive o de teste. Criar outro com o mesmo codigo esbarra em
+    `uq_platform_plans_codigo`, entao o helper passa a PEGAR o que existe e
+    ajustar o que o teste pediu.
+
+    E' tambem o comportamento mais fiel: nenhum ambiente real tem a tabela
+    vazia, e um teste que so' funciona em catalogo vazio testa um estado que
+    deixou de existir.
+    """
     dados = dict(
         codigo="essencial",
         nome="Essencial",
@@ -38,8 +49,16 @@ async def _plano(db, **kwargs) -> PlatformPlan:
         ativo=True,
     )
     dados.update(kwargs)
-    plano = PlatformPlan(**dados)
-    db.add(plano)
+
+    plano = (
+        await db.execute(select(PlatformPlan).where(PlatformPlan.codigo == dados["codigo"]))
+    ).scalar_one_or_none()
+    if plano is None:
+        plano = PlatformPlan(**dados)
+        db.add(plano)
+    else:
+        for campo, valor in dados.items():
+            setattr(plano, campo, valor)
     await db.flush()
     return plano
 

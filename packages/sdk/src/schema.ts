@@ -2332,6 +2332,8 @@ export interface components {
             session_id: string | null;
             /** User Id */
             user_id: string | null;
+            /** User Email */
+            user_email?: string | null;
             status: components["schemas"]["InvoiceStatus"];
             /** Currency */
             currency: string;

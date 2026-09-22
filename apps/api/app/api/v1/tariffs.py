@@ -279,6 +279,19 @@ async def upsert_payment_method(
 
 
 # ---------------------------------------------------------------------- faturas
+def _com_motorista(fatura: Invoice) -> InvoiceOut:
+    """A fatura com o e-mail de quem a deve.
+
+    Montado aqui e nao por `computed_field` no schema: o campo depende de um
+    relacionamento CARREGADO, e um schema que acessa relacionamento por conta
+    propria dispara consulta durante a serializacao - fora da sessao, na pior
+    das hipoteses.
+    """
+    saida = InvoiceOut.model_validate(fatura)
+    saida.user_email = fatura.user.email if fatura.user is not None else None
+    return saida
+
+
 @router.get("/invoices", response_model=Page[InvoiceOut])
 async def list_invoices(
     db: DbSession,
@@ -298,7 +311,15 @@ async def list_invoices(
             await db.execute(
                 select(Invoice)
                 .where(*filters)
-                .options(selectinload(Invoice.lines), selectinload(Invoice.payments))
+                .options(
+                    selectinload(Invoice.lines),
+                    selectinload(Invoice.payments),
+                    # Carregado junto de proposito: `lazy="raise"` no
+                    # relacionamento transforma o N+1 acidental em erro em vez
+                    # de em lentidao silenciosa - uma consulta por fatura numa
+                    # pagina de 200 nao aparece em teste, so' em producao.
+                    selectinload(Invoice.user),
+                )
                 .order_by(Invoice.created_at.desc())
                 .limit(limit)
                 .offset(offset)
@@ -308,7 +329,7 @@ async def list_invoices(
         .all()
     )
     return Page(
-        items=[InvoiceOut.model_validate(row) for row in rows],
+        items=[_com_motorista(row) for row in rows],
         total=total,
         limit=limit,
         offset=offset,

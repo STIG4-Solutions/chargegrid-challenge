@@ -366,6 +366,14 @@ class InvoiceOut(ORMModel):
     code: str
     session_id: uuid.UUID | None
     user_id: uuid.UUID | None
+    # O UUID nao identifica ninguem para quem le a tela. A lista de faturas e' o
+    # unico lugar do painel onde um motorista aparece, e sem o e-mail nao havia
+    # como dizer de quem e' a cobranca - nem como oferecer, com seguranca,
+    # qualquer acao sobre o dinheiro dessa pessoa.
+    #
+    # Opcional porque a fatura pode nao ter dono: cobranca de sessao iniciada
+    # por cartao RFID sem conta atrelada existe, e `user_id` ja era anulavel.
+    user_email: str | None = None
     status: InvoiceStatus
     currency: str
     subtotal: float

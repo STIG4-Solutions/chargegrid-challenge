@@ -76,20 +76,3 @@ export function escalaDaBanda(previsao) {
   const posicao = (v) => Math.max(0, Math.min(100, ((v - min) / (max - min)) * 100))
   return { inicio: posicao(p10), fim: posicao(p90), previsto: posicao(previsto) }
 }
-
-/**
- * Quanto o previsto difere da régua, em percentual.
- *
- * Serve para o operador ver se o modelo está dizendo algo diferente da média
- * móvel. Diferença próxima de zero significa que o modelo não está agregando —
- * e aí a complexidade não se paga.
- */
-export function distanciaDaRegua(previsao) {
-  const media = Number(previsao?.media_diaria_28d ?? 0)
-  const previsto = Number(previsao?.kwh_previsto ?? 0)
-  if (!(media > 0)) return null
-  const dias = 30
-  const regua = media * dias
-  if (!(regua > 0)) return null
-  return ((previsto - regua) / regua) * 100
-}
