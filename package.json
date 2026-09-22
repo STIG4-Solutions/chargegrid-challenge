@@ -7,17 +7,21 @@
   "workspaces": [
     "apps/dashboard",
     "apps/mobile",
+    "apps/site",
     "packages/*"
   ],
   "scripts": {
     "dev": "npm run dev:dashboard",
     "dev:dashboard": "npm run dev -w @chargegrid/dashboard",
     "dev:mobile": "npm start -w @chargegrid/mobile",
+    "dev:site": "npm run dev -w @chargegrid/site",
     "build": "npm run build:dashboard",
     "build:staging": "npm run build:staging -w @chargegrid/dashboard",
     "build:dashboard": "npm run build -w @chargegrid/dashboard",
+    "build:site": "npm run build -w @chargegrid/site",
     "preview": "npm run preview:dashboard",
     "preview:dashboard": "npm run preview -w @chargegrid/dashboard",
+    "preview:site": "npm run preview -w @chargegrid/site",
     "mobile": "npm run dev:mobile",
     "mobile:android": "npm run android -w @chargegrid/mobile",
     "mobile:ios": "npm run ios -w @chargegrid/mobile",

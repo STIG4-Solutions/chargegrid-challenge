@@ -19,10 +19,12 @@
   "site": "stig4.com",
   "staging": {
     "api": "api.staging.stig4.com",
-    "dashboard": "dashboard.staging.stig4.com"
+    "dashboard": "dashboard.staging.stig4.com",
+    "site": "staging.stig4.com"
   },
   "desenvolvimento": {
     "api": "http://localhost:8000",
-    "dashboard": "http://localhost:5173"
+    "dashboard": "http://localhost:5173",
+    "site": "http://localhost:5174"
   }
 }
