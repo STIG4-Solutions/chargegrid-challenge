@@ -148,6 +148,9 @@ jobs:
       - name: Build · site
         run: npm run build:site
 
+      - name: Render · site
+        run: npm run test:site
+
       # O app nunca foi exercitado em simulador, e continua nao sendo - isso
       # exigiria emulador Android no runner. Mas empacotar com o Metro nao e'
       # pouco: ele resolve TODOS os imports, encontra os assets e compila para
