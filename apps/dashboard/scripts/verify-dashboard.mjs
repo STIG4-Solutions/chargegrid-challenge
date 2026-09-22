@@ -26,6 +26,7 @@ const saidaManutencao = join(cache, 'manutencao.mjs')
 const saidaAuditoria = join(cache, 'auditoria.mjs')
 const saidaContas = join(cache, 'contas.mjs')
 const saidaAnalytics = join(cache, 'analytics.mjs')
+const saidaCarteira = join(cache, 'carteira.mjs')
 
 // Só os módulos puros entram. Importar um `.jsx` puxaria React e o SDK inteiro
 // para dentro do Node — e o que se quer verificar não depende de nenhum deles.
@@ -41,7 +42,8 @@ for (const [entrada, destino] of [
   ['src/views/ev/manutencao.js', saidaManutencao],
   ['src/views/ev/auditoria.js', saidaAuditoria],
   ['src/views/ev/contas.js', saidaContas],
-  ['src/views/ev/analytics.js', saidaAnalytics]
+  ['src/views/ev/analytics.js', saidaAnalytics],
+  ['src/views/ev/carteira.js', saidaCarteira]
 ]) {
   await build({
     entryPoints: [join(raiz, entrada)],
@@ -94,6 +96,10 @@ const { mesesRestantes, multaPorRescisao, pontosExcedentes, proximaCobranca } = 
 // `config/domains.json`.
 const { tendencia, topoDaEscala, rotulosDoEixo, participacao } = await import(
   pathToFileURL(saidaAnalytics).href
+)
+
+const { problemaNoAjuste, deixariaNegativo, corpoDoAjuste, mensagemDoAjuste } = await import(
+  pathToFileURL(saidaCarteira).href
 )
 
 const { enderecoDaApi } = await import('./dominios.mjs')
@@ -930,6 +936,45 @@ check(
 )
 
 // ---------------------------------------------------------------------------
+// Ajuste manual de saldo: o unico lancamento em que alguem escolhe o numero.
+
+check('valor vazio e recusado', problemaNoAjuste({ valor: '', motivo: 'x' }) !== null)
+check('zero e recusado', problemaNoAjuste({ valor: '0', motivo: 'correcao' }) !== null)
+check('texto no valor e recusado', problemaNoAjuste({ valor: 'abc', motivo: 'x' }) !== null)
+check('motivo vazio e recusado', problemaNoAjuste({ valor: '50', motivo: '   ' }) !== null)
+check(
+  'motivo acima de 200 e recusado',
+  problemaNoAjuste({ valor: '50', motivo: 'a'.repeat(201) }) !== null
+)
+check('ajuste completo passa', problemaNoAjuste({ valor: '-50', motivo: 'estorno' }) === null)
+check('negativo e' + ' aceito', problemaNoAjuste({ valor: '-1', motivo: 'ok' }) === null)
+
+// Saldo devedor seria credito que ninguem autorizou - a carteira e' pre-paga.
+check('debito maior que o saldo e sinalizado', deixariaNegativo({ valor: -100, saldoAtual: 50 }))
+check('debito dentro do saldo nao e sinalizado', !deixariaNegativo({ valor: -50, saldoAtual: 50 }))
+check('credito nunca deixa negativo', !deixariaNegativo({ valor: 100, saldoAtual: 0 }))
+check('saldo desconhecido nao inventa aviso', deixariaNegativo({ valor: -1 }) === null)
+
+// Teclado brasileiro produz virgula; manda-la crua daria 422 sobre um valor
+// que a pessoa digitou certo.
+check(
+  'virgula vira ponto no corpo',
+  corpoDoAjuste({ valor: '10,50', motivo: ' x ' }).valor === 10.5
+)
+check('motivo vai sem espaco sobrando', corpoDoAjuste({ valor: '1', motivo: ' x ' }).motivo === 'x')
+
+// "-50" e "+50" diferem por um caractere: a frase e' a ultima chance de
+// perceber que o lancamento saiu invertido.
+check(
+  'debito e anunciado como debito',
+  mensagemDoAjuste({ valor: -50, saldoNovo: 10 }).startsWith('Debitado')
+)
+check(
+  'credito e anunciado como credito',
+  mensagemDoAjuste({ valor: 50, saldoNovo: 110 }).startsWith('Creditado')
+)
+
+// ---------------------------------------------------------------------------
 // Todo `className` tem regra no CSS?
 //
 // Isto nasceu de um defeito real: a coluna de situacao da aba Contas usava
@@ -997,5 +1042,6 @@ rmSync(saidaAuditoria, { force: true })
 rmSync(saidaPrevisao, { force: true })
 rmSync(saidaContrato, { force: true })
 rmSync(saidaAnalytics, { force: true })
+rmSync(saidaCarteira, { force: true })
 console.log(falhas === 0 ? '\nTodos os cenarios passaram.' : `\n${falhas} falha(s).`)
 process.exit(falhas === 0 ? 0 : 1)

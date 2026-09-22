@@ -35,17 +35,50 @@ ARQUETIPOS = {
 ARQUETIPO_PADRAO = "corporativo"
 
 
-def url_do_banco() -> str:
-    """Mesmas variaveis do `.env` da API, com driver sincrono.
+# O driver deste processo. `psycopg` e nao `asyncpg`: o pipeline e' pandas, e
+# pandas nao fala asyncpg - que e' o driver da API.
+DRIVER = "postgresql+psycopg"
 
-    O pipeline e' pandas, e pandas nao fala asyncpg.
+# Driver que a URL da API traz e que precisa ser trocado. A mesma string de
+# conexao serve aos dois processos; o que muda e' quem vai falar com o banco.
+_DRIVERS_DE_OUTREM = ("postgresql+asyncpg://", "postgres://", "postgresql://")
+
+
+def com_driver_sincrono(url: str) -> str:
+    """A mesma URL, apontando para o driver deste processo.
+
+    Existe para que o job de previsao reuse o segredo que o workflow de
+    migrations ja' tem (`STAGING_DATABASE_URL`) em vez de exigir outras cinco
+    variaveis. Segredo duplicado e' segredo que sai de sincronia - e o sintoma
+    seria o pipeline treinando contra um banco e gravando noutro.
+
+    `postgres://` entra na lista porque e' o formato que varios provedores
+    entregam, e o SQLAlchemy nao o aceita sem driver.
     """
+    for prefixo in _DRIVERS_DE_OUTREM:
+        if url.startswith(prefixo):
+            return DRIVER + "://" + url[len(prefixo) :]
+    return url
+
+
+def url_do_banco() -> str:
+    """De onde ler o historico.
+
+    `DATABASE_URL_OVERRIDE` vence quando existe - e' a mesma variavel que o
+    ambiente do Alembic usa, entao apontar o pipeline para staging nao inventa
+    uma segunda forma de dizer a mesma coisa. Sem ela, as variaveis soltas do
+    `.env`, que e' como o compose local funciona.
+    """
+    override = os.environ.get("DATABASE_URL_OVERRIDE")
+    if override:
+        return com_driver_sincrono(override)
+
     usuario = os.environ.get("POSTGRES_USER", "chargegrid")
     senha = os.environ.get("POSTGRES_PASSWORD", "")
     host = os.environ.get("POSTGRES_HOST", "localhost")
     porta = os.environ.get("POSTGRES_PORT", "5432")
     banco = os.environ.get("POSTGRES_DB", "chargegrid")
-    return f"postgresql+psycopg://{usuario}:{senha}@{host}:{porta}/{banco}"
+    return f"{DRIVER}://{usuario}:{senha}@{host}:{porta}/{banco}"
 
 
 def conectar():

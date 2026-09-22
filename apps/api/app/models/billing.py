@@ -85,6 +85,10 @@ class Invoice(UUIDMixin, TimestampMixin, Base):
     tariff_snapshot: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
 
     session = relationship("ChargingSession", back_populates="invoice")
+    # Sem `back_populates`: nao existe "as faturas de um usuario" como
+    # caminho de leitura em lugar nenhum, e criar o lado inverso so' para
+    # simetria abriria uma colecao que ninguem usa e que carrega sozinha.
+    user = relationship("User", lazy="raise")
     lines = relationship("InvoiceLine", back_populates="invoice", cascade="all, delete-orphan")
     payments = relationship("Payment", back_populates="invoice", cascade="all, delete-orphan")
 
