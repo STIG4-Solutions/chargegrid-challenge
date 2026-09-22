@@ -14,14 +14,16 @@ e sem OCPP não existe cobrança. A plataforma cobre esses três vazios.
 | App do motorista | `apps/mobile/` | React Native · Expo (iOS + Android) | usuário final |
 | Cliente compartilhado | `packages/sdk/` | TypeScript | os dois clientes |
 | Previsão de demanda | `apps/forecast/` | Python · LightGBM | job offline, fora da API |
+| Site institucional | `apps/site/` | React 19 · Vite | visitante — **andaime**, sem conteúdo ainda |
 
 ## O que cada lado faz
 
-A seção **Recarga EV** tem nove abas. As três primeiras operam o presente; as demais decidem o
-futuro — é onde o painel deixa de relatar e passa a recomendar.
+A seção **Recarga EV** tem doze abas. A primeira resume; as três seguintes operam o presente;
+as demais decidem o futuro — é onde o painel deixa de relatar e passa a recomendar.
 
 | Aba | Pergunta que responde |
 |---|---|
+| Analytics | como a operação está indo — receita e energia dia a dia, e de quem ela depende |
 | Gerenciamento de Potência | quanto cada ponto pode puxar agora, sem estourar o padrão |
 | Ciclo da Sessão | o que está acontecendo em cada recarga, com timeline auditável |
 | Tarifação & Pagamento | quanto custa, por janela horária, e como se cobra |
@@ -31,6 +33,8 @@ futuro — é onde o painel deixa de relatar e passa a recomendar.
 | Visão de Rede | qual praça segura a operação (aparece com mais de um site) |
 | Campanhas | quanto custa comprar comportamento do motorista, e se comprou |
 | Plano & Contrato | o que a praça paga à GoodWe, e quanto custa sair antes do prazo |
+| Contas | quem opera a rede — criar, listar, ligar e desligar (**admin**) |
+| Auditoria | quem fez o quê, com dinheiro e com permissão (**admin**) |
 
 ### App do motorista
 
@@ -335,7 +339,7 @@ npm run typecheck                          # tipos do SDK e do app contra o cont
 npm run format:check                       # Prettier no lado JS (`npm run format` corrige)
 npm run build                              # dashboard
 npm run build:staging                      # dashboard apontando para api.staging.stig4.com
-cd apps/api && python -m pytest -q          # 730 testes (precisa do Postgres)
+cd apps/api && python -m pytest -q          # 747 testes (precisa do Postgres)
 cd apps/api && python -m ruff check .
 cd apps/api && python -m ruff format --check .
 cd apps/api && python -m scripts.smoke_test # 117 cenários ponta a ponta (API no ar)

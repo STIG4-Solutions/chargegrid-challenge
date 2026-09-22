@@ -35,6 +35,7 @@ O dashboard aponta sozinho para a API local: o `vite.config.js` le o bloco `dese
 npm run infra:config
 npm run infra:up
 npm run dev:dashboard
+npm run dev:site      # site institucional, porta 5174 (andaime, sem conteudo)
 ```
 
 Em outro terminal:
@@ -64,10 +65,19 @@ O Compose le `apps/api/.env` tanto para a interpolacao das variaveis quanto para
 ```bash
 npm run verify:api
 npm run verify:dashboard
+npm run verify:mobile
 npm run test:dashboard
 npm run typecheck
 npm run build:dashboard
 npm run bundle -w @chargegrid/mobile
+```
+
+O pipeline de previsao tem bateria propria, e ela NAO entra na lista acima porque roda em outro
+container:
+
+```bash
+npm run forecast:lint
+npm run forecast:test
 ```
 
 Depois de atualizar o OpenAPI da API:
