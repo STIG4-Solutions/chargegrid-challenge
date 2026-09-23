@@ -331,15 +331,15 @@ troca de praça.
 
 ```bash
 npm run verify:api                         # 17 cenários do SDK com fetch simulado
-npm run verify:dashboard                   # 180 cenários da lógica do painel, sem navegador
+npm run verify:dashboard                   # 206 cenários da lógica do painel, sem navegador
 npm run verify:mobile                      # 49 cenários da lógica do app, sem simulador
-npm run test:dashboard                     # 113 testes de renderização (vitest + jsdom)
+npm run test:dashboard                     # 124 testes de renderização (vitest + jsdom)
 npm run test:mobile                        # 13 testes de renderização do app (jest-expo + RNTL)
 npm run typecheck                          # tipos do SDK e do app contra o contrato
 npm run format:check                       # Prettier no lado JS (`npm run format` corrige)
 npm run build                              # dashboard
 npm run build:staging                      # dashboard apontando para api.staging.stig4.com
-cd apps/api && python -m pytest -q          # 747 testes (precisa do Postgres)
+cd apps/api && python -m pytest -q          # 757 testes (precisa do Postgres)
 cd apps/api && python -m ruff check .
 cd apps/api && python -m ruff format --check .
 cd apps/api && python -m scripts.smoke_test # 117 cenários ponta a ponta (API no ar)
@@ -397,7 +397,7 @@ impede uma correção de placa de reescrever o cadastro inteiro.
 
 O `test:dashboard` cobre o que aqueles não alcançam — **o que o operador lê**. As funções puras
 podiam estar todas certas e a tela ainda mentir: bastava o card ignorar `fonte` e chamar de
-"energia prevista" um número que é média móvel. São 113 testes em `apps/dashboard/tests`, com
+"energia prevista" um número que é média móvel. São 124 testes em `apps/dashboard/tests`, com
 vitest e jsdom.
 
 O `test:mobile` fecha o que era o último buraco: renderização no app. Ele roda **jest-expo mais

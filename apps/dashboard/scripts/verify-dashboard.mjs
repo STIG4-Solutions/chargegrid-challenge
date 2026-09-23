@@ -27,6 +27,7 @@ const saidaAuditoria = join(cache, 'auditoria.mjs')
 const saidaContas = join(cache, 'contas.mjs')
 const saidaAnalytics = join(cache, 'analytics.mjs')
 const saidaCarteira = join(cache, 'carteira.mjs')
+const saidaPraca = join(cache, 'praca.mjs')
 
 // Só os módulos puros entram. Importar um `.jsx` puxaria React e o SDK inteiro
 // para dentro do Node — e o que se quer verificar não depende de nenhum deles.
@@ -43,7 +44,8 @@ for (const [entrada, destino] of [
   ['src/views/ev/auditoria.js', saidaAuditoria],
   ['src/views/ev/contas.js', saidaContas],
   ['src/views/ev/analytics.js', saidaAnalytics],
-  ['src/views/ev/carteira.js', saidaCarteira]
+  ['src/views/ev/carteira.js', saidaCarteira],
+  ['src/views/ev/praca.js', saidaPraca]
 ]) {
   await build({
     entryPoints: [join(raiz, entrada)],
@@ -100,6 +102,10 @@ const { tendencia, topoDaEscala, rotulosDoEixo, participacao } = await import(
 
 const { problemaNoAjuste, deixariaNegativo, corpoDoAjuste, mensagemDoAjuste } = await import(
   pathToFileURL(saidaCarteira).href
+)
+
+const { sugerirSlug, problemaNaPraca, corpoDaPraca, mensagemDaPraca } = await import(
+  pathToFileURL(saidaPraca).href
 )
 
 const { enderecoDaApi } = await import('./dominios.mjs')
@@ -975,6 +981,56 @@ check(
 )
 
 // ---------------------------------------------------------------------------
+// Cadastro de praca: o identificador e o orcamento.
+
+// O slug e' a chave estavel entre reconstrucoes do banco, e e' por ela que o
+// artefato do modelo de previsao reconhece o local. Acento e maiuscula
+// produziriam duas grafias do mesmo lugar - e a segunda cai em fallback
+// silencioso, sem erro nenhum.
+check('slug tira acento', sugerirSlug('Praça São João') === 'praca-sao-joao')
+check('slug baixa a caixa', sugerirSlug('Shopping MORUMBI') === 'shopping-morumbi')
+check('slug troca pontuacao por hifen', sugerirSlug('Posto BR-101, km 68') === 'posto-br-101-km-68')
+check('slug nao comeca nem termina com hifen', sugerirSlug('  --Posto--  ') === 'posto')
+check('slug colapsa hifens repetidos', !sugerirSlug('a   b').includes('--'))
+check('slug de nome vazio e vazio', sugerirSlug('') === '')
+check('slug respeita o teto de 40', sugerirSlug('a'.repeat(60)).length <= 40)
+
+const ok = { nome: 'Shopping X', slug: 'shopping-x', limite: '150', reserva: '30', uf: 'SP' }
+check('praca completa passa', problemaNaPraca(ok) === null)
+check('nome curto e recusado', problemaNaPraca({ ...ok, nome: 'X' }) !== null)
+check('slug com maiuscula e recusado', problemaNaPraca({ ...ok, slug: 'Shopping-X' }) !== null)
+check('slug com espaco e recusado', problemaNaPraca({ ...ok, slug: 'shopping x' }) !== null)
+check('slug com hifen duplo e recusado', problemaNaPraca({ ...ok, slug: 'a--b' }) !== null)
+check('uf de uma letra e recusada', problemaNaPraca({ ...ok, uf: 'S' }) !== null)
+check('uf vazia e aceita', problemaNaPraca({ ...ok, uf: '' }) === null)
+
+// Orcamento negativo nao falha: a praca fica de pe, aparece no seletor e rateia
+// zero para todos os pontos - a tela parece funcionar.
+check('limite zero e recusado', problemaNaPraca({ ...ok, limite: '0' }) !== null)
+check('limite vazio e recusado', problemaNaPraca({ ...ok, limite: '' }) !== null)
+check('reserva igual ao limite e recusada', problemaNaPraca({ ...ok, reserva: '150' }) !== null)
+check('reserva maior que o limite e recusada', problemaNaPraca({ ...ok, reserva: '200' }) !== null)
+check('reserva negativa e recusada', problemaNaPraca({ ...ok, reserva: '-1' }) !== null)
+check('reserva zero e aceita', problemaNaPraca({ ...ok, reserva: '0' }) === null)
+
+const corpo = corpoDaPraca({ ...ok, cidade: ' Sao Paulo ', uf: 'sp' })
+check('a UF vai em maiuscula', corpo.estado === 'SP')
+check('a cidade vai sem espaco sobrando', corpo.cidade === 'Sao Paulo')
+check('cidade vazia vira nulo', corpoDaPraca({ ...ok, cidade: '  ' }).cidade === null)
+check('o limite vai como numero', corpo.limite_da_rede_kw === 150)
+
+// Com a segunda praca o seletor passa a existir; quem nao souber disso procura
+// a praca nova numa tela que ainda mostra a antiga.
+check(
+  'a mensagem da segunda praca cita o seletor',
+  mensagemDaPraca({ nome: 'X', total: 2 }).includes('seletor')
+)
+check(
+  'a mensagem da primeira nao cita o seletor',
+  !mensagemDaPraca({ nome: 'X', total: 1 }).includes('seletor')
+)
+
+// ---------------------------------------------------------------------------
 // Todo `className` tem regra no CSS?
 //
 // Isto nasceu de um defeito real: a coluna de situacao da aba Contas usava
@@ -1043,5 +1099,6 @@ rmSync(saidaPrevisao, { force: true })
 rmSync(saidaContrato, { force: true })
 rmSync(saidaAnalytics, { force: true })
 rmSync(saidaCarteira, { force: true })
+rmSync(saidaPraca, { force: true })
 console.log(falhas === 0 ? '\nTodos os cenarios passaram.' : `\n${falhas} falha(s).`)
 process.exit(falhas === 0 ? 0 : 1)

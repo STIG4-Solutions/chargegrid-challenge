@@ -119,7 +119,7 @@ uvicorn app.main:app --reload
 ## Testes
 
 ```bash
-pytest -q          # 747 testes
+pytest -q          # 757 testes
 ruff check app     # lint
 ```
 

@@ -62,6 +62,38 @@ class ChargePointCreate(BaseModel):
     protocol: str = "modbus_tcp"
 
 
+class SiteCreate(BaseModel):
+    """Uma praca nova.
+
+    Ate aqui a rede nao tinha como abrir uma unidade: `Site` so' nascia dentro
+    do `seed()`. A consequencia aparecia na tela - seletor de praca e Visao de
+    Rede so' existem com mais de um site, entao um ambiente real ficava preso
+    ao que o seed criou, e a promessa multi-praca nao tinha caminho.
+
+    O `slug` e' pedido, e nao derivado do nome, porque ele e' IDENTIFICADOR
+    ESTAVEL entre reconstrucoes do banco: o artefato do modelo de previsao
+    guarda dentro de si a lista de locais que conhece, e casa por slug. Gerar
+    "shopping-morumbi-2" a partir de um nome repetido faria o modelo cair em
+    fallback silencioso na proxima praca com nome parecido.
+
+    O orcamento de potencia entra no cadastro, e nao depois: uma praca com
+    `grid_limit_kw` zero aceita sessao e rateia zero para todo mundo - fica de
+    pe, aparece no seletor e nao carrega ninguem.
+    """
+
+    nome: str = Field(min_length=2, max_length=160)
+    # Minusculas, digitos e hifen. O slug vai para o artefato do modelo e para
+    # a URL; maiuscula e acento produziriam duas grafias do mesmo local.
+    slug: str = Field(min_length=2, max_length=40, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+    cidade: str | None = Field(default=None, max_length=80)
+    estado: str | None = Field(default=None, min_length=2, max_length=2)
+    endereco: str | None = None
+    timezone: str = Field(default="America/Sao_Paulo", max_length=64)
+
+    limite_da_rede_kw: float = Field(gt=0, le=10_000)
+    reserva_kw: float = Field(default=0, ge=0, le=10_000)
+
+
 class ChargePointUpdate(BaseModel):
     name: str | None = None
     priority: int | None = Field(default=None, ge=0, le=1000)
