@@ -47,6 +47,11 @@ PARAMS = dict(
     reg_lambda=1.0,
     random_state=42,
     verbose=-1,
+    # A PERDA mora aqui, e nao no default de `treinar_um`, para que quem chama
+    # possa troca-la sem editar este arquivo - e' o mesmo mecanismo pelo qual
+    # `treinar.py` sobrepoe `PARAMS` com as chaves de determinismo. Os modelos
+    # de quantil continuam passando objetivo explicito, que vence este valor.
+    objective="l1",
 )
 
 
@@ -55,8 +60,11 @@ def wape(y, yhat) -> float:
     return float(np.abs(y - yhat).sum() / np.abs(y).sum() * 100)
 
 
-def treinar_um(tr: pd.DataFrame, objective="l1", alpha=None) -> lgb.LGBMRegressor:
-    p = dict(PARAMS, objective=objective)
+def treinar_um(tr: pd.DataFrame, objective=None, alpha=None) -> lgb.LGBMRegressor:
+    """`objective=None` usa a perda de `PARAMS`; passar um valor a sobrepoe."""
+    p = dict(PARAMS)
+    if objective is not None:
+        p["objective"] = objective
     if alpha is not None:
         p["alpha"] = alpha
     m = lgb.LGBMRegressor(**p)
