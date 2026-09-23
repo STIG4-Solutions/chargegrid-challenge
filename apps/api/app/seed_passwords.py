@@ -36,9 +36,7 @@ def passwords_by_email(
 
 async def sync_passwords(db: AsyncSession, passwords: dict[str, str]) -> int:
     """Atualiza somente as contas conhecidas, ou falha sem gravar nada."""
-    users = list(
-        (await db.execute(select(User).where(User.email.in_(passwords)))).scalars().all()
-    )
+    users = list((await db.execute(select(User).where(User.email.in_(passwords)))).scalars().all())
     found = {user.email for user in users}
     missing = sorted(set(passwords) - found)
     if missing:
