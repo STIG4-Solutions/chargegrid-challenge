@@ -7,6 +7,12 @@ on:
       - "apps/api/**"
       - ".github/workflows/migrate-production.yml"
   workflow_dispatch:
+    inputs:
+      seed_demo:
+        description: "Popular produção com os dados de demonstração"
+        required: true
+        default: false
+        type: boolean
 
 concurrency:
   group: production-database-migrations
@@ -19,7 +25,7 @@ jobs:
   migrate:
     name: Migrate production database
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
 
     defaults:
       run:
@@ -60,3 +66,37 @@ jobs:
         run: |
           alembic upgrade head
           alembic current
+
+      - name: Validate demo seed secrets
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.seed_demo }}
+        env:
+          SEED_ADMIN_PASSWORD: ${{ secrets.PRODUCTION_SEED_ADMIN_PASSWORD }}
+          SEED_OPERATOR_PASSWORD: ${{ secrets.PRODUCTION_SEED_OPERATOR_PASSWORD }}
+          SEED_DRIVER_PASSWORD: ${{ secrets.PRODUCTION_SEED_DRIVER_PASSWORD }}
+        run: |
+          for variable in SEED_ADMIN_PASSWORD SEED_OPERATOR_PASSWORD SEED_DRIVER_PASSWORD; do
+            if [ -z "${!variable}" ]; then
+              echo "::error::O secret $variable de produção não foi configurado."
+              exit 1
+            fi
+          done
+
+      - name: Install seed dependencies
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.seed_demo }}
+        run: python -m pip install .
+
+      - name: Seed production demo data
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.seed_demo }}
+        env:
+          SEED_ADMIN_PASSWORD: ${{ secrets.PRODUCTION_SEED_ADMIN_PASSWORD }}
+          SEED_OPERATOR_PASSWORD: ${{ secrets.PRODUCTION_SEED_OPERATOR_PASSWORD }}
+          SEED_DRIVER_PASSWORD: ${{ secrets.PRODUCTION_SEED_DRIVER_PASSWORD }}
+        run: python -m app.seed
+
+      - name: Synchronize production demo passwords
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.seed_demo }}
+        env:
+          SEED_ADMIN_PASSWORD: ${{ secrets.PRODUCTION_SEED_ADMIN_PASSWORD }}
+          SEED_OPERATOR_PASSWORD: ${{ secrets.PRODUCTION_SEED_OPERATOR_PASSWORD }}
+          SEED_DRIVER_PASSWORD: ${{ secrets.PRODUCTION_SEED_DRIVER_PASSWORD }}
+        run: python -m app.seed_passwords
