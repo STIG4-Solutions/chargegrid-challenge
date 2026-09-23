@@ -28,9 +28,13 @@ from sqlalchemy import create_engine, text
 # vira "corporativo" - o perfil mais neutro dos quatro - e nao quebra o treino.
 ARQUETIPOS = {
     "lab-fiap-eco-station": "corporativo",
+    "centro-empresarial-berrini": "corporativo",
     "shopping-morumbi-g3": "shopping",
+    "shopping-tambore": "shopping",
     "posto-anhanguera-km-68": "rodovia",
+    "rodovia-castello-km-32": "rodovia",
     "residencial-vila-mariana": "condominio",
+    "residencial-parque-das-nacoes": "condominio",
 }
 ARQUETIPO_PADRAO = "corporativo"
 
