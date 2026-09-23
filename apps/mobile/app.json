@@ -6,12 +6,6 @@
     "orientation": "portrait",
     "scheme": "chargegrid",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0D0D0F"
-    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "br.com.chargegrid.app",
@@ -27,10 +21,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0D0D0F"
       },
-      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION", "CAMERA"],
-      "config": {
-        "_comentario": "A chave do Google Maps NAO mora aqui: este arquivo e' versionado num repositorio publico. Ela e' injetada por app.config.js a partir de GOOGLE_MAPS_API_KEY. Veja o README."
-      }
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION", "CAMERA"]
     },
     "plugins": [
       "expo-status-bar",
@@ -38,25 +29,34 @@
         "expo-build-properties",
         {
           "android": {
-            "usesCleartextTraffic": true
+            "usesCleartextTraffic": false
           }
         }
       ],
       [
         "expo-camera",
         {
-          "cameraPermission": "Usamos a câmera apenas para ler o QR code colado no carregador."
+          "cameraPermission": "Usamos a câmera apenas para ler o QR code colado no carregador.",
+          "recordAudioAndroid": false
         }
       ],
       "expo-notifications",
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#0D0D0F"
+        }
+      ]
     ],
     "icon": "./assets/icon.png",
+    "owner": "stig4-solutions",
     "extra": {
       "eas": {
-        "projectId": "0b934c0a-0971-4ccb-bcc2-425c278ba3b4"
+        "projectId": "be3ae134-fc5c-4e10-85a7-37baa6fdfcf2"
       }
-    },
-    "owner": "ykushz"
+    }
   }
 }

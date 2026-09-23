@@ -5,6 +5,7 @@
     "jsx": "react-jsx",
     "moduleResolution": "Bundler",
     "allowImportingTsExtensions": true,
+    "types": ["jest"],
     "noEmit": true
   },
   "include": ["**/*.ts", "**/*.tsx", "../../packages/sdk/src/**/*.ts"],
