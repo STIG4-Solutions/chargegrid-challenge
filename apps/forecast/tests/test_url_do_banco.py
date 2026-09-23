@@ -30,6 +30,43 @@ def test_troca_o_driver_preservando_o_resto(entrada):
     assert saida.endswith("u:s@h:5432/b"), "usuario, senha, host ou banco se perderam"
 
 
+def test_o_parametro_de_tls_e_traduzido():
+    """`ssl` e' do asyncpg; o libpq le `sslmode`. Trocar so' o prefixo nao basta.
+
+    Foi assim que o job morreu contra o Neon na primeira execucao real:
+    `invalid connection option "ssl"`, DEPOIS de resolver host e credenciais -
+    o que faz a mensagem parecer problema de rede.
+    """
+    saida = com_driver_sincrono("postgresql+asyncpg://u:s@h/db?ssl=require")
+
+    assert saida == f"{DRIVER}://u:s@h/db?sslmode=require"
+
+
+def test_os_demais_parametros_sobrevivem():
+    """O Neon manda `channel_binding` junto; perde-lo trocaria um erro por outro."""
+    saida = com_driver_sincrono("postgresql://u:s@h/db?ssl=require&channel_binding=require")
+
+    assert "sslmode=require" in saida
+    assert "channel_binding=require" in saida
+
+
+def test_sslmode_explicito_vence_o_ssl():
+    """Quem escreveu o segredo no formato do libpq nao e' contradito aqui."""
+    saida = com_driver_sincrono("postgresql+asyncpg://u:s@h/db?sslmode=verify-full&ssl=require")
+
+    # UM sslmode, e o que ja' estava. Traduzir o `ssl` sem olhar produziria
+    # `sslmode=verify-full&sslmode=require` - duas vezes a mesma chave, e quem
+    # decide qual vale passa a ser a ordem de leitura do driver.
+    assert saida.count("sslmode=") == 1, saida
+    assert "sslmode=verify-full" in saida
+    assert "ssl=require" not in saida
+
+
+def test_url_sem_parametro_nao_ganha_um():
+    """Sem query string, a URL sai como entrou - so' com o driver trocado."""
+    assert com_driver_sincrono("postgresql+asyncpg://u:s@h/db") == f"{DRIVER}://u:s@h/db"
+
+
 def test_url_que_ja_esta_certa_passa_intacta():
     url = f"{DRIVER}://u:s@h:5432/b"
 
