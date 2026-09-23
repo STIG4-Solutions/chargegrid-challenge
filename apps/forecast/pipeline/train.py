@@ -96,18 +96,39 @@ def backtest(ds: pd.DataFrame, n_meses: int = 3) -> dict:
         return {"aviso": "backtest sem particoes validas"}
 
     pr = pd.concat(preds, ignore_index=True)
+
+    # A SEGUNDA REGUA. `hist_dow` e' a media daquele dia da semana nos ultimos
+    # 56 dias - ja' calculada, ja' feature do modelo. Usada CRUA ela e' uma
+    # previsao completa, e mede a pergunta que a media movel nao faz: o modelo
+    # extrai das features mais do que uma delas ja' diz sozinha?
+    #
+    # Sem esta coluna o artefato nao consegue distinguir "o modelo aprendeu
+    # sazonalidade semanal" de "o modelo copiou hist_dow". Sao a mesma curva na
+    # tela e conclusoes opostas sobre manter LightGBM.
+    #
+    # Volta para m28 quando NaN: estacao com menos de 56 dias nao tem media por
+    # dia da semana, e uma regua com buraco nao e' comparavel.
+    pr["base_dow"] = pr["hist_dow"].fillna(pr["hist_m28"])
+
     mensal = pr.groupby(["location_id", "mes_alvo"], observed=True).agg(
         real=("y_kwh", "sum"), prev=("yhat", "sum"),
-        base=("hist_m28", "sum")).reset_index()
+        base=("hist_m28", "sum"), base_dow=("base_dow", "sum")).reset_index()
 
     return {
         "meses_testados": [str(pd.Timestamp(m).date()) for m in meses[-n_meses:]],
         "n_obs_teste": int(len(pr)),
+        "n_obs_mensal": int(len(mensal)),
         "wape_diario": round(wape(pr["y_kwh"], pr["yhat"]), 2),
         "wape_mensal": round(wape(mensal["real"], mensal["prev"]), 2),
         # Baseline obrigatorio: se o modelo nao bate a media movel, nao ha
         # motivo para colocar ML em producao.
         "wape_mensal_baseline_m28": round(wape(mensal["real"], mensal["base"]), 2),
+        "wape_mensal_baseline_dow": round(wape(mensal["real"], mensal["base_dow"]), 2),
+        # O eixo diario tinha o erro do modelo e NENHUMA regua ao lado - um
+        # numero sozinho, que nao diz se e' bom. As duas reguas entram aqui
+        # pelo mesmo motivo que a mensal tem a dela.
+        "wape_diario_baseline_m28": round(wape(pr["y_kwh"], pr["hist_m28"]), 2),
+        "wape_diario_baseline_dow": round(wape(pr["y_kwh"], pr["base_dow"]), 2),
         "vies_medio_pct": round(
             float(((mensal["prev"] - mensal["real"]) / mensal["real"]).mean() * 100), 2),
         "cobertura_p10_p90_diaria": round(float(
