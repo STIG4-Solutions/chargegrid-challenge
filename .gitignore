@@ -61,3 +61,19 @@ Thumbs.db
 # versionado - ele E' a afirmacao, e revisar a mudanca dele e' o que se quer.
 apps/forecast/modelos/*.joblib
 apps/forecast/modelos/metricas_2*.json
+
+# Material de apresentacao do challenge, por decisao: fica no disco de quem
+# apresenta, nao no repositorio. Nao e' documentacao do sistema - e' entregavel
+# de banca, com ciclo de vida proprio, e versiona-lo misturaria as duas coisas
+# no mesmo historico.
+#
+# A documentacao do SISTEMA continua versionada: os READMEs, o guia de deploy,
+# a estrutura do repositorio e o de desenvolvimento.
+docs/funcionalidades.md
+docs/funcionalidades.pdf
+docs/funcionalidades.html
+docs/roteiro-apresentacao.md
+
+# O gerador de PDF acompanha o material que ele gera. Sem ele versionado, o
+# comando e' `python scripts/gerar-pdf.py` - nao ha mais `npm run docs:pdf`.
+scripts/gerar-pdf.py

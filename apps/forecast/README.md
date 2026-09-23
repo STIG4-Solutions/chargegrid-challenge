@@ -24,8 +24,10 @@ npm run forecast          # treina e exporta — é isto que um clone novo preci
 ```
 
 O modelo **não vai para o git** (2 MB por retreino, diff irrevisável), então todo
-ambiente novo passa por aqui uma vez. `exportar.py` sem artefato não diz apenas
-"não encontrado": ele imprime este comando.
+ambiente LOCAL novo passa por aqui uma vez. `exportar.py` sem artefato não diz
+apenas "não encontrado": ele imprime este comando.
+
+No staging isso é automático — veja a seção sobre o job agendado, mais abaixo.
 
 Os passos separados, quando a diferença importa:
 
@@ -53,6 +55,25 @@ docker compose --env-file apps/api/.env --profile forecast run --rm forecast \
 
 Sem linha na tabela, o painel mostra "nenhuma previsão calculada" — que é
 melhor que um número inventado.
+
+## No staging, ninguém roda nada
+
+`forecast-staging.yml` roda **todo dia 1** e faz as duas coisas no mesmo job: treina e exporta.
+
+Mensal, e não diário, porque o alvo é o mês seguinte e `exportar.py` grava uma linha por
+competência — rodar todo dia reescreveria a mesma linha com um modelo treinado sobre quase o
+mesmo histórico. Custo de CI sem informação nova.
+
+Treinar e exportar **no mesmo job** é o que dispensa publicar o artefato: ele nasce num passo, é
+lido pelo seguinte e morre com o runner. Nunca precisa atravessar o repositório, porque nunca
+precisa sobreviver ao job — e é por isso que a seção abaixo continua valendo.
+
+O job usa a **mesma** `DATABASE_URL_OVERRIDE` do workflow de migrations (`banco.py` troca o
+driver para psycopg). Um segundo segredo com o mesmo conteúdo sairia de sincronia, e o sintoma
+seria treinar contra um banco e gravar noutro.
+
+O resumo da execução traz o WAPE do modelo contra o da régua — a decisão de o modelo entrar ou a
+média móvel prevalecer, que é a única leitura que interessa a quem abre o job.
 
 ## O artefato não vai para o git. As métricas vão
 

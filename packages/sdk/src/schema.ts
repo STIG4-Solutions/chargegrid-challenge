@@ -621,7 +621,25 @@ export interface paths {
          */
         get: operations["list_visible_sites_api_v1_power_sites_get"];
         put?: never;
-        post?: never;
+        /**
+         * Create Site
+         * @description Abre uma praca na rede.
+         *
+         *     ADMIN, e nao operador: quem opera uma praca nao decide que a rede tem outra.
+         *     E' a mesma fronteira de `/users` - decisao de rede fica com quem administra
+         *     a rede.
+         *
+         *     Ate esta rota existir, `Site` so' nascia no `seed()`. A falta aparecia na
+         *     tela, nao no log: seletor de praca e Visao de Rede so' se mostram com mais
+         *     de um site, entao um ambiente real ficava preso ao que o seed criou e a
+         *     promessa multi-praca nao tinha caminho nenhum.
+         *
+         *     A praca nasce SEM pontos de recarga, tarifa ou metodo de pagamento - e isso
+         *     e' deliberado. Criar um ponto padrao seria inventar hardware que ninguem
+         *     instalou, e uma tarifa padrao cobraria um preco que ninguem definiu. O
+         *     comissionamento segue por `POST /power/charge-points`.
+         */
+        post: operations["create_site_api_v1_power_sites_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3239,6 +3257,49 @@ export interface components {
             at?: string | null;
         };
         /**
+         * SiteCreate
+         * @description Uma praca nova.
+         *
+         *     Ate aqui a rede nao tinha como abrir uma unidade: `Site` so' nascia dentro
+         *     do `seed()`. A consequencia aparecia na tela - seletor de praca e Visao de
+         *     Rede so' existem com mais de um site, entao um ambiente real ficava preso
+         *     ao que o seed criou, e a promessa multi-praca nao tinha caminho.
+         *
+         *     O `slug` e' pedido, e nao derivado do nome, porque ele e' IDENTIFICADOR
+         *     ESTAVEL entre reconstrucoes do banco: o artefato do modelo de previsao
+         *     guarda dentro de si a lista de locais que conhece, e casa por slug. Gerar
+         *     "shopping-morumbi-2" a partir de um nome repetido faria o modelo cair em
+         *     fallback silencioso na proxima praca com nome parecido.
+         *
+         *     O orcamento de potencia entra no cadastro, e nao depois: uma praca com
+         *     `grid_limit_kw` zero aceita sessao e rateia zero para todo mundo - fica de
+         *     pe, aparece no seletor e nao carrega ninguem.
+         */
+        SiteCreate: {
+            /** Nome */
+            nome: string;
+            /** Slug */
+            slug: string;
+            /** Cidade */
+            cidade?: string | null;
+            /** Estado */
+            estado?: string | null;
+            /** Endereco */
+            endereco?: string | null;
+            /**
+             * Timezone
+             * @default America/Sao_Paulo
+             */
+            timezone: string;
+            /** Limite Da Rede Kw */
+            limite_da_rede_kw: number;
+            /**
+             * Reserva Kw
+             * @default 0
+             */
+            reserva_kw: number;
+        };
+        /**
          * SiteSettingsOut
          * @description Politica de demanda do site - o que o operador edita no painel.
          */
@@ -4769,6 +4830,41 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     }[];
+                };
+            };
+        };
+    };
+    create_site_api_v1_power_sites_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SiteCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

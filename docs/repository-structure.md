@@ -10,11 +10,12 @@ O ChargeGrid usa um monorepo com aplicacoes independentes e um SDK compartilhado
 | `apps/dashboard` | Dashboard comercial e operacional React + Vite; `scripts/` traz a verificacao da logica pura e `tests/` a de renderizacao (vitest). `README.md` descreve as abas, os perfis de acesso e a troca de praca |
 | `apps/forecast` | Job offline de previsao de demanda; `pipeline/` e' o modelo vendorizado |
 | `apps/mobile` | Aplicativo do motorista React Native + Expo |
+| `apps/site` | Site institucional React + Vite; hoje e' andaime - a landing ainda nao tem conteudo, e o `README.md` de la' diz isso |
 | `packages/sdk` | Cliente da API, autenticacao e utilitarios compartilhados pelos clientes |
 | `config/domains.json` | Enderecos publicos usados como padrao pelas aplicacoes |
 | `docs/challenge` | Escopo e materiais da mentoria FIAP |
 | `docs/references/goodwe` | Datasheet, manual e mapa MODBUS do hardware |
-| `.github` | Modelo de PR e futuras automacoes do GitHub |
+| `.github` | Modelo de PR e os quatro workflows: `ci`, `migrate-staging`, `migrate-production` e `forecast-staging` |
 | `compose.yaml` | Coordenacao do ambiente local PostgreSQL + API |
 
 Os diretorios internos de cada aplicacao seguem sua organizacao atual. O SDK e importado por `@chargegrid/sdk`; aplicacoes nao importam arquivos internos umas das outras.
@@ -46,7 +47,7 @@ O Dockerfile da API usa contexto `apps/api`. O arquivo `.dockerignore` impede qu
 
 ## Crescimento
 
-A landing page sera criada em `apps/landing` e registrada nos workspaces quando sua implementacao comecar. `infra`, `tooling` e `scripts` na raiz serao adicionados quando existirem, respectivamente, definicoes de infraestrutura, configuracoes compartilhadas de ferramentas ou automacoes do repositorio. Bibliotecas novas entram em `packages` quando houver compartilhamento real.
+O site institucional nasceu como `apps/site`, e nao como `apps/landing` - o nome mudou porque o escopo cresceu: alem da landing, ele hospedara a central de download do aplicativo Android. `infra`, `tooling` e `scripts` na raiz serao adicionados quando existirem, respectivamente, definicoes de infraestrutura, configuracoes compartilhadas de ferramentas ou automacoes do repositorio. Bibliotecas novas entram em `packages` quando houver compartilhamento real.
 
 ## Atualizacao de clones anteriores
 

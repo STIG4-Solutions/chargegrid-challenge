@@ -195,6 +195,62 @@ def _totais(sites: list[SiteNaRede]) -> dict:
     }
 
 
+async def criar_site(db: AsyncSession, dados) -> dict:
+    """Abre uma praca nova e devolve no formato do seletor.
+
+    Devolve o MESMO dicionario de `sites_visiveis` de proposito: quem acabou de
+    cadastrar precisa poder escolher a praca sem uma segunda chamada, e duas
+    formas diferentes para a mesma coisa e' como as duas saem de sincronia.
+
+    O fuso e' validado aqui, e nao so' pelo tamanho do campo: `America/Sao_Pualo`
+    passa por qualquer `max_length` e so' falha muito depois, na primeira conta
+    de janela horaria - onde o erro aparece como numero errado, nao como erro.
+    """
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    from app.core.errors import Conflict
+
+    try:
+        ZoneInfo(dados.timezone)
+    except (ZoneInfoNotFoundError, ValueError) as erro:
+        raise Conflict(f"fuso horario desconhecido: {dados.timezone}") from erro
+
+    repetido = (await db.execute(select(Site).where(Site.slug == dados.slug))).scalar_one_or_none()
+    if repetido is not None:
+        # 409, e nao o IntegrityError do indice unico: o slug e' escolhido por
+        # uma pessoa, e "ja existe" e' resposta, nao falha.
+        raise Conflict(f"ja existe uma praca com o identificador '{dados.slug}'")
+
+    if dados.reserva_kw >= dados.limite_da_rede_kw:
+        # Reserva maior que o limite deixa o orcamento negativo: a praca nasce
+        # sem potencia nenhuma para distribuir, e nada na tela explica por que.
+        raise Conflict(
+            f"a reserva ({dados.reserva_kw} kW) precisa ser menor que o limite da rede "
+            f"({dados.limite_da_rede_kw} kW), senao nao sobra potencia para nenhum ponto"
+        )
+
+    site = Site(
+        name=dados.nome,
+        slug=dados.slug,
+        city=dados.cidade,
+        state=dados.estado.upper() if dados.estado else None,
+        address=dados.endereco,
+        timezone=dados.timezone,
+        grid_limit_kw=dados.limite_da_rede_kw,
+        reserved_kw=dados.reserva_kw,
+    )
+    db.add(site)
+    await db.flush()
+
+    return {
+        "site_id": str(site.id),
+        "nome": site.name,
+        "cidade": site.city,
+        "estado": site.state,
+        "timezone": site.timezone,
+    }
+
+
 async def sites_visiveis(db: AsyncSession, user) -> list[dict]:
     """Sites que este usuario pode escolher no seletor do painel.
 

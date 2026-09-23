@@ -9,7 +9,14 @@ from fastapi import APIRouter, HTTPException, Query, Response
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.core.deps import AdminUser, CurrentUser, DbSession, OperatorUser, ScopedSiteId
+from app.core.deps import (
+    AdminUser,
+    Auditor,
+    CurrentUser,
+    DbSession,
+    OperatorUser,
+    ScopedSiteId,
+)
 from app.models.charge_point import ChargePoint, ChargePointConnection
 from app.models.enums import ChargePointStatus, SessionState
 from app.models.priority_rule import PriorityRule
@@ -27,6 +34,7 @@ from app.schemas.ev import (
     PriorityRuleOut,
     ResolucaoIn,
     SetLimitRequest,
+    SiteCreate,
     SiteSettingsOut,
 )
 from app.services import (
@@ -593,6 +601,41 @@ async def list_visible_sites(db: DbSession, user: CurrentUser) -> list[dict]:
     cidades da rede inteira.
     """
     return await portfolio_service.sites_visiveis(db, user)
+
+
+@router.post("/sites", status_code=201)
+async def create_site(
+    db: DbSession,
+    admin: AdminUser,
+    aud: Auditor,
+    payload: SiteCreate,
+) -> dict:
+    """Abre uma praca na rede.
+
+    ADMIN, e nao operador: quem opera uma praca nao decide que a rede tem outra.
+    E' a mesma fronteira de `/users` - decisao de rede fica com quem administra
+    a rede.
+
+    Ate esta rota existir, `Site` so' nascia no `seed()`. A falta aparecia na
+    tela, nao no log: seletor de praca e Visao de Rede so' se mostram com mais
+    de um site, entao um ambiente real ficava preso ao que o seed criou e a
+    promessa multi-praca nao tinha caminho nenhum.
+
+    A praca nasce SEM pontos de recarga, tarifa ou metodo de pagamento - e isso
+    e' deliberado. Criar um ponto padrao seria inventar hardware que ninguem
+    instalou, e uma tarifa padrao cobraria um preco que ninguem definiu. O
+    comissionamento segue por `POST /power/charge-points`.
+    """
+    criada = await portfolio_service.criar_site(db, payload)
+    await aud.registrar(
+        db,
+        "site.criado",
+        "site",
+        entidade_id=criada["site_id"],
+        depois={"slug": payload.slug, "nome": payload.nome},
+    )
+    await db.commit()
+    return criada
 
 
 @router.get("/sites/portfolio")

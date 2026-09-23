@@ -2072,6 +2072,53 @@
             "OAuth2PasswordBearer": []
           }
         ]
+      },
+      "post": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "Create Site",
+        "description": "Abre uma praca na rede.\n\nADMIN, e nao operador: quem opera uma praca nao decide que a rede tem outra.\nE' a mesma fronteira de `/users` - decisao de rede fica com quem administra\na rede.\n\nAte esta rota existir, `Site` so' nascia no `seed()`. A falta aparecia na\ntela, nao no log: seletor de praca e Visao de Rede so' se mostram com mais\nde um site, entao um ambiente real ficava preso ao que o seed criou e a\npromessa multi-praca nao tinha caminho nenhum.\n\nA praca nasce SEM pontos de recarga, tarifa ou metodo de pagamento - e isso\ne' deliberado. Criar um ponto padrao seria inventar hardware que ninguem\ninstalou, e uma tarifa padrao cobraria um preco que ninguem definiu. O\ncomissionamento segue por `POST /power/charge-points`.",
+        "operationId": "create_site_api_v1_power_sites_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SiteCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Create Site Api V1 Power Sites Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
       }
     },
     "/api/v1/power/sites/portfolio": {
@@ -9513,6 +9560,86 @@
           "tariff_id"
         ],
         "title": "SimulationRequest"
+      },
+      "SiteCreate": {
+        "properties": {
+          "nome": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 2,
+            "title": "Nome"
+          },
+          "slug": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 2,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "title": "Slug"
+          },
+          "cidade": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cidade"
+          },
+          "estado": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2,
+                "minLength": 2
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estado"
+          },
+          "endereco": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endereco"
+          },
+          "timezone": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Timezone",
+            "default": "America/Sao_Paulo"
+          },
+          "limite_da_rede_kw": {
+            "type": "number",
+            "maximum": 10000.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Limite Da Rede Kw"
+          },
+          "reserva_kw": {
+            "type": "number",
+            "maximum": 10000.0,
+            "minimum": 0.0,
+            "title": "Reserva Kw",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "nome",
+          "slug",
+          "limite_da_rede_kw"
+        ],
+        "title": "SiteCreate",
+        "description": "Uma praca nova.\n\nAte aqui a rede nao tinha como abrir uma unidade: `Site` so' nascia dentro\ndo `seed()`. A consequencia aparecia na tela - seletor de praca e Visao de\nRede so' existem com mais de um site, entao um ambiente real ficava preso\nao que o seed criou, e a promessa multi-praca nao tinha caminho.\n\nO `slug` e' pedido, e nao derivado do nome, porque ele e' IDENTIFICADOR\nESTAVEL entre reconstrucoes do banco: o artefato do modelo de previsao\nguarda dentro de si a lista de locais que conhece, e casa por slug. Gerar\n\"shopping-morumbi-2\" a partir de um nome repetido faria o modelo cair em\nfallback silencioso na proxima praca com nome parecido.\n\nO orcamento de potencia entra no cadastro, e nao depois: uma praca com\n`grid_limit_kw` zero aceita sessao e rateia zero para todo mundo - fica de\npe, aparece no seletor e nao carrega ninguem."
       },
       "SiteSettingsOut": {
         "properties": {

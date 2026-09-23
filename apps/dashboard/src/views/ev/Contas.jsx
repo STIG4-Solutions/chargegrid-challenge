@@ -3,6 +3,7 @@ import { admin, power, useAction, useApi } from '@chargegrid/sdk'
 
 import { Async, Empty } from '../../components/Async.jsx'
 import { Campo } from '../../components/Campo.jsx'
+import { corpoDaPraca, mensagemDaPraca, problemaNaPraca, sugerirSlug } from './praca.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import {
   alcanceDoPapel,
@@ -53,6 +54,14 @@ export default function Contas() {
 
       <NovaConta sites={sites.data ?? []} aoCriar={() => void contas.refetch()} />
 
+      {/*
+        O cadastro de praça mora AQUI, e não na Visão de Rede, por um impasse:
+        aquela aba só aparece para quem já enxerga mais de uma praça — não se
+        criaria a segunda de dentro dela. Contas é de admin, está sempre
+        visível, e já carrega a lista de praças para o seletor de operador.
+      */}
+      <NovaPraca pracas={sites.data ?? []} aoCriar={() => void sites.refetch()} />
+
       <Async
         loading={contas.loading}
         error={contas.error}
@@ -67,6 +76,210 @@ export default function Contas() {
     </div>
   )
 }
+
+/**
+ * Abrir uma praça na rede.
+ *
+ * Exportado para o teste montar com props, sem subir a aba inteira.
+ *
+ * Duas coisas que o formulário faz de propósito:
+ *
+ * - SUGERE o identificador a partir do nome, sem decidir. Ele é a chave estável
+ *   entre reconstruções do banco, e é por ela que o modelo de previsão
+ *   reconhece o local — duas praças de nome parecido geradas automaticamente
+ *   virariam "shopping-x" e "shopping-x-2", e a segunda cairia em fallback.
+ * - PEDE o limite da rede no cadastro, e não depois. Praça com orçamento zero
+ *   fica de pé, aparece no seletor e rateia zero para todos os pontos.
+ */
+export function NovaPraca({ pracas, aoCriar, criarPraca = power.createSite }) {
+  const [campos, setCampos] = useState(PRACA_VAZIA)
+  const [aberto, setAberto] = useState(false)
+  const [sucesso, setSucesso] = useState(null)
+  // O slug para de seguir o nome assim que alguém o edita: continuar
+  // sobrescrevendo apagaria a escolha da pessoa a cada tecla no nome.
+  const [slugTocado, setSlugTocado] = useState(false)
+
+  const idBase = useId()
+  const id = (chave) => `${idBase}-${chave}`
+
+  const problema = problemaNaPraca(campos)
+  const mexer = (chave) => (evento) => {
+    const valor = evento.target.value
+    setCampos((atual) => {
+      if (chave === 'nome' && !slugTocado) {
+        return { ...atual, nome: valor, slug: sugerirSlug(valor) }
+      }
+      return { ...atual, [chave]: valor }
+    })
+  }
+
+  const envio = useAction(() => criarPraca(corpoDaPraca(campos)), {
+    onSuccess: (criada) => {
+      setSucesso(
+        mensagemDaPraca({ nome: criada?.nome ?? campos.nome, total: (pracas?.length ?? 0) + 1 })
+      )
+      setCampos(PRACA_VAZIA)
+      setSlugTocado(false)
+      setAberto(false)
+      aoCriar?.()
+    }
+  })
+
+  return (
+    <div className="panel">
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          gap: 12
+        }}
+      >
+        <div>
+          <div className="card-title">Praças da rede</div>
+          <div className="card-sub">
+            {pracas.length === 1
+              ? 'Há uma praça. Com a segunda, o seletor aparece no topo da seção e a Visão de Rede passa a existir.'
+              : `${pracas.length} praças. O seletor no topo troca entre elas.`}
+          </div>
+        </div>
+        {!aberto && (
+          <button className="btn" onClick={() => setAberto(true)}>
+            Nova praça
+          </button>
+        )}
+      </div>
+
+      {sucesso && !aberto && (
+        <div className="form-ok" role="status" style={{ marginTop: 12 }}>
+          {sucesso}
+        </div>
+      )}
+
+      {aberto && (
+        <div style={{ marginTop: 16, display: 'grid', gap: 12 }}>
+          <div className="grid grid-3" style={{ gap: 12 }}>
+            <Campo id={id('nome')} rotulo="Nome" dica="Como a praça aparece no seletor.">
+              <input
+                id={id('nome')}
+                className="input"
+                maxLength={160}
+                value={campos.nome}
+                onChange={mexer('nome')}
+                aria-describedby={`${id('nome')}-dica`}
+              />
+            </Campo>
+
+            <Campo
+              id={id('slug')}
+              rotulo="Identificador"
+              dica="Minúsculas, números e hífen. Não muda depois — o modelo de previsão casa por ele."
+            >
+              <input
+                id={id('slug')}
+                className="input"
+                maxLength={40}
+                value={campos.slug}
+                onChange={(e) => {
+                  setSlugTocado(true)
+                  mexer('slug')(e)
+                }}
+                aria-describedby={`${id('slug')}-dica`}
+              />
+            </Campo>
+
+            <Campo id={id('cidade')} rotulo="Cidade" dica="Aparece ao lado do nome no seletor.">
+              <input
+                id={id('cidade')}
+                className="input"
+                maxLength={80}
+                value={campos.cidade}
+                onChange={mexer('cidade')}
+                aria-describedby={`${id('cidade')}-dica`}
+              />
+            </Campo>
+          </div>
+
+          <div className="grid grid-3" style={{ gap: 12 }}>
+            <Campo id={id('uf')} rotulo="UF" dica="Duas letras.">
+              <input
+                id={id('uf')}
+                className="input"
+                maxLength={2}
+                value={campos.uf}
+                onChange={mexer('uf')}
+                aria-describedby={`${id('uf')}-dica`}
+              />
+            </Campo>
+
+            <Campo
+              id={id('limite')}
+              rotulo="Limite da rede (kW)"
+              dica="A capacidade contratada no ponto de entrega."
+            >
+              <input
+                id={id('limite')}
+                className="input"
+                type="number"
+                min={1}
+                value={campos.limite}
+                onChange={mexer('limite')}
+                aria-describedby={`${id('limite')}-dica`}
+              />
+            </Campo>
+
+            <Campo
+              id={id('reserva')}
+              rotulo="Reserva do prédio (kW)"
+              dica="Quanto fica fora do rateio para as cargas que não são carro."
+            >
+              <input
+                id={id('reserva')}
+                className="input"
+                type="number"
+                min={0}
+                value={campos.reserva}
+                onChange={mexer('reserva')}
+                aria-describedby={`${id('reserva')}-dica`}
+              />
+            </Campo>
+          </div>
+
+          {envio.error && (
+            <div className="form-error" role="alert">
+              {envio.error.detail}
+            </div>
+          )}
+
+          <p className="muted" style={{ fontSize: 12, margin: 0 }}>
+            A praça nasce sem pontos de recarga, tarifa ou método de pagamento — criar um ponto
+            padrão inventaria hardware que ninguém instalou.
+          </p>
+
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button
+              className="btn btn-primary"
+              disabled={Boolean(problema) || envio.pending}
+              onClick={() => envio.run()}
+            >
+              Criar praça
+            </button>
+            <button className="btn" onClick={() => setAberto(false)} disabled={envio.pending}>
+              Cancelar
+            </button>
+            {problema && (
+              <span className="muted" style={{ fontSize: 12 }}>
+                {problema}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+const PRACA_VAZIA = { nome: '', slug: '', cidade: '', uf: '', limite: '', reserva: '0' }
 
 /**
  * Exportado para o teste montar com props, sem subir a aba inteira.

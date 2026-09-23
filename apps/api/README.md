@@ -119,7 +119,7 @@ uvicorn app.main:app --reload
 ## Testes
 
 ```bash
-pytest -q          # 730 testes
+pytest -q          # 757 testes
 ruff check app     # lint
 ```
 
@@ -510,6 +510,26 @@ A janela nunca é maior que a idade do site — a mais antiga entre o cadastro e
 porque um site migrado tem histórico anterior à própria linha. Sem esse limite, um site
 instalado há uma semana devolvia todos os pontos como *ociosos*: a conta cobrava deles 23 dias
 em que não existiram.
+
+### 5.1 Série diária (a leitura executiva)
+
+Todo agregado acima responde **quanto** — total da janela. `GET /power/analytics/daily` responde
+**para onde está indo**: sessões, energia e receita de cada dia. Duas quinzenas com a mesma
+receita são negócios diferentes se uma sobe e a outra cai, e nenhuma outra rota mostrava isso.
+
+Três decisões mudam o que o gráfico afirma, e nenhuma é cosmética:
+
+- **dia parado vem com zero**, não omitido. `GROUP BY` só devolve dia com movimento, e desenhar
+  apenas esses encosta segunda em quinta: a queda desaparece atrás de uma reta;
+- **o agrupamento é no fuso do site**. Uma recarga das 22h em São Paulo cai no dia seguinte em
+  UTC, e o perfil semanal inteiro sai torto;
+- **a janela não passa da idade do site** — mesmo critério de Ocupação. Os dias anteriores à
+  primeira sessão não são dias parados: não existiram. Vem `janela_completa: false`, e as médias
+  usam o período real.
+
+A receita é ancorada no dia da **sessão**, não no da emissão da fatura: cobrança emitida no dia 5
+por recarga do dia 3 pertence ao dia 3. E recebido nunca se soma a a receber — somar os dois
+chamaria de receita dinheiro que ainda pode não entrar.
 
 ### 6. Regras de prioridade e multi-site
 

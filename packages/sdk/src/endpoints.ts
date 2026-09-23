@@ -78,6 +78,13 @@ export const power = {
     ),
   /** Sites que o usuario pode escolher no seletor (operador ve so o proprio). */
   visibleSites: () => api.get<T.PracaVisivel[]>('/power/sites'),
+  /**
+   * Abre uma praca na rede. So admin.
+   *
+   * Ate esta rota existir, `Site` so' nascia no seed - e a falta aparecia na
+   * tela: seletor de praca e Visao de Rede so' se mostram com mais de um site.
+   */
+  createSite: (corpo: Record<string, unknown>) => api.post<T.PracaVisivel>('/power/sites', corpo),
   /** As pracas lado a lado. So admin. */
   portfolio: (dias = 30) => api.get<Record<string, unknown>>('/power/sites/portfolio', { dias }),
   /** Regras de prioridade nomeadas do site. */
