@@ -184,9 +184,7 @@ def test_a_tendencia_sem_dois_pontos_positivos_nao_devolve_zero():
 
     # As janelas com um unico positivo existem de fato - sem isto o teste
     # passaria sem exercitar nada, que foi exatamente o furo anterior.
-    solitarias = [
-        i for i in range(12, n) if (np.asarray(v[i - 12 : i]) > 0).sum() == 1
-    ]
+    solitarias = [i for i in range(12, n) if (np.asarray(v[i - 12 : i]) > 0).sum() == 1]
     assert solitarias, "a serie nao produziu janela com um unico positivo"
 
     for i in solitarias:

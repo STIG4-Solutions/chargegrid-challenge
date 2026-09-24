@@ -112,6 +112,13 @@ async def previsao_do_site(db: AsyncSession, site_id: uuid.UUID) -> dict:
         await db.execute(
             select(SiteForecast)
             .where(SiteForecast.site_id == site_id)
+            # `granularidade` EXPLICITA. Esta rota sempre falou do total do mes, e
+            # ate' existir uma segunda janela o filtro era desnecessario. Agora
+            # existem cinco: sem ele, `order_by ... limit 1` devolveria a linha
+            # mais recente de QUALQUER janela - uma hora, provavelmente - e a tela
+            # de demanda contratada mostraria o consumo de uma hora como se fosse
+            # o do mes. Nao daria erro em lugar nenhum.
+            .where(SiteForecast.granularidade == "mes")
             .order_by(SiteForecast.competencia.desc(), SiteForecast.gerado_em.desc())
             .limit(1)
         )
