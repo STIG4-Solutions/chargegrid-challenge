@@ -5,11 +5,11 @@ instrucoes). Sem esta coluna, o custo estimado a partir de `tokens_entrada`
 fica maior do que a fatura, e a cota diaria de tokens nao tem como saber quanto
 do consumo foi barato.
 
-Coluna nova numa migration nova, e nao na 0028: uma migration ja' aplicada nao
+Coluna nova numa migration nova, e nao na 0029: uma migration ja' aplicada nao
 muda, senao o schema passa a depender de QUANDO cada banco rodou.
 
-Revision ID: 0029_tokens_em_cache
-Revises: 0028_assistente
+Revision ID: 0030_tokens_em_cache
+Revises: 0029_assistente
 Create Date: 2026-09-23
 """
 
@@ -19,8 +19,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0029_tokens_em_cache"
-down_revision: str | None = "0028_assistente"
+revision: str = "0030_tokens_em_cache"
+down_revision: str | None = "0029_assistente"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

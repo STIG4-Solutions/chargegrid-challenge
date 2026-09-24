@@ -7,8 +7,8 @@ numero que o modelo respondeu.
 A FK da mensagem se chama `conversa_id`: com `conversation_id` a convencao de
 nome da FK passava de 60 caracteres, e o Postgres trunca em 63 sem avisar.
 
-Revision ID: 0028_assistente
-Revises: 0027_catalogo_de_planos
+Revision ID: 0029_assistente
+Revises: 0028_previsao_por_janela
 Create Date: 2026-09-23
 """
 
@@ -19,8 +19,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0028_assistente"
-down_revision: str | None = "0027_catalogo_de_planos"
+revision: str = "0029_assistente"
+down_revision: str | None = "0028_previsao_por_janela"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
