@@ -31,7 +31,7 @@ from __future__ import annotations
 import uuid
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import Date, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.forecast import SiteForecast
@@ -76,6 +76,16 @@ def _bucket(linha: SiteForecast) -> dict:
 
 def _float(valor) -> float | None:
     return None if valor is None else float(valor)
+
+
+def _mes_corrente():
+    """O primeiro dia do mes de HOJE, calculado no banco.
+
+    No banco e nao em Python de proposito: o `CURRENT_DATE` do Postgres e' o mesmo
+    relogio que carimba as linhas, e uma comparacao entre datas de relogios
+    diferentes erra no virar do mes em fuso diferente.
+    """
+    return cast(func.date_trunc("month", func.current_date()), Date)
 
 
 def _avisos(linha: SiteForecast) -> list[dict]:
@@ -149,7 +159,24 @@ async def previsao_do_site(db: AsyncSession, site_id: uuid.UUID) -> dict:
             # de demanda contratada mostraria o consumo de uma hora como se fosse
             # o do mes. Nao daria erro em lugar nenhum.
             .where(SiteForecast.granularidade == "mes")
-            .order_by(SiteForecast.competencia.desc(), SiteForecast.gerado_em.desc())
+            # O PROXIMO mes, e nao o mais distante.
+            #
+            # Era `competencia DESC`, que significava "a previsao mais recente"
+            # enquanto havia UMA linha mensal por praca. O job de janelas passou a
+            # gravar doze, e `DESC` comecou a devolver agosto do ano seguinte -
+            # que vem de regua - no lugar do mes que vem, que vem do modelo. A
+            # tela de demanda contratada mostrava o numero errado, sem erro
+            # nenhum. Encontrado conferindo o banco depois da primeira execucao.
+            #
+            # Prefere bucket futuro; entre futuros, o mais proximo. Se TODOS
+            # estiverem no passado - job parado ha meses - devolve o menos velho
+            # em vez de dizer que nao ha previsao: a competencia vai na resposta e
+            # a tela mostra de quando e'.
+            .order_by(
+                (SiteForecast.competencia >= _mes_corrente()).desc(),
+                func.abs(SiteForecast.competencia - _mes_corrente()).asc(),
+                SiteForecast.gerado_em.desc(),
+            )
             .limit(1)
         )
     ).scalar_one_or_none()
