@@ -20,19 +20,39 @@ from datetime import date
 import pandas as pd
 from sqlalchemy import create_engine, text
 
-# O arquetipo do local nao existe como coluna: o ChargeGrid nao precisa dele para
-# operar, e criar a coluna so' para o modelo poe uma decisao de modelagem dentro
-# do dominio de quem administra potencia.
+# O arquetipo do local continua NAO existindo como coluna: o ChargeGrid nao
+# precisa dele para operar, e criar a coluna so' para o modelo poria uma decisao
+# de modelagem dentro do dominio de quem administra potencia. A decisao segue
+# aqui, ao lado de quem consome.
 #
-# Vive aqui, ao lado de quem consome, e o padrao e' declarado: local desconhecido
-# vira "corporativo" - o perfil mais neutro dos quatro - e nao quebra o treino.
-ARQUETIPOS = {
-    "lab-fiap-eco-station": "corporativo",
-    "shopping-morumbi-g3": "shopping",
-    "posto-anhanguera-km-68": "rodovia",
-    "residencial-vila-mariana": "condominio",
-}
-ARQUETIPO_PADRAO = "corporativo"
+# O QUE MUDOU: era um mapa de SLUG para arquetipo, escrito a mao. Isso bastava
+# enquanto so' o seed criava praca. Desde que o painel ganhou "Nova praca",
+# qualquer praca nascida pelo produto caia em "corporativo" por omissao - e
+# silenciosamente, porque um padrao nao avisa. Foi o que aconteceu no staging, com
+# duas pracas novas que o modelo leria como corporativas.
+#
+# Agora sai do HARDWARE, que o proprio banco declara. Uma praca nova nasce
+# classificada, sem ninguem editar codigo.
+#
+# O limite de 100 kW separa rodovia de shopping porque e' onde o negocio muda, nao
+# por gosto: ninguem para tres horas na estrada, e um DC de 150 kW existe para
+# encher o tanque em quinze minutos. Abaixo disso o carro fica enquanto a pessoa
+# faz outra coisa.
+LIMITE_DC_DE_RODOVIA_KW = 100.0
+
+
+def arquetipo_de(tem_dc: bool, tem_trifasico: bool, potencia_kw: float) -> str:
+    """O carater do local, deduzido do equipamento instalado.
+
+    E' PROXY, e vale dizer onde ele erra: um shopping que instale DC de 150 kW
+    sera' lido como rodovia. O erro e' de perfil, nao de operacao - o modelo
+    aprende a sazonalidade errada para aquela praca -, e some quando houver
+    operacao real para medir. O alternativo era continuar com a lista de slugs,
+    que erra em TODA praca nova.
+    """
+    if tem_dc:
+        return "rodovia" if potencia_kw >= LIMITE_DC_DE_RODOVIA_KW else "shopping"
+    return "corporativo" if tem_trifasico else "condominio"
 
 
 # O driver deste processo. `psycopg` e nao `asyncpg`: o pipeline e' pandas, e
@@ -187,7 +207,16 @@ def carregar(engine, ate: date | None = None) -> tuple[pd.DataFrame, pd.DataFram
         raise SystemExit("nenhum site no banco - rode o seed antes")
 
     estacoes["archetype"] = (
-        estacoes["location_id"].map(ARQUETIPOS).fillna(ARQUETIPO_PADRAO).astype("string")
+        estacoes.apply(
+            lambda linha: arquetipo_de(
+                bool(linha["tem_dc"]),
+                bool(linha["tem_trifasico"]),
+                float(linha["max_electric_power"]),
+            ),
+            axis=1,
+        ).astype("string")
+        if len(estacoes)
+        else pd.Series([], dtype="string")
     )
     estacoes["power_type"] = estacoes.apply(_tipo_de_potencia, axis=1).astype("string")
     estacoes["location_id"] = estacoes["location_id"].astype("string")
@@ -238,6 +267,25 @@ def _grade_completa(estacoes: pd.DataFrame, medido: pd.DataFrame, ate: date) -> 
                 }
             )
         )
+    if not pedacos:
+        # TODA praca nasceu depois do corte. `pd.concat([])` levanta
+        # "No objects to concatenate", que nao diz nada a quem abre a execucao -
+        # foi o que a primeira corrida do job em staging produziu, onde a unica
+        # praca abriu em 2026-09-03 contra um corte em 2026-08-31.
+        #
+        # Nao ha painel possivel aqui, e insistir seria pior: o modelo exige 150
+        # dias de energia e a media movel exige 28. A mensagem diz o corte, a
+        # praca mais antiga, e o que fazer.
+        mais_antiga = pd.to_datetime(estacoes["opened_at"]).min()
+        raise SystemExit(
+            f"nenhuma praca havia aberto ate' {fim.date()}. A mais antiga abriu "
+            f"em {mais_antiga.date()}, {(mais_antiga - fim).days} dia(s) DEPOIS "
+            "do corte. O corte padrao de `treinar.py` e' o ultimo dia do mes "
+            "anterior; use `--ate` para alcancar a operacao que existe, ou espere "
+            "haver historico. O modelo pede 150 dias de energia por praca, e a "
+            "media movel pede 28."
+        )
+
     grade = pd.concat(pedacos, ignore_index=True)
     grade["location_id"] = grade["location_id"].astype("string")
 

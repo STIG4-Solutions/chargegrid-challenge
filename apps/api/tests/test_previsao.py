@@ -9,7 +9,7 @@ media movel, ou uma faixa que cobre 56% quando promete 80%, e' pior que numero
 nenhum quando aparece sozinho: parece confiavel.
 """
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -19,11 +19,16 @@ from app.models.forecast import SiteForecast
 from app.services import forecast_service
 
 COMPETENCIA = date(2026, 10, 1)
+# O inicio do bucket, agora obrigatorio. Na janela mensal ele e' o primeiro
+# instante da competencia; nas outras e' o que diz QUAL hora, dia ou semana.
+BUCKET = datetime(2026, 10, 1, tzinfo=UTC)
 
 
 async def _previsao(db, site, **kwargs):
     dados = dict(
-        site_id=site.id,
+        site_id=None if site is None else site.id,
+        granularidade="mes",
+        bucket_inicio=BUCKET,
         competencia=COMPETENCIA,
         gerado_em=datetime.now(UTC),
         kwh_previsto=Decimal("8283.0"),
@@ -41,6 +46,14 @@ async def _previsao(db, site, **kwargs):
         wape_baseline_pct=Decimal("10.4"),
     )
     dados.update(kwargs)
+    # Na janela mensal `bucket_inicio` e `competencia` falam da MESMA coisa, e
+    # tem de concordar: um teste que troca so' a competencia esperava duas linhas
+    # distintas e ganhava duas iguais, colidindo na chave unica. Quem quiser
+    # dissocia-los passa `bucket_inicio` explicito - e' o caso das outras janelas.
+    if "bucket_inicio" not in kwargs:
+        dados["bucket_inicio"] = datetime.combine(
+            dados["competencia"], datetime.min.time(), tzinfo=UTC
+        )
     linha = SiteForecast(**dados)
     db.add(linha)
     await db.flush()
@@ -72,12 +85,44 @@ async def test_com_linha_a_resposta_traz_os_numeros(db, site):
     assert saida["avisos"] == [], saida["avisos"]
 
 
-async def test_a_previsao_mais_recente_vence(db, site):
-    await _previsao(db, site, competencia=date(2026, 8, 1), kwh_previsto=Decimal("1"))
-    await _previsao(db, site, competencia=COMPETENCIA, kwh_previsto=Decimal("999"))
+async def test_o_proximo_mes_vence_e_nao_o_mais_distante(db, site):
+    """A tela pergunta "quanto vendo no MES QUE VEM", nao em agosto do ano seguinte.
+
+    Este teste ja' afirmou o contrario. Enquanto havia UMA linha mensal por praca,
+    `competencia DESC` queria dizer "a previsao mais recente" e bastava. O job de
+    janelas passou a gravar doze meses a frente, e `DESC` comecou a devolver o mais
+    DISTANTE - que vem de regua - no lugar do mes que vem, que vem do modelo. A
+    tela mostrava o numero errado sem erro nenhum, e so' conferindo o banco depois
+    de uma execucao real isso apareceu.
+    """
+    proximo = date.today().replace(day=1) + timedelta(days=31)
+    proximo = proximo.replace(day=1)
+    longe = proximo + timedelta(days=300)
+    longe = longe.replace(day=1)
+
+    await _previsao(db, site, competencia=longe, kwh_previsto=Decimal("1"))
+    await _previsao(db, site, competencia=proximo, kwh_previsto=Decimal("999"))
 
     saida = await forecast_service.previsao_do_site(db, site.id)
     assert saida["kwh_previsto"] == pytest.approx(999.0)
+    assert saida["competencia"] == proximo.isoformat()
+
+
+async def test_com_tudo_no_passado_serve_o_menos_velho(db, site):
+    """Job parado ha meses: mostrar a ultima previsao e' melhor que dizer que nao ha.
+
+    A competencia vai na resposta, entao a tela diz de quando o numero e'.
+    """
+    antigo = date.today().replace(day=1) - timedelta(days=400)
+    antigo = antigo.replace(day=1)
+    menos_velho = date.today().replace(day=1) - timedelta(days=40)
+    menos_velho = menos_velho.replace(day=1)
+
+    await _previsao(db, site, competencia=antigo, kwh_previsto=Decimal("1"))
+    await _previsao(db, site, competencia=menos_velho, kwh_previsto=Decimal("555"))
+
+    saida = await forecast_service.previsao_do_site(db, site.id)
+    assert saida["kwh_previsto"] == pytest.approx(555.0)
 
 
 # --------------------------------------------------------------------- avisos
@@ -223,11 +268,110 @@ async def test_banco_recusa_fonte_desconhecida(db, site):
         await _previsao(db, site, fonte="chute")
 
 
-async def test_banco_recusa_duas_previsoes_da_mesma_competencia(db, site):
-    """A previsao vigente de um mes e' uma so'."""
+async def test_banco_recusa_duas_previsoes_da_mesma_janela(db, site):
+    """A previsao vigente de uma janela e' uma so'.
+
+    Reexecutar o job atualiza a linha; sem esta guarda ele empilharia versoes e
+    ninguem saberia qual vale.
+    """
     await _previsao(db, site)
     with pytest.raises(IntegrityError):
         await _previsao(db, site)
+
+
+async def test_janelas_diferentes_da_mesma_praca_convivem(db, site):
+    """Cinco janelas por praca e' o ponto inteiro da tabela nova.
+
+    Enquanto a chave era `(site_id, competencia)`, a segunda janela do mesmo mes
+    colidia na primeira gravacao.
+    """
+    await _previsao(db, site, granularidade="mes")
+    await _previsao(db, site, granularidade="dia", fonte="media_dow", kwh_p10=None, kwh_p90=None)
+    await _previsao(db, site, granularidade="hora", fonte="perfil_hora")
+    # Nenhuma das tres levantou: a chave agora inclui a granularidade.
+
+
+async def test_o_banco_recusa_duas_linhas_da_REDE_na_mesma_janela(db, site):
+    """`site_id IS NULL` significa a rede toda - e NULL tem de conflitar com NULL.
+
+    E' o motivo de a chave ser `UNIQUE NULLS NOT DISTINCT`. No padrao do SQL dois
+    NULL nunca conflitam, logo esta segunda insercao passaria e cada execucao do
+    job empilharia uma versao da previsao da rede.
+    """
+    await _previsao(db, None)
+    with pytest.raises(IntegrityError):
+        await _previsao(db, None)
+
+
+async def test_a_linha_da_rede_nao_colide_com_a_da_praca(db, site):
+    """Mesma janela, escopos diferentes: sao duas previsoes legitimas."""
+    await _previsao(db, site)
+    await _previsao(db, None)
+
+
+async def test_banco_recusa_granularidade_desconhecida(db, site):
+    with pytest.raises(IntegrityError):
+        await _previsao(db, site, granularidade="quinzena")
+
+
+async def test_a_faixa_e_permitida_no_perfil_horario(db, site):
+    """Na janela de uma HORA a faixa e' o produto.
+
+    Medido: a melhor regua horaria erra 50,17% na rede e a referencia que usa o
+    futuro erra 50,22% - folga de -0,05 ponto. O erro e' ruido de contagem, e o
+    numero honesto ali nao e' um ponto. O CHECK antigo exigia `fonte = 'modelo'`
+    e proibiria justamente o caso que mais precisa de banda.
+    """
+    await _previsao(db, site, granularidade="hora", fonte="perfil_hora")
+
+
+async def test_a_media_por_dia_da_semana_continua_sem_faixa(db, site):
+    """Media nao declara quantil. Desenhar incerteza em volta dela seria invencao."""
+    with pytest.raises(IntegrityError):
+        await _previsao(db, site, fonte="media_dow")
+
+
+# ------------------------------------------------------- a janela que a rota le'
+
+
+async def test_a_rota_mensal_ignora_as_outras_janelas(db, site):
+    """O defeito latente que a tabela nova criaria, se ninguem filtrasse.
+
+    `previsao_do_site` fazia `order_by(competencia desc, gerado_em desc).limit(1)`
+    sem dizer a granularidade. Com cinco janelas gravadas, a linha mais recente e'
+    quase sempre uma HORA - e a aba de demanda contratada mostraria o consumo de
+    uma hora onde deveria estar o do mes. Sem erro em lugar nenhum.
+
+    Aqui a linha horaria tem competencia POSTERIOR de proposito: sem o filtro ela
+    venceria a ordenacao, e o teste morre.
+    """
+    await _previsao(db, site, granularidade="mes", kwh_previsto=Decimal("8283.0"))
+    await _previsao(
+        db,
+        site,
+        granularidade="hora",
+        fonte="perfil_hora",
+        competencia=date(2026, 11, 1),
+        bucket_inicio=datetime(2026, 11, 1, 20, tzinfo=UTC),
+        kwh_previsto=Decimal("41.0"),
+    )
+
+    saida = await forecast_service.previsao_do_site(db, site.id)
+    assert saida["disponivel"] is True
+    assert saida["kwh_previsto"] == pytest.approx(8283.0)
+    assert saida["competencia"] == "2026-10-01"
+
+
+async def test_a_rota_da_praca_nao_devolve_a_linha_da_rede(db, site):
+    """A previsao da rede e' de administrador, e nao cabe na tela de uma praca.
+
+    `site_id == :id` ja' exclui NULL por definicao do SQL, e este teste existe
+    para que isso continue verdadeiro se alguem trocar o filtro por um `in_`.
+    """
+    await _previsao(db, None, kwh_previsto=Decimal("99999.0"))
+
+    saida = await forecast_service.previsao_do_site(db, site.id)
+    assert saida["disponivel"] is False
 
 
 # ------------------------------------------------------------------- isolamento

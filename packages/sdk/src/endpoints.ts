@@ -96,6 +96,34 @@ export const power = {
    * resposta vem com `disponivel: false` e um motivo - nao e' erro.
    */
   energyForecast: () => api.get<Record<string, unknown>>('/power/demand/energy-forecast'),
+  /**
+   * A mesma previsao em SERIE, na janela pedida: hora, dia, semana, mes ou ano.
+   *
+   * Coexiste com `energyForecast` de proposito. A aba de demanda contratada
+   * precisa de UM numero - o total do proximo mes -, e o painel de analise
+   * precisa da curva. Sem previsao, `disponivel: false` com o motivo.
+   *
+   * `quantos` e' opcional: cada janela tem um padrao proprio (48 horas, 30 dias,
+   * 12 meses) e um teto proprio, aplicados no servidor.
+   */
+  energyForecastSeries: (janela = 'mes', quantos?: number) =>
+    api.get<Record<string, unknown>>('/power/demand/energy-forecast/series', {
+      janela,
+      ...(quantos === undefined ? {} : { quantos })
+    }),
+  /**
+   * A previsao da REDE INTEIRA, somando as pracas. ADMINISTRADOR.
+   *
+   * Existe separada porque a janela de uma HORA so' tem densidade aqui: a celula
+   * hora x praca tem 20% de ocupacao, contra 54% da rede. E um total de rede com
+   * poucas pracas permite inferir o movimento das outras, entao quem opera uma
+   * praca ve' a praca dele.
+   */
+  energyForecastNetwork: (janela = 'mes', quantos?: number) =>
+    api.get<Record<string, unknown>>('/power/demand/energy-forecast/network', {
+      janela,
+      ...(quantos === undefined ? {} : { quantos })
+    }),
   priorityRules: () => api.get<Record<string, unknown>[]>('/power/priority-rules'),
   createPriorityRule: (dados: Record<string, unknown>) =>
     api.post<Record<string, unknown>>('/power/priority-rules', dados),

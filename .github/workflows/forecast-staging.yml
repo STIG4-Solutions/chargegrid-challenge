@@ -93,6 +93,17 @@ jobs:
             python exportar.py
           fi
 
+      # As outras quatro janelas, mais a previsao da REDE. Passo separado do
+      # anterior porque o anterior grava SO' o mes+1 de cada praca, que e' o unico
+      # bucket que o modelo consegue prever - ele e' um previsor direto de um mes a
+      # frente, e para o mes+2 o historico que as features descrevem nao existe
+      # ainda. As demais janelas saem de regua, e `fonte` diz qual em cada linha.
+      #
+      # Depois do export mensal, e nao antes: os dois gravam na mesma tabela, e
+      # este confia que o bucket mensal mais proximo ja' foi escrito por aquele.
+      - name: Publish the other windows
+        run: python exportar_janelas.py
+
       # O numero que decide se o modelo entra ou se a media movel prevalece.
       # Vai para o resumo do job porque e' a leitura que interessa a quem abrir
       # a execucao - sem isso seria preciso baixar um JSON para saber se o
