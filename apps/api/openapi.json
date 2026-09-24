@@ -2174,6 +2174,165 @@
         }
       }
     },
+    "/api/v1/power/demand/energy-forecast/series": {
+      "get": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "Demand Energy Forecast Series",
+        "description": "A previsao desta praca na janela pedida, em serie.\n\nA rota irma sem `/series` responde UM numero: o total do proximo mes. Esta\nresponde a curva - as proximas 48 horas, os proximos 30 dias, os proximos 12\nmeses. As duas coexistem de proposito: a aba de demanda contratada precisa do\nnumero unico, e o painel de analise precisa da serie.\n\nNAO tem janela de HORA por praca com valor pontual util, e a resposta nao\nesconde isso: a celula hora x praca tem 20% de ocupacao contra 54% da rede, e\na faixa p10-p90 e' o que se entrega ali. Quem quiser a hora com densidade\npede a rota `/network`.",
+        "operationId": "demand_energy_forecast_series_api_v1_power_demand_energy_forecast_series_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "janela",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(hora|dia|semana|mes|ano)$",
+              "default": "mes",
+              "title": "Janela"
+            }
+          },
+          {
+            "name": "quantos",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 3360,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Quantos"
+            }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Demand Energy Forecast Series Api V1 Power Demand Energy Forecast Series Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/power/demand/energy-forecast/network": {
+      "get": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "Demand Energy Forecast Network",
+        "description": "A previsao da REDE INTEIRA, somando todas as pracas.\n\nPor que existe: a celula hora x praca tem 20% de ocupacao e 1,26 sessao\nquando ocupada - prever quanto uma praca vende as 15h de uma quarta e' prever\nse um carro especifico aparece. A mesma celula na rede tem 54%, e no plato\ndiurno chega a 79% dos dias. A janela de uma hora so' tem sentido aqui.\n\nADMINISTRADOR, e nao operador. Nao ha `ScopedSiteId` nesta rota porque nao ha\nsite: a linha da rede tem `site_id NULL`. E um total de rede com poucas pracas\npermite inferir o movimento das outras - com duas, por subtracao exata. Quem\nopera uma praca ve' a praca dele.",
+        "operationId": "demand_energy_forecast_network_api_v1_power_demand_energy_forecast_network_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "janela",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(hora|dia|semana|mes|ano)$",
+              "default": "mes",
+              "title": "Janela"
+            }
+          },
+          {
+            "name": "quantos",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 3360,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Quantos"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Demand Energy Forecast Network Api V1 Power Demand Energy Forecast Network Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/power/demand/energy-forecast": {
       "get": {
         "tags": [

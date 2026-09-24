@@ -666,6 +666,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/power/demand/energy-forecast/series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Demand Energy Forecast Series
+         * @description A previsao desta praca na janela pedida, em serie.
+         *
+         *     A rota irma sem `/series` responde UM numero: o total do proximo mes. Esta
+         *     responde a curva - as proximas 48 horas, os proximos 30 dias, os proximos 12
+         *     meses. As duas coexistem de proposito: a aba de demanda contratada precisa do
+         *     numero unico, e o painel de analise precisa da serie.
+         *
+         *     NAO tem janela de HORA por praca com valor pontual util, e a resposta nao
+         *     esconde isso: a celula hora x praca tem 20% de ocupacao contra 54% da rede, e
+         *     a faixa p10-p90 e' o que se entrega ali. Quem quiser a hora com densidade
+         *     pede a rota `/network`.
+         */
+        get: operations["demand_energy_forecast_series_api_v1_power_demand_energy_forecast_series_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/power/demand/energy-forecast/network": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Demand Energy Forecast Network
+         * @description A previsao da REDE INTEIRA, somando todas as pracas.
+         *
+         *     Por que existe: a celula hora x praca tem 20% de ocupacao e 1,26 sessao
+         *     quando ocupada - prever quanto uma praca vende as 15h de uma quarta e' prever
+         *     se um carro especifico aparece. A mesma celula na rede tem 54%, e no plato
+         *     diurno chega a 79% dos dias. A janela de uma hora so' tem sentido aqui.
+         *
+         *     ADMINISTRADOR, e nao operador. Nao ha `ScopedSiteId` nesta rota porque nao ha
+         *     site: a linha da rede tem `site_id NULL`. E um total de rede com poucas pracas
+         *     permite inferir o movimento das outras - com duas, por subtracao exata. Quem
+         *     opera uma praca ve' a praca dele.
+         */
+        get: operations["demand_energy_forecast_network_api_v1_power_demand_energy_forecast_network_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/power/demand/energy-forecast": {
         parameters: {
             query?: never;
@@ -4873,6 +4933,76 @@ export interface operations {
         parameters: {
             query?: {
                 dias?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    demand_energy_forecast_series_api_v1_power_demand_energy_forecast_series_get: {
+        parameters: {
+            query?: {
+                janela?: string;
+                quantos?: number | null;
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    demand_energy_forecast_network_api_v1_power_demand_energy_forecast_network_get: {
+        parameters: {
+            query?: {
+                janela?: string;
+                quantos?: number | null;
             };
             header?: never;
             path?: never;
