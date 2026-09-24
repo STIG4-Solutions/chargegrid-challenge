@@ -28,6 +28,7 @@ const saidaContas = join(cache, 'contas.mjs')
 const saidaAnalytics = join(cache, 'analytics.mjs')
 const saidaCarteira = join(cache, 'carteira.mjs')
 const saidaPraca = join(cache, 'praca.mjs')
+const saidaAssistente = join(cache, 'assistente.mjs')
 
 // Só os módulos puros entram. Importar um `.jsx` puxaria React e o SDK inteiro
 // para dentro do Node — e o que se quer verificar não depende de nenhum deles.
@@ -45,7 +46,8 @@ for (const [entrada, destino] of [
   ['src/views/ev/contas.js', saidaContas],
   ['src/views/ev/analytics.js', saidaAnalytics],
   ['src/views/ev/carteira.js', saidaCarteira],
-  ['src/views/ev/praca.js', saidaPraca]
+  ['src/views/ev/praca.js', saidaPraca],
+  ['src/views/ev/assistente.js', saidaAssistente]
 ]) {
   await build({
     entryPoints: [join(raiz, entrada)],
@@ -107,6 +109,8 @@ const { problemaNoAjuste, deixariaNegativo, corpoDoAjuste, mensagemDoAjuste } = 
 const { sugerirSlug, problemaNaPraca, corpoDaPraca, mensagemDaPraca } = await import(
   pathToFileURL(saidaPraca).href
 )
+
+const assistente = await import(pathToFileURL(saidaAssistente).href)
 
 const { enderecoDaApi } = await import('./dominios.mjs')
 
@@ -1031,6 +1035,163 @@ check(
 )
 
 // ---------------------------------------------------------------------------
+// Assistente: o reducer da conversa e o Markdown da resposta.
+{
+  const {
+    reduzir,
+    estadoInicial,
+    problemaNaPergunta,
+    sugestoesDaAba,
+    blocosMarkdown,
+    partesEmLinha
+  } = assistente
+  const passar = (acoes, estado = estadoInicial()) => acoes.reduce(reduzir, estado)
+  const ultima = (e) => e.mensagens[e.mensagens.length - 1]
+
+  const respondida = passar([
+    { tipo: 'enviar', texto: 'Como está?' },
+    { tipo: 'meta', conversa_id: 'c1', mensagem_id: 'm1' },
+    { tipo: 'ferramenta', nome: 'potencia_agora', rotulo: 'Consultando', estado: 'inicio' }
+  ])
+  check(
+    'assistente: consulta em andamento aparece na resposta',
+    ultima(respondida).consulta === 'Consultando'
+  )
+  check('assistente: meta fixa a conversa', respondida.conversaId === 'c1')
+
+  const pronta = passar(
+    [
+      {
+        tipo: 'ferramenta',
+        nome: 'potencia_agora',
+        rotulo: 'Consultando',
+        estado: 'fim',
+        ok: true
+      },
+      { tipo: 'delta', texto: 'São ' },
+      { tipo: 'delta', texto: '55 kW.' },
+      { tipo: 'fim', mensagem_id: 'm2', tokens_entrada: 1, tokens_saida: 1 }
+    ],
+    respondida
+  )
+  check(
+    'assistente: deltas acumulam e o fim libera o envio',
+    ultima(pronta).texto === 'São 55 kW.' && ultima(pronta).estado === 'pronta' && !pronta.enviando,
+    JSON.stringify(ultima(pronta))
+  )
+  check('assistente: pergunta fica antes da resposta', pronta.mensagens[0].papel === 'user')
+
+  const barrada = passar(
+    [
+      { tipo: 'delta', texto: 'texto que o filtro barrou' },
+      { tipo: 'bloqueado', motivo: 'saida', mensagem: 'A resposta foi barrada.' }
+    ],
+    passar([{ tipo: 'enviar', texto: 'x' }])
+  )
+  check(
+    'assistente: bloqueio DESCARTA o parcial e mostra o aviso',
+    ultima(barrada).texto === 'A resposta foi barrada.' && ultima(barrada).estado === 'bloqueada',
+    ultima(barrada).texto
+  )
+
+  const outraPraca = passar(
+    [{ tipo: 'falhou', status: 409, mensagem: 'esta conversa é de outra praça' }],
+    passar([
+      { tipo: 'conversa', id: 'c9' },
+      { tipo: 'enviar', texto: 'x' }
+    ])
+  )
+  check(
+    'assistente: 409 esquece a conversa, para a proxima abrir outra',
+    outraPraca.conversaId === null && outraPraca.aviso !== null && !outraPraca.enviando
+  )
+  const cota = passar(
+    [{ tipo: 'falhou', status: 429, mensagem: 'limite de 6 mensagens por minuto' }],
+    passar([
+      { tipo: 'conversa', id: 'c9' },
+      { tipo: 'enviar', texto: 'x' }
+    ])
+  )
+  check(
+    'assistente: 429 mantem a conversa',
+    cota.conversaId === 'c9' && ultima(cota).estado === 'erro'
+  )
+
+  const parada = passar([{ tipo: 'parado' }], passar([{ tipo: 'enviar', texto: 'x' }]))
+  check(
+    'assistente: parar antes do primeiro delta deixa aviso, e nao bolha vazia',
+    ultima(parada).texto === 'Resposta interrompida.' && ultima(parada).estado === 'interrompida'
+  )
+  check(
+    'assistente: evento desconhecido nao muda nada',
+    reduzir(pronta, { tipo: 'versao-futura' }) === pronta
+  )
+  check(
+    'assistente: historico barrado volta como bloqueado',
+    reduzir(estadoInicial(), {
+      tipo: 'carregar',
+      id: 'c1',
+      mensagens: [{ id: 'a', papel: 'assistant', conteudo: 'Barrada.', bloqueio: 'jailbreak' }]
+    }).mensagens[0].estado === 'bloqueada'
+  )
+
+  check('assistente: pergunta vazia nao vai', problemaNaPergunta('   ', 100) !== null)
+  check('assistente: pergunta no limite vai', problemaNaPergunta('a'.repeat(100), 100) === null)
+  check(
+    'assistente: pergunta acima do limite nao vai',
+    problemaNaPergunta('a'.repeat(101), 100) !== null
+  )
+  check(
+    'assistente: sugestoes da aba vem primeiro, no maximo tres',
+    sugestoesDaAba('/ev/demand')[0].includes('demanda') && sugestoesDaAba('/ev/demand').length === 3
+  )
+  check(
+    'assistente: aba sem sugestao propria usa as gerais',
+    sugestoesDaAba('/qualquer').length === 3
+  )
+
+  const tabela = blocosMarkdown(
+    'Pontos:\n\n| Ponto | kW |\n|---|---:|\n| CP-01 | **11** |\n| CP-02 | 7 |'
+  )
+  check(
+    'markdown: tabela com cabecalho e duas linhas',
+    tabela[1]?.tipo === 'tabela' &&
+      tabela[1].linhas.length === 2 &&
+      mesmo(tabela[1].linhas[0][1], [{ t: 'forte', v: '11' }]),
+    JSON.stringify(tabela)
+  )
+  const lista = blocosMarkdown('- um\n- dois\n\n1. primeiro\n2. segundo')
+  check(
+    'markdown: listas com e sem numero viram blocos separados',
+    mesmo(
+      lista.map((b) => [b.tipo, b.itens.length]),
+      [
+        ['ul', 2],
+        ['ol', 2]
+      ]
+    )
+  )
+  check(
+    'markdown: html da resposta fica texto, nunca marcacao',
+    mesmo(blocosMarkdown('<img src=x onerror=alert(1)>'), [
+      { tipo: 'p', linhas: [[{ t: 'texto', v: '<img src=x onerror=alert(1)>' }]] }
+    ])
+  )
+  check(
+    'markdown: snake_case nao vira italico',
+    mesmo(partesEmLinha('campo valor_total_kw'), [{ t: 'texto', v: 'campo valor_total_kw' }])
+  )
+  check(
+    'markdown: tabela pela metade (ainda chegando) nao quebra',
+    Array.isArray(blocosMarkdown('| Ponto | kW |\n|---|'))
+  )
+  check(
+    'markdown: bloco de codigo sem fechamento (ainda chegando) nao quebra',
+    blocosMarkdown('```\nx = 1')[0]?.tipo === 'codigo'
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Todo `className` tem regra no CSS?
 //
 // Isto nasceu de um defeito real: a coluna de situacao da aba Contas usava
@@ -1100,5 +1261,6 @@ rmSync(saidaContrato, { force: true })
 rmSync(saidaAnalytics, { force: true })
 rmSync(saidaCarteira, { force: true })
 rmSync(saidaPraca, { force: true })
+rmSync(saidaAssistente, { force: true })
 console.log(falhas === 0 ? '\nTodos os cenarios passaram.' : `\n${falhas} falha(s).`)
 process.exit(falhas === 0 ? 0 : 1)
