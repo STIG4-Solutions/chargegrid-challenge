@@ -47,7 +47,10 @@ jobs:
   migrate:
     name: Migrate staging database
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Migrar leva segundos. Gerar historico leva minutos: quatro anos de uma praca
+    # de rodovia sao ~9.600 sessoes com fatura e linha de fatura, e a primeira
+    # execucao real levou 9m56s contra um teto de 10 - passou por quatro segundos.
+    timeout-minutes: 30
 
     defaults:
       run:
