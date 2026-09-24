@@ -164,4 +164,45 @@ describe('a seção de previsão por janela', () => {
     expect(screen.getByText('—')).toBeTruthy()
     expect(screen.queryByText(/R\$\s*0,00/)).toBeNull()
   })
+
+  it('o escopo rede so aparece para quem administra', () => {
+    // Um total da rede com poucas pracas permite inferir o movimento das outras -
+    // com duas, por subtracao exata. Quem opera uma praca ve' a praca dele, e a
+    // rota do servidor tambem recusa (`AdminUser`): esconder o botao e' a segunda
+    // camada, nao a unica.
+    const { unmount } = render(
+      <Previsao d={serie('dia', dias())} janela="dia" onJanela={semRuido} />
+    )
+    expect(screen.queryByRole('button', { name: 'Rede inteira' })).toBeNull()
+    unmount()
+
+    render(
+      <Previsao
+        d={serie('dia', dias())}
+        janela="dia"
+        onJanela={semRuido}
+        escopo="praca"
+        onEscopo={semRuido}
+        podeVerRede
+      />
+    )
+    expect(screen.getByRole('button', { name: 'Rede inteira' })).toBeTruthy()
+  })
+
+  it('no escopo da rede a tela explica por que ele e restrito', () => {
+    render(
+      <Previsao
+        d={serie('dia', dias(), { escopo: 'rede' })}
+        janela="dia"
+        onJanela={semRuido}
+        escopo="rede"
+        onEscopo={semRuido}
+        podeVerRede
+      />
+    )
+
+    expect(screen.getByText(/subtracao exata|subtração exata/)).toBeTruthy()
+    const botao = screen.getByRole('button', { name: 'Rede inteira' })
+    expect(botao.getAttribute('aria-pressed')).toBe('true')
+  })
 })

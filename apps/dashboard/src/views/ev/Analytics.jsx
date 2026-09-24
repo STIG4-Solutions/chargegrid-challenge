@@ -24,6 +24,7 @@
 
 import { power, sessions, useApi } from '@chargegrid/sdk'
 import { useState } from 'react'
+import { useAuth } from '../../auth/AuthContext.jsx'
 import { Async } from '../../components/Async.jsx'
 import {
   comoKwh,
@@ -50,14 +51,19 @@ const JANELAS = [
 ]
 
 export default function Analytics() {
+  const { isAdmin } = useAuth()
   const [dias, setDias] = useState(30)
   const [janela, setJanela] = useState('dia')
+  const [escopo, setEscopo] = useState('praca')
   const serie = useApi(() => power.dailyAnalytics(dias), [dias], { pollMs: 300000 })
   // Uma hora de poll: quem escreve e' um job que roda fora da API, e nao adianta
   // perguntar de minuto em minuto por um numero que muda uma vez por dia.
-  const previsao = useApi(() => power.energyForecastSeries(janela), [janela], {
-    pollMs: 3600000
-  })
+  const previsao = useApi(
+    () =>
+      escopo === 'rede' ? power.energyForecastNetwork(janela) : power.energyForecastSeries(janela),
+    [janela, escopo],
+    { pollMs: 3600000 }
+  )
   const kpis = useApi(() => sessions.kpis(), [], { pollMs: 30000 })
   const pontos = useApi(() => power.utilizationByPoint(dias), [dias])
 
@@ -119,7 +125,16 @@ export default function Analytics() {
         onRetry={previsao.refetch}
         empty={null}
       >
-        {previsao.data && <Previsao d={previsao.data} janela={janela} onJanela={setJanela} />}
+        {previsao.data && (
+          <Previsao
+            d={previsao.data}
+            janela={janela}
+            onJanela={setJanela}
+            escopo={escopo}
+            onEscopo={setEscopo}
+            podeVerRede={isAdmin}
+          />
+        )}
       </Async>
 
       <Async
@@ -432,7 +447,7 @@ function Numero({ rotulo, valor, nota, variacao }) {
  * nenhum modelo pode ganhar — e a tela precisa dizer que aquilo é uma média, não
  * uma previsão, senão o operador contrata demanda pelo número errado.
  */
-export function Previsao({ d, janela, onJanela }) {
+export function Previsao({ d, janela, onJanela, escopo = 'praca', onEscopo, podeVerRede = false }) {
   const escolhida = JANELAS_DE_PREVISAO.find((j) => j.chave === janela)
 
   return (
@@ -466,6 +481,34 @@ export function Previsao({ d, janela, onJanela }) {
           ))}
         </div>
       </div>
+
+      {podeVerRede && (
+        <div style={{ marginBottom: 12 }}>
+          <div role="group" aria-label="Escopo da previsão" style={{ display: 'flex', gap: 6 }}>
+            {[
+              { chave: 'praca', rotulo: 'Esta praça' },
+              { chave: 'rede', rotulo: 'Rede inteira' }
+            ].map((e) => (
+              <button
+                key={e.chave}
+                className={escopo === e.chave ? 'btn btn-primary btn-sm' : 'btn btn-sm'}
+                aria-pressed={escopo === e.chave}
+                onClick={() => onEscopo?.(e.chave)}
+              >
+                {e.rotulo}
+              </button>
+            ))}
+          </div>
+          {escopo === 'rede' && (
+            <p className="muted" style={{ margin: '6px 0 0', fontSize: 12, lineHeight: 1.5 }}>
+              Soma de todas as praças, e só administrador vê. Com poucas praças, um total da rede
+              permite inferir o movimento das outras — com duas, por subtração exata. É também o
+              único escopo em que a janela de hora tem densidade: a célula hora×praça tem 20% de
+              ocupação, contra 54% da rede.
+            </p>
+          )}
+        </div>
+      )}
 
       {!d.disponivel ? (
         <p className="muted" style={{ margin: 0, fontSize: 13 }}>
