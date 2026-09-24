@@ -78,6 +78,24 @@ from pipeline.train import QUANTIS, VERSAO_PIPELINE, backtest, treinar_um  # noq
 # com a corrida anterior sobre os mesmos dados.
 DETERMINISMO = {"deterministic": True, "force_row_wise": True, "num_threads": 4}
 
+# A PERDA. O default do pipeline e' `l1`, que ajusta a MEDIANA condicional - e o
+# numero que vai para a tela e' uma SOMA de trinta dias. Somar medianas
+# subestima o total, porque energia diaria e' assimetrica a direita.
+#
+# `tweedie` com potencia 1,2 e' a perda para dado nao-negativo com massa em zero
+# e cauda a direita, que e' exatamente o processo aqui: contagem de sessoes
+# (Poisson) x energia por sessao (lognormal). Poisson composto.
+#
+# Medido em DOIS paineis independentes, com o mesmo walk-forward:
+#
+#   painel do ChargeGrid   l1 15,52%  ->  tweedie 12,69%   (passa a bater a regua)
+#   painel do projeto de    l1  7,78%  ->  tweedie  7,24%   (ja' batia, e melhora)
+#   origem, intocado
+#
+# `l2` melhorou so' no primeiro (7,79% no segundo, contra 7,78% do l1): era
+# artefato do dado. Tweedie melhora nos dois, e e' o que justifica a troca.
+PERDA = {"objective": "tweedie", "tweedie_variance_power": 1.2}
+
 # Reescrever a global do modulo, e nao passar parametro: `backtest` chama
 # `treinar_um` por dentro, e um parametro novo nao chegaria la sem tocar
 # `pipeline/`. O diretorio e' vendorizado do repositorio de modelagem e fica
@@ -85,7 +103,7 @@ DETERMINISMO = {"deterministic": True, "force_row_wise": True, "num_threads": 4}
 #
 # O backtest PRECISA usar os mesmos parametros do treino final: medir com uma
 # configuracao e publicar outra e' comparar coisas diferentes.
-_train.PARAMS = dict(_train.PARAMS, **DETERMINISMO)
+_train.PARAMS = dict(_train.PARAMS, **DETERMINISMO, **PERDA)
 PARAMS = _train.PARAMS
 
 # O piso do proprio pipeline. Abaixo disso o treino nao tem o que aprender, e

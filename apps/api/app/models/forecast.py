@@ -53,9 +53,19 @@ from app.db.base import Base, TimestampMixin, UUIDMixin
 class SiteForecast(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "site_forecasts"
     __table_args__ = (
-        # A previsao vigente de um mes e' uma so'. Reexecutar o job atualiza a
+        # A previsao vigente de uma janela e' uma so'. Reexecutar o job atualiza a
         # linha em vez de empilhar versoes que ninguem sabe qual vale.
-        UniqueConstraint("site_id", "competencia", name="uq_site_forecasts_site_competencia"),
+        #
+        # `NULLS NOT DISTINCT` (PostgreSQL 15+) e' o que sustenta a linha da REDE,
+        # onde `site_id` e' NULL: no padrao do SQL dois NULL nunca conflitam, logo
+        # a chave ignoraria essas linhas e cada execucao empilharia uma versao.
+        UniqueConstraint(
+            "site_id",
+            "granularidade",
+            "bucket_inicio",
+            name="uq_site_forecasts_janela",
+            postgresql_nulls_not_distinct=True,
+        ),
         # Banda sem os dois extremos nao e' banda. Ou ha p10 e p90, ou nao ha
         # nenhum dos dois - meio intervalo desenhado na tela mente sobre a
         # incerteza que o modelo declarou.
@@ -64,20 +74,41 @@ class SiteForecast(UUIDMixin, TimestampMixin, Base):
             " OR (kwh_p10 IS NOT NULL AND kwh_p90 IS NOT NULL)",
             name="banda_completa",
         ),
-        # A banda depende da FONTE, nao de `modelo_aplicavel`: ha um caso em
-        # que o modelo se aplica e mesmo assim nao e' usado, porque perde da
-        # regua. Desenhar incerteza em volta de uma media movel daria ares de
-        # previsao a uma conta de padaria.
-        CheckConstraint("fonte = 'modelo' OR kwh_p10 IS NULL", name="banda_so_do_modelo"),
-        CheckConstraint("fonte IN ('modelo', 'media_movel')", name="fonte_conhecida"),
+        # Banda so' de quem DECLARA quantil. Media movel e media por dia da semana
+        # sao medias: desenhar incerteza em volta delas daria ares de previsao a
+        # uma conta de padaria. Mas na janela de uma HORA a faixa e' o produto - a
+        # melhor regua erra 50% ali e a referencia que usa o futuro erra 50,2%, ou
+        # seja, o erro e' ruido de contagem e o numero honesto nao e' um ponto.
+        CheckConstraint(
+            "fonte IN ('modelo', 'perfil_hora', 'tendencia') OR kwh_p10 IS NULL",
+            name="banda_com_quantil",
+        ),
+        CheckConstraint(
+            "fonte IN ('modelo', 'media_movel', 'media_dow', 'perfil_hora', 'tendencia')",
+            name="fonte_conhecida",
+        ),
+        CheckConstraint(
+            "granularidade IN ('hora', 'dia', 'semana', 'mes', 'ano')",
+            name="granularidade_conhecida",
+        ),
         CheckConstraint("kwh_previsto >= 0", name="kwh_nao_negativo"),
         Index("ix_site_forecasts_competencia", "competencia"),
+        Index("ix_site_forecasts_janela", "granularidade", "bucket_inicio"),
     )
 
-    site_id: Mapped[uuid.UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("sites.id", ondelete="CASCADE"), nullable=False
+    # NULL significa A REDE INTEIRA. Medido: a celula hora x praca tem 20% de
+    # ocupacao contra 54% da rede - a hora de uma praca e' ruido, a da rede nao.
+    site_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("sites.id", ondelete="CASCADE"), nullable=True
     )
-    # Primeiro dia do mes previsto.
+    granularidade: Mapped[str] = mapped_column(
+        String(8), default="mes", server_default="mes", nullable=False
+    )
+    # O inicio do bucket previsto, COM fuso. `competencia` e' `Date` e nao
+    # resolve hora; esta coluna e' que permite dizer QUAL hora.
+    bucket_inicio: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # Primeiro dia do mes previsto. Redundante com `bucket_inicio` na janela
+    # mensal, e mantida porque a rota mensal e os testes dela a usam.
     competencia: Mapped[date] = mapped_column(Date, nullable=False)
     gerado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 

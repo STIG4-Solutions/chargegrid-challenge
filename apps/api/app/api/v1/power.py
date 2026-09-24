@@ -648,6 +648,55 @@ async def sites_portfolio(
     return await portfolio_service.visao_da_rede(db, dias=dias)
 
 
+@router.get("/demand/energy-forecast/series")
+async def demand_energy_forecast_series(
+    db: DbSession,
+    site_id: ScopedSiteId,
+    _: OperatorUser,
+    janela: str = Query(default="mes", pattern="^(hora|dia|semana|mes|ano)$"),
+    quantos: int | None = Query(default=None, ge=1, le=3360),
+) -> dict:
+    """A previsao desta praca na janela pedida, em serie.
+
+    A rota irma sem `/series` responde UM numero: o total do proximo mes. Esta
+    responde a curva - as proximas 48 horas, os proximos 30 dias, os proximos 12
+    meses. As duas coexistem de proposito: a aba de demanda contratada precisa do
+    numero unico, e o painel de analise precisa da serie.
+
+    NAO tem janela de HORA por praca com valor pontual util, e a resposta nao
+    esconde isso: a celula hora x praca tem 20% de ocupacao contra 54% da rede, e
+    a faixa p10-p90 e' o que se entrega ali. Quem quiser a hora com densidade
+    pede a rota `/network`.
+    """
+    from app.services import forecast_service
+
+    return await forecast_service.serie_por_janela(db, janela, site_id, quantos)
+
+
+@router.get("/demand/energy-forecast/network")
+async def demand_energy_forecast_network(
+    db: DbSession,
+    _: AdminUser,
+    janela: str = Query(default="mes", pattern="^(hora|dia|semana|mes|ano)$"),
+    quantos: int | None = Query(default=None, ge=1, le=3360),
+) -> dict:
+    """A previsao da REDE INTEIRA, somando todas as pracas.
+
+    Por que existe: a celula hora x praca tem 20% de ocupacao e 1,26 sessao
+    quando ocupada - prever quanto uma praca vende as 15h de uma quarta e' prever
+    se um carro especifico aparece. A mesma celula na rede tem 54%, e no plato
+    diurno chega a 79% dos dias. A janela de uma hora so' tem sentido aqui.
+
+    ADMINISTRADOR, e nao operador. Nao ha `ScopedSiteId` nesta rota porque nao ha
+    site: a linha da rede tem `site_id NULL`. E um total de rede com poucas pracas
+    permite inferir o movimento das outras - com duas, por subtracao exata. Quem
+    opera uma praca ve' a praca dele.
+    """
+    from app.services import forecast_service
+
+    return await forecast_service.serie_por_janela(db, janela, None, quantos)
+
+
 @router.get("/demand/energy-forecast")
 async def demand_energy_forecast(db: DbSession, site_id: ScopedSiteId, _: OperatorUser) -> dict:
     """Quanto este site deve VENDER no proximo mes, em kWh e em reais.

@@ -24,6 +24,7 @@
 
 import { power, sessions, useApi } from '@chargegrid/sdk'
 import { useState } from 'react'
+import { useAuth } from '../../auth/AuthContext.jsx'
 import { Async } from '../../components/Async.jsx'
 import {
   comoKwh,
@@ -34,6 +35,14 @@ import {
   tendencia,
   topoDaEscala
 } from './analytics.js'
+import {
+  JANELAS_DE_PREVISAO,
+  rotuloDaFonte,
+  rotuloDoBucket,
+  temFaixaNaSerie,
+  topoDaSerie,
+  totaisDaSerie
+} from './janelas.js'
 
 const JANELAS = [
   { dias: 7, rotulo: '7 dias' },
@@ -42,8 +51,19 @@ const JANELAS = [
 ]
 
 export default function Analytics() {
+  const { isAdmin } = useAuth()
   const [dias, setDias] = useState(30)
+  const [janela, setJanela] = useState('dia')
+  const [escopo, setEscopo] = useState('praca')
   const serie = useApi(() => power.dailyAnalytics(dias), [dias], { pollMs: 300000 })
+  // Uma hora de poll: quem escreve e' um job que roda fora da API, e nao adianta
+  // perguntar de minuto em minuto por um numero que muda uma vez por dia.
+  const previsao = useApi(
+    () =>
+      escopo === 'rede' ? power.energyForecastNetwork(janela) : power.energyForecastSeries(janela),
+    [janela, escopo],
+    { pollMs: 3600000 }
+  )
   const kpis = useApi(() => sessions.kpis(), [], { pollMs: 30000 })
   const pontos = useApi(() => power.utilizationByPoint(dias), [dias])
 
@@ -96,6 +116,25 @@ export default function Analytics() {
         empty={null}
       >
         {serie.data && <NoTempo d={serie.data} />}
+      </Async>
+
+      <Async
+        loading={previsao.loading}
+        error={previsao.error}
+        data={previsao.data}
+        onRetry={previsao.refetch}
+        empty={null}
+      >
+        {previsao.data && (
+          <Previsao
+            d={previsao.data}
+            janela={janela}
+            onJanela={setJanela}
+            escopo={escopo}
+            onEscopo={setEscopo}
+            podeVerRede={isAdmin}
+          />
+        )}
       </Async>
 
       <Async
@@ -391,6 +430,259 @@ function Numero({ rotulo, valor, nota, variacao }) {
           {nota}
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * A previsão nas cinco janelas: hora, dia, semana, mês e ano.
+ *
+ * O seletor é separado do de cima de propósito. O da janela de ANÁLISE recorta o
+ * passado — 7, 30, 90 dias medidos. Este recorta o FUTURO, e misturar os dois num
+ * controle só faria "30 dias" significar duas coisas na mesma tela.
+ *
+ * Cada janela diz DE ONDE veio o número. Não é rodapé: quatro das cinco são
+ * servidas por régua sem modelo, porque a folga medida entre a melhor régua e o
+ * ruído irredutível é de −0,05 ponto na hora e +3,38 no mês. Onde a folga é zero,
+ * nenhum modelo pode ganhar — e a tela precisa dizer que aquilo é uma média, não
+ * uma previsão, senão o operador contrata demanda pelo número errado.
+ */
+export function Previsao({ d, janela, onJanela, escopo = 'praca', onEscopo, podeVerRede = false }) {
+  const escolhida = JANELAS_DE_PREVISAO.find((j) => j.chave === janela)
+
+  return (
+    <div className="card" style={{ marginBottom: 16 }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          gap: 12,
+          flexWrap: 'wrap',
+          marginBottom: 12
+        }}
+      >
+        <div>
+          <h3 style={{ margin: '0 0 4px', fontSize: 15 }}>Previsão</h3>
+          <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+            {escolhida?.pergunta ?? 'O que vem pela frente'} — calculada fora da API.
+          </p>
+        </div>
+        <div role="group" aria-label="Janela de previsão" style={{ display: 'flex', gap: 6 }}>
+          {JANELAS_DE_PREVISAO.map((j) => (
+            <button
+              key={j.chave}
+              className={janela === j.chave ? 'btn btn-primary btn-sm' : 'btn btn-sm'}
+              aria-pressed={janela === j.chave}
+              onClick={() => onJanela(j.chave)}
+            >
+              {j.rotulo}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {podeVerRede && (
+        <div style={{ marginBottom: 12 }}>
+          <div role="group" aria-label="Escopo da previsão" style={{ display: 'flex', gap: 6 }}>
+            {[
+              { chave: 'praca', rotulo: 'Esta praça' },
+              { chave: 'rede', rotulo: 'Rede inteira' }
+            ].map((e) => (
+              <button
+                key={e.chave}
+                className={escopo === e.chave ? 'btn btn-primary btn-sm' : 'btn btn-sm'}
+                aria-pressed={escopo === e.chave}
+                onClick={() => onEscopo?.(e.chave)}
+              >
+                {e.rotulo}
+              </button>
+            ))}
+          </div>
+          {escopo === 'rede' && (
+            <p className="muted" style={{ margin: '6px 0 0', fontSize: 12, lineHeight: 1.5 }}>
+              Soma de todas as praças, e só administrador vê. Com poucas praças, um total da rede
+              permite inferir o movimento das outras — com duas, por subtração exata. É também o
+              único escopo em que a janela de hora tem densidade: a célula hora×praça tem 20% de
+              ocupação, contra 54% da rede.
+            </p>
+          )}
+        </div>
+      )}
+
+      {!d.disponivel ? (
+        <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+          {d.motivo}
+        </p>
+      ) : (
+        <SeriePrevista d={d} janela={janela} />
+      )}
+    </div>
+  )
+}
+
+function SeriePrevista({ d, janela }) {
+  const buckets = Array.isArray(d.buckets) ? d.buckets : []
+  if (!buckets.length) return null
+
+  // O fuso em que os buckets foram CONTADOS, declarado pela API. Sem ele o
+  // navegador rotularia o eixo no fuso de quem olha, deslocando a curva do dia -
+  // e a curva do dia e' o que da' sentido a janela horaria.
+  const fuso = d.timezone || 'UTC'
+  const fonte = rotuloDaFonte(buckets[0]?.fonte)
+  const totais = totaisDaSerie(buckets)
+  const comFaixa = temFaixaNaSerie(buckets)
+
+  return (
+    <div>
+      <div className="grid grid-3" style={{ gap: 12, marginBottom: 14 }}>
+        <Numero rotulo={`Energia prevista (${buckets.length})`} valor={comoKwh(totais.kwh)} />
+        <Numero
+          rotulo="Faturamento previsto"
+          valor={totais.brl == null ? '—' : comoReais(totais.brl)}
+          nota={
+            totais.brl == null
+              ? 'não calculado para a rede: somar praças com tarifas diferentes daria um preço que não existe em contrato'
+              : undefined
+          }
+        />
+        <Numero
+          rotulo="Base de cálculo"
+          valor={fonte.eModelo ? 'Modelo' : 'Régua'}
+          nota={fonte.texto}
+        />
+      </div>
+
+      {!fonte.eModelo && (
+        <p className="muted" style={{ margin: '0 0 12px', fontSize: 12, lineHeight: 1.5 }}>
+          Este número vem de <strong>{fonte.texto}</strong>, não do modelo. Nesta janela a régua
+          mede igual ou melhor que ele — o erro que sobra é variação de contagem, que modelo nenhum
+          remove. O modelo continua treinado e volta sozinho quando passar a medir melhor.
+        </p>
+      )}
+
+      {comFaixa ? (
+        <Faixa buckets={buckets} janela={janela} fuso={fuso} />
+      ) : (
+        <BarrasPrevistas buckets={buckets} janela={janela} fuso={fuso} />
+      )}
+
+      {comFaixa && (
+        <p className="muted" style={{ margin: '8px 0 0', fontSize: 12, lineHeight: 1.5 }}>
+          A área clara é a faixa p10–p90{' '}
+          {d.cobertura_medida_pct != null &&
+            `— no teste ela conteve o valor real em ${Number(d.cobertura_medida_pct).toFixed(0)}% dos casos`}
+          . Nesta janela o valor de uma hora isolada é dominado por variação de contagem: a faixa é
+          a resposta honesta, e a linha é só o centro dela.
+        </p>
+      )}
+    </div>
+  )
+}
+
+/**
+ * A curva com a faixa de incerteza em volta.
+ *
+ * Usada só onde a série declara p10 e p90 — hoje, a janela de hora. A área vem
+ * ANTES da linha no SVG de propósito: desenhada depois, cobriria a linha que ela
+ * deveria emoldurar.
+ */
+export function Faixa({ buckets, janela, fuso = 'UTC' }) {
+  const topo = topoDaSerie(buckets)
+  const n = buckets.length
+  const x = (i) => (n === 1 ? 50 : (i / (n - 1)) * 100)
+  const y = (v) => 100 - Math.max(0, Math.min(100, (Number(v ?? 0) / topo) * 100))
+
+  const alto = buckets.map((b, i) => `${x(i)},${y(b.kwh_p90)}`)
+  const baixo = buckets.map((b, i) => `${x(i)},${y(b.kwh_p10)}`).reverse()
+  const linha = buckets.map((b, i) => `${x(i)},${y(b.kwh_previsto)}`).join(' ')
+  const indices = rotulosDoEixo(buckets, 6)
+  const totais = totaisDaSerie(buckets)
+
+  return (
+    <div>
+      <div style={{ height: 140 }}>
+        <svg
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          style={{ width: '100%', height: '100%' }}
+          role="img"
+          aria-label={`Previsão por ${janela}: ${comoKwh(totais.kwh)} no total, com faixa de incerteza`}
+        >
+          <polygon points={[...alto, ...baixo].join(' ')} fill="var(--sems-blue)" opacity="0.18" />
+          <polyline
+            points={linha}
+            fill="none"
+            stroke="var(--sems-blue)"
+            strokeWidth="1.5"
+            vectorEffect="non-scaling-stroke"
+          />
+        </svg>
+      </div>
+      <EixoDeBuckets buckets={buckets} indices={indices} janela={janela} fuso={fuso} />
+    </div>
+  )
+}
+
+/** A previsão em barras, para as janelas sem faixa. Mesmo idioma de `Barras`. */
+export function BarrasPrevistas({ buckets, janela, fuso = 'UTC' }) {
+  const topo = topoDaSerie(buckets)
+  const largura = 100 / buckets.length
+  const indices = rotulosDoEixo(buckets, 6)
+  const totais = totaisDaSerie(buckets)
+
+  return (
+    <div>
+      <div style={{ height: 140 }}>
+        <svg
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          style={{ width: '100%', height: '100%' }}
+          role="img"
+          aria-label={`Previsão por ${janela}: ${comoKwh(totais.kwh)} no total`}
+        >
+          {buckets.map((b, i) => {
+            const valor = Number(b.kwh_previsto ?? 0)
+            const h = Math.max(0, Math.min(100, (valor / topo) * 100))
+            return (
+              <rect
+                key={b.bucket_inicio}
+                x={i * largura + largura * 0.15}
+                y={100 - h}
+                width={largura * 0.7}
+                height={h}
+                fill="var(--sems-blue)"
+                opacity={valor > 0 ? 0.75 : 0.18}
+              >
+                <title>{`${rotuloDoBucket(b.bucket_inicio, janela, fuso)}: ${comoKwh(valor)}`}</title>
+              </rect>
+            )
+          })}
+        </svg>
+      </div>
+      <EixoDeBuckets buckets={buckets} indices={indices} janela={janela} fuso={fuso} />
+    </div>
+  )
+}
+
+function EixoDeBuckets({ buckets, indices, janela, fuso = 'UTC' }) {
+  return (
+    <div style={{ display: 'flex', marginTop: 4 }}>
+      {buckets.map((b, i) => (
+        <span
+          key={b.bucket_inicio}
+          className="muted"
+          style={{
+            flex: 1,
+            fontSize: 10,
+            textAlign: 'center',
+            whiteSpace: 'nowrap',
+            visibility: indices.includes(i) ? 'visible' : 'hidden'
+          }}
+        >
+          {rotuloDoBucket(b.bucket_inicio, janela, fuso)}
+        </span>
+      ))}
     </div>
   )
 }

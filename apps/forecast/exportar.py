@@ -42,7 +42,7 @@ DIAS_ATE_ENVELHECER = 60
 _UPSERT = text(
     """
     INSERT INTO site_forecasts (
-        id, site_id, competencia, gerado_em,
+        id, site_id, granularidade, bucket_inicio, competencia, gerado_em,
         kwh_previsto, kwh_p10, kwh_p90,
         faturamento_previsto_brl, fat_p10_brl, fat_p90_brl,
         media_diaria_28d, modelo_aplicavel, fonte, modelo_versao, dias_de_historico,
@@ -50,7 +50,15 @@ _UPSERT = text(
         wape_modelo_pct, wape_baseline_pct,
         created_at, updated_at
     )
-    SELECT :id, s.id, :competencia, :gerado_em,
+    SELECT :id, s.id, 'mes',
+           -- O inicio do bucket, no fuso DA PRACA. Calculado aqui, ao lado do
+           -- `JOIN sites`, porque e' o unico lugar que conhece o fuso - e porque
+           -- ele tem de concordar com `competencia`, que e' a mesma data.
+           -- `CAST(... AS ...)` e nao `::`: dois-pontos colado a um parametro
+           -- confunde o parser do `text()`, e o erro que sai e' um "syntax error
+           -- at or near :" sem dizer onde.
+           (CAST(:competencia AS timestamp) AT TIME ZONE s.timezone),
+           :competencia, :gerado_em,
            :kwh_previsto, :kwh_p10, :kwh_p90,
            :fat_prev, :fat_p10, :fat_p90,
            :media_28d, :aplicavel, :fonte, :versao, :dias,
@@ -58,7 +66,10 @@ _UPSERT = text(
            :wape_modelo, :wape_regua,
            now(), now()
     FROM sites s WHERE s.slug = :slug
-    ON CONFLICT (site_id, competencia) DO UPDATE SET
+    -- A chave passou a incluir a janela e o inicio do bucket. Este job grava
+    -- so' a janela mensal, entao `'mes'` e a competencia a identificam - mas o
+    -- alvo do ON CONFLICT tem de ser a chave que EXISTE, senao o UPSERT falha.
+    ON CONFLICT (site_id, granularidade, bucket_inicio) DO UPDATE SET
         gerado_em = EXCLUDED.gerado_em,
         kwh_previsto = EXCLUDED.kwh_previsto,
         kwh_p10 = EXCLUDED.kwh_p10,
