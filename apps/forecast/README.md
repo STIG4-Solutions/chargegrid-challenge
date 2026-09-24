@@ -33,9 +33,20 @@ Os passos separados, quando a diferença importa:
 
 ```bash
 npm run forecast:train    # treina; imprime backtest e grava metricas_atual.json
-npm run forecast:export   # grava a previsão do mês em site_forecasts
+npm run forecast:export   # grava o mês+1 de cada praça em site_forecasts
+npm run forecast:janelas  # grava as outras janelas, e a previsão da REDE
+npm run forecast:folga    # mede quanta folga cada janela tem; não escreve nada
 npm run forecast:test     # testes do pipeline (não precisam do banco)
 ```
+
+`forecast:export` e `forecast:janelas` são irmãos, e a ordem importa: o primeiro
+grava **só** o mês+1 de cada praça, que é o único bucket que o modelo consegue
+prever — ele é um previsor direto de um mês à frente, e para o mês+2 o histórico
+que as features descrevem ainda não existe. O segundo grava as demais janelas e
+pula esse bucket de propósito, para não sobrescrever previsão de modelo com régua.
+
+`forecast:folga` é a leitura que decide o desenho: onde a distância entre a melhor
+régua e o ruído irredutível é perto de zero, nenhum modelo pode ganhar.
 
 Cadência: treinar por trimestre ou quando a rede mudar, exportar por mês.
 
@@ -110,7 +121,7 @@ descartadas** — o episódio continua aberto, mas o espaço de causas é menor:
 |---|---|---|
 | treino não-determinístico | dois treinos seguidos, métricas idênticas ao byte | descartada |
 | sensibilidade a threads | `num_threads` 1, 2, 4 e 8 → WAPE 9,26 nos quatro | descartada |
-| mudança no código do pipeline | `pipeline/train.py` tem **um único commit**, anterior às duas corridas | descartada |
+| mudança no código do pipeline | à época `pipeline/train.py` tinha **um único commit**, anterior às duas corridas. Hoje tem três — as réguas do backtest e a perda em `PARAMS` — mas ambos posteriores a este episódio | descartada |
 | procedência registrada errada | `--ate` e `reproduzir_com` nasceram às 03:50, antes da corrida das 06:41 | descartada |
 | o banco mudou entre as corridas | deslocar a janela em 2 dias move a régua (9,06 → 9,45 → 9,07): régua idêntica em 7,61% **prova dado idêntico** | descartada |
 
@@ -169,66 +180,105 @@ em `requirements.txt`, duas máquinas cobram a mesma coisa.
 
 ## Estado atual do modelo — leia antes de confiar no número
 
-O backtest que o artefato carrega — três meses, e é de onde saem os números que
-o painel mostra. Todos saem de **`modelos/metricas_atual.json`**, que é versionado
-e traz dentro o comando que o refaz:
+Todos os números saem de **`modelos/metricas_atual.json`**, que é versionado e traz
+dentro o comando que o refaz. Se a tabela divergir do arquivo, **o arquivo manda**.
 
 | métrica | valor |
 |---|---|
-| WAPE mensal do modelo | **9,26%** |
-| WAPE mensal da média móvel de 28 dias | **9,07%** |
-| WAPE diário do modelo | 25,94% |
-| Cobertura da faixa p10–p90 | **65,2%** (deveria ser ~80%) |
+| WAPE mensal do modelo | **11,98%** |
+| WAPE mensal da média móvel de 28 dias | 15,38% |
+| WAPE mensal da média por dia da semana | 13,63% |
+| WAPE diário do modelo | **25,69%** |
+| WAPE diário da melhor régua | 27,57% |
+| Cobertura da faixa p10–p90 | **71,3%** (deveria ser ~80%) |
 
-Estes números mudam quando o banco muda — e é para isso que a evidência é
-versionada. Se a tabela divergir de `metricas_atual.json`, o arquivo manda.
+**O modelo ganha das duas réguas, nos dois eixos.** É a primeira vez, e por isso
+`exportar.py` grava `fonte = 'modelo'` — o portão não mudou, o resultado mudou.
 
-Três meses são doze estação-meses, e a diferença caberia no ruído de amostragem —
-por isso a derrota foi remedida em 3, 6 e 12 meses. Ela se repete nos três
-(9,26/9,07 · 9,52/8,97 · 11,03/9,85), e nas três estações. Não é azar de recorte.
+### O que virou o jogo, e em que ordem
 
-**O modelo não supera a régua no MENSAL — mas ganha no DIÁRIO**, e a diferença
-explica tudo:
+Durante meses o modelo perdia no mensal (9,26% contra 9,07% da média móvel). Três
+mudanças, medidas uma a uma:
 
-| granularidade | modelo | régua |
-|---|---|---|
-| diário | **28,9%** | 34,7% |
-| mensal | 11,03% | **9,85%** |
+**1. A perda estava errada para o alvo.** `treinar_um` usava `objective="l1"`, que
+ajusta a **mediana** condicional de um dia — e o número da tela é uma **soma** de
+trinta dias. Somar medianas subestima o total, porque energia diária é assimétrica
+à direita. `objective="tweedie"` com potência 1,2 é a perda para dado não-negativo
+com massa em zero e cauda à direita: **Poisson composto**, que é exatamente o
+processo aqui (contagem de sessões × energia lognormal por sessão).
 
-Medido sobre 36 estação-meses fora da amostra — a janela de doze meses, que é por
-que estes números não são os da tabela acima. O modelo aprende o dia a dia — no
-`lab-fiap-eco-station`, onde o fim de semana é 4× mais fraco, ele erra 37,3%
-contra 51,0% da régua. Mas no total do mês essa vantagem se dissolve: somando 30
-dias, o padrão semanal quase se cancela, e sobra a variância que o modelo
-adiciona.
+Medido em dois painéis independentes, com o mesmo walk-forward:
 
-**Combinar os dois não resolve**, e isso foi testado: a correlação entre os erros
-mensais é **0,944** — eles erram junto, porque no agregado ambos são
-essencialmente "nível × dias". Qualquer peso dado ao modelo piora o WAPE mensal
-monotonicamente, em todas as três estações.
+| painel | l1 | l2 | tweedie |
+|---|---|---|---|
+| ChargeGrid | 15,52% | 12,80% | **11,98%** |
+| projeto de origem, intocado | 7,78% | 7,79% | **7,24%** |
 
-Por isso `exportar.py` grava o preditor que **mede melhor**, e a coluna `fonte`
-diz qual foi. Não é desistir do modelo: quando ele passar a ganhar — com operação
-real, com mais estações —, o próprio backtest inverte a escolha sem ninguém
-mexer em código.
+`l2` melhorou só no primeiro — era artefato do dado. Tweedie melhora nos dois,
+inclusive num painel onde o modelo **já** batia a régua, e é isso que justifica a
+troca. A perda mora em `PARAMS` e o valor é definido em `treinar.py` (`PERDA`),
+pelo mesmo mecanismo com que o determinismo já sobrepõe os parâmetros — a cópia de
+`pipeline/` fica configurável em vez de bifurcada.
 
-Duas causas prováveis para a derrota no mensal, nenhuma investigada a fundo
-porque perseguir acurácia contra dado gerado não significa nada:
+**2. O gerador não tinha o sinal que o pipeline foi desenhado para achar.** As duas
+causas prováveis que este README listava estavam certas, e as duas foram
+corrigidas em `app/seed.py`:
 
-1. **Três estações treinadas.** O pipeline foi desenhado para oito, e
-   `location_id`, `archetype` e `power_type` são features categóricas — com três
-   locais elas carregam pouco sinal e sobra espaço para sobreajuste.
-2. **Variância diária alta no seed.** Contagem de Poisson multiplicada por
-   energia lognormal produz um dia a dia mais ruidoso que o do gerador original,
-   e o alvo em razão amplifica isso.
+- `PESO_DO_MES` era **uma tupla única** para todas as praças. No gerador de origem
+  a sazonalidade mensal varia **por arquétipo, com sinais opostos** — uma rodovia
+  sobe 30% em janeiro enquanto um corporativo cai 20%. Uma média móvel não tem como
+  capturar isso; um modelo com `archetype` como feature tem. Virou `PESOS_MENSAIS`.
+- A energia por sessão tinha **mediana e dispersão únicas** (18 kWh, σ 0,55). Um DC
+  de 60 kW na estrada não entrega o mesmo que um AC de 22 kW num escritório, e
+  local de rotina dispersa menos. Virou `ENERGIA_POR_SESSAO` por arquétipo. Sigma
+  alto em local de rotina inventava ruído que não existe — e ruído inventado é erro
+  que modelo nenhum remove.
+- E havia **uma praça por arquétipo**, o que tornava `archetype` colinear com
+  `location_id`: o modelo aprendia "esta praça tem este padrão", nunca "rodovias
+  têm este padrão". Agora são duas de cada, oito no total.
 
-Uma hipótese foi testada e **descartada**: o backtest incluía o mês corrente, que estava pela
-metade, e prever um mês inteiro contra nove dias infla o erro. O corte no último mês completo
-é correto e ficou — mas não explicava o resultado. Com ele o WAPE piorou de 11,1% para 12,36%
-na primeira rodada. Fica registrado para ninguém refazer a hipótese.
+**3. Quatro anos em vez de dois.** O backtest treina só com meses anteriores ao mês
+de teste; com dois anos, prever julho significava ter visto julho **uma vez**. Isso
+sozinho **não resolveu** — a régua também melhorou e o modelo continuou perdendo.
+Fica registrado para ninguém refazer a hipótese isolada.
 
-O caminho honesto é retreinar quando houver operação real. `treinar.py` é um
-comando, e as guardas já apontam quando o resultado não se sustenta.
+### A folga: onde um modelo pode ganhar, e onde não
+
+`python medir_janelas.py` mede, para cada janela, a distância entre a melhor régua
+sem modelo e uma referência **centrada que usa o futuro de propósito**. O que fica
+abaixo dela é variação de contagem, não erro de modelo:
+
+| janela | melhor régua | erro | folga |
+|---|---|---|---|
+| hora (rede) | dow × hora | 50,17% | **−0,05** |
+| dia (rede) | dia da semana | 14,91% | +0,30 |
+| semana (rede) | média móvel | 7,46% | +0,84 |
+| **mês (rede)** | dia da semana | 7,64% | **+3,38** |
+| ano | — | — | n=2, não mensurável |
+
+É por isso que **quatro das cinco janelas são servidas por régua**, e `fonte` diz
+qual em cada linha gravada. Onde a folga é zero, nenhum modelo pode ganhar —
+insistir ali seria gastar complexidade para piorar a tela.
+
+Na janela de **hora** o número honesto não é um ponto: é a faixa p10–p90, e o
+critério de aceite dela é **cobertura**, não WAPE.
+
+### O que continua aberto
+
+- **A faixa cobre 71,3% e anuncia 80%.** Melhorou de 65,2%, mas os modelos de
+  quantil continuam sub-dispersos: tratar o extremo inferior como pior caso é
+  otimismo. A tela mostra o número medido ao operador em vez de escondê-lo.
+- **A janela de ano tem n=2.** Quatro anos de histórico dão duas observações anuais
+  completas. Ela é servida por extrapolação de tendência e rotulada como tal.
+- **Todo o histórico é sintético**, nos dois projetos. O README do repositório de
+  origem diz isso em caixa de destaque e manda não usar as métricas como estimativa
+  de produção. Vale igual aqui, e com uma consequência específica: **um modelo que
+  aprende sazonalidade mensal neste dado está recuperando `PESOS_MENSAIS`.** O
+  mecanismo é real para uma rede real; a evidência é circular. Só as comparações
+  relativas — modelo contra régua, no mesmo dado — se sustentam.
+
+O caminho honesto segue sendo retreinar quando houver operação real. `treinar.py` é
+um comando, e as guardas já apontam quando o resultado não se sustenta.
 
 ## A armadilha que nenhum teste unitário pega
 
