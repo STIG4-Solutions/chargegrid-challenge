@@ -31,10 +31,11 @@ from __future__ import annotations
 import uuid
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import Date, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.forecast import SiteForecast
+from app.models.site import Site
 
 # Quanto a faixa p10-p90 promete conter. E' a definicao dos quantis, nao opiniao.
 COBERTURA_ESPERADA = Decimal("80")
@@ -43,9 +44,73 @@ COBERTURA_ESPERADA = Decimal("80")
 # amostragem; acusar por um ponto de diferenca so' geraria alarme.
 TOLERANCIA_DE_COBERTURA = Decimal("5")
 
+# As janelas que o job grava. A ordem e' do mais fino para o mais grosso.
+JANELAS = ("hora", "dia", "semana", "mes", "ano")
+
+# Quantos buckets devolver por janela, quando ninguem pede outro numero.
+#
+# Nao e' o mesmo para todas: 48 horas sao dois dias de curva, que e' o que serve
+# para decidir rebalanceamento; 12 meses sao um ano de planejamento. Devolver 48
+# anos nao faria sentido, e devolver 12 horas cortaria a curva do dia no meio.
+BUCKETS_PADRAO = {"hora": 48, "dia": 30, "semana": 12, "mes": 12, "ano": 3}
+BUCKETS_MAXIMO = {"hora": 24 * 14, "dia": 365, "semana": 104, "mes": 36, "ano": 10}
+
+
+def _bucket(linha: SiteForecast) -> dict:
+    """Uma linha da serie. Mesmos nomes de campo da resposta mensal.
+
+    A banda vem nula quando a fonte nao declara quantil, e o CHECK
+    `banda_com_quantil` no banco garante que isso e' consistente - a tela nao
+    precisa decidir sozinha se desenha incerteza.
+    """
+    return {
+        "bucket_inicio": linha.bucket_inicio.isoformat(),
+        "kwh_previsto": _float(linha.kwh_previsto),
+        "kwh_p10": _float(linha.kwh_p10),
+        "kwh_p90": _float(linha.kwh_p90),
+        "faturamento_previsto_brl": _float(linha.faturamento_previsto_brl),
+        "fat_p10_brl": _float(linha.fat_p10_brl),
+        "fat_p90_brl": _float(linha.fat_p90_brl),
+        "fonte": linha.fonte,
+    }
+
 
 def _float(valor) -> float | None:
     return None if valor is None else float(valor)
+
+
+async def _fuso_dos_buckets(db: AsyncSession, site_id: uuid.UUID | None) -> str:
+    """Em que fuso os buckets foram CONTADOS.
+
+    Sem isto a tela nao tem como rotular a janela de hora. A resposta carrega o
+    instante em UTC, e o navegador o converte para o fuso de QUEM OLHA - o que
+    desloca a curva do dia para qualquer pessoa fora do fuso da praca. O CI pegou
+    isso: o runner roda em UTC e viu o pico das 17h como 20h.
+
+    E' a curva do dia que da' sentido a janela horaria, entao o deslocamento nao e'
+    cosmetico: e' a feature errada.
+
+    Para a REDE nao existe uma praca, e o fuso vem do conjunto. O job que escreve
+    (`exportar_janelas.py`) RECUSA gravar quando as pracas estao em fusos
+    diferentes, entao aqui ha no maximo um - e o `min` e' so' determinismo.
+    """
+    if site_id is not None:
+        fuso = (
+            await db.execute(select(Site.timezone).where(Site.id == site_id))
+        ).scalar_one_or_none()
+        return fuso or "UTC"
+    fuso = (await db.execute(select(func.min(Site.timezone)))).scalar_one_or_none()
+    return fuso or "UTC"
+
+
+def _mes_corrente():
+    """O primeiro dia do mes de HOJE, calculado no banco.
+
+    No banco e nao em Python de proposito: o `CURRENT_DATE` do Postgres e' o mesmo
+    relogio que carimba as linhas, e uma comparacao entre datas de relogios
+    diferentes erra no virar do mes em fuso diferente.
+    """
+    return cast(func.date_trunc("month", func.current_date()), Date)
 
 
 def _avisos(linha: SiteForecast) -> list[dict]:
@@ -112,7 +177,31 @@ async def previsao_do_site(db: AsyncSession, site_id: uuid.UUID) -> dict:
         await db.execute(
             select(SiteForecast)
             .where(SiteForecast.site_id == site_id)
-            .order_by(SiteForecast.competencia.desc(), SiteForecast.gerado_em.desc())
+            # `granularidade` EXPLICITA. Esta rota sempre falou do total do mes, e
+            # ate' existir uma segunda janela o filtro era desnecessario. Agora
+            # existem cinco: sem ele, `order_by ... limit 1` devolveria a linha
+            # mais recente de QUALQUER janela - uma hora, provavelmente - e a tela
+            # de demanda contratada mostraria o consumo de uma hora como se fosse
+            # o do mes. Nao daria erro em lugar nenhum.
+            .where(SiteForecast.granularidade == "mes")
+            # O PROXIMO mes, e nao o mais distante.
+            #
+            # Era `competencia DESC`, que significava "a previsao mais recente"
+            # enquanto havia UMA linha mensal por praca. O job de janelas passou a
+            # gravar doze, e `DESC` comecou a devolver agosto do ano seguinte -
+            # que vem de regua - no lugar do mes que vem, que vem do modelo. A
+            # tela de demanda contratada mostrava o numero errado, sem erro
+            # nenhum. Encontrado conferindo o banco depois da primeira execucao.
+            #
+            # Prefere bucket futuro; entre futuros, o mais proximo. Se TODOS
+            # estiverem no passado - job parado ha meses - devolve o menos velho
+            # em vez de dizer que nao ha previsao: a competencia vai na resposta e
+            # a tela mostra de quando e'.
+            .order_by(
+                (SiteForecast.competencia >= _mes_corrente()).desc(),
+                func.abs(SiteForecast.competencia - _mes_corrente()).asc(),
+                SiteForecast.gerado_em.desc(),
+            )
             .limit(1)
         )
     ).scalar_one_or_none()
@@ -150,4 +239,77 @@ async def previsao_do_site(db: AsyncSession, site_id: uuid.UUID) -> dict:
         "wape_modelo_pct": _float(linha.wape_modelo_pct),
         "wape_baseline_pct": _float(linha.wape_baseline_pct),
         "avisos": _avisos(linha),
+    }
+
+
+async def serie_por_janela(
+    db: AsyncSession,
+    janela: str,
+    site_id: uuid.UUID | None,
+    quantos: int | None = None,
+) -> dict:
+    """Os proximos buckets desta janela, para uma praca ou para a REDE.
+
+    `site_id = None` pede a linha da rede, onde a coluna e' NULL. Usa-se
+    `is_(None)` por clareza e pelo linter; o SQLAlchemy traduz `== None` para
+    `IS NULL` sozinho, entao as duas formas funcionam - uma versao anterior deste
+    comentario afirmava o contrario, e uma mutacao provou que nao.
+
+    A ordem e' CRESCENTE no tempo, ao contrario da rota mensal, que quer so' a
+    linha mais recente. Uma serie desenhada de tras para frente nao e' grafico.
+    """
+    if janela not in JANELAS:
+        raise ValueError(f"janela desconhecida: {janela}")
+
+    limite = quantos or BUCKETS_PADRAO[janela]
+    limite = max(1, min(int(limite), BUCKETS_MAXIMO[janela]))
+
+    escopo = SiteForecast.site_id.is_(None) if site_id is None else SiteForecast.site_id == site_id
+    linhas = (
+        (
+            await db.execute(
+                select(SiteForecast)
+                .where(escopo)
+                .where(SiteForecast.granularidade == janela)
+                .order_by(SiteForecast.bucket_inicio.asc())
+                .limit(limite)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    fuso = await _fuso_dos_buckets(db, site_id)
+
+    if not linhas:
+        return {
+            "disponivel": False,
+            "janela": janela,
+            "escopo": "rede" if site_id is None else "praca",
+            "timezone": fuso,
+            "motivo": (
+                f"Nenhuma previsão de janela '{janela}' calculada ainda. "
+                "O cálculo roda fora da API."
+            ),
+        }
+
+    # `gerado_em`, `modelo_versao` e as metricas sao da EXECUCAO, nao do bucket:
+    # todos os buckets de uma serie vem da mesma rodada do job. Repeti-los em cada
+    # item inflaria a resposta e sugeriria que podem divergir.
+    ultima = max(linhas, key=lambda linha: linha.gerado_em)
+    return {
+        "disponivel": True,
+        "janela": janela,
+        "escopo": "rede" if site_id is None else "praca",
+        # O fuso em que os buckets foram contados. A tela rotula o eixo com ele, e
+        # nao com o do navegador - ver `_fuso_dos_buckets`.
+        "timezone": fuso,
+        "gerado_em": ultima.gerado_em.isoformat(),
+        "modelo_versao": ultima.modelo_versao,
+        "wape_modelo_pct": _float(ultima.wape_modelo_pct),
+        "wape_baseline_pct": _float(ultima.wape_baseline_pct),
+        "cobertura_declarada_pct": _float(ultima.cobertura_declarada_pct),
+        "cobertura_medida_pct": _float(ultima.cobertura_medida_pct),
+        "buckets": [_bucket(linha) for linha in linhas],
+        "avisos": _avisos(ultima),
     }

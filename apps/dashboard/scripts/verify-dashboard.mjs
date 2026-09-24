@@ -28,6 +28,7 @@ const saidaContas = join(cache, 'contas.mjs')
 const saidaAnalytics = join(cache, 'analytics.mjs')
 const saidaCarteira = join(cache, 'carteira.mjs')
 const saidaPraca = join(cache, 'praca.mjs')
+const saidaJanelas = join(cache, 'janelas.mjs')
 
 // Só os módulos puros entram. Importar um `.jsx` puxaria React e o SDK inteiro
 // para dentro do Node — e o que se quer verificar não depende de nenhum deles.
@@ -45,7 +46,8 @@ for (const [entrada, destino] of [
   ['src/views/ev/contas.js', saidaContas],
   ['src/views/ev/analytics.js', saidaAnalytics],
   ['src/views/ev/carteira.js', saidaCarteira],
-  ['src/views/ev/praca.js', saidaPraca]
+  ['src/views/ev/praca.js', saidaPraca],
+  ['src/views/ev/janelas.js', saidaJanelas]
 ]) {
   await build({
     entryPoints: [join(raiz, entrada)],
@@ -1091,6 +1093,140 @@ check(
   [...semRegra].map(([c, onde]) => `${c} (${[...onde].join(', ')})`).join('; ')
 )
 
+// ---- previsão por janela ----
+//
+// Cinco janelas, e elas NÃO vêm da mesma origem. A folga medida entre a melhor
+// régua sem modelo e o ruído irredutível é de −0,05 ponto na hora e +3,38 no mês:
+// onde a folga é zero, nenhum modelo pode ganhar, e a tela tem de dizer que
+// aquilo é uma média. Apresentar média como previsão é o defeito que a coluna
+// `fonte` existe para impedir.
+
+const {
+  JANELAS_DE_PREVISAO,
+  rotuloDaFonte,
+  rotuloDoBucket,
+  temFaixaNaSerie,
+  topoDaSerie,
+  totaisDaSerie
+} = await import(pathToFileURL(saidaJanelas).href)
+
+// 1. As cinco janelas estão declaradas, e só elas.
+check(
+  'as cinco janelas de previsao estao declaradas',
+  mesmo(
+    JANELAS_DE_PREVISAO.map((j) => j.chave),
+    ['hora', 'dia', 'semana', 'mes', 'ano']
+  ),
+  JSON.stringify(JANELAS_DE_PREVISAO.map((j) => j.chave))
+)
+
+// 2. Só `modelo` é modelo. Régua rotulada como modelo é exatamente o que a
+//    coluna `fonte` existe para impedir.
+check(
+  'so a fonte modelo conta como modelo',
+  rotuloDaFonte('modelo').eModelo === true &&
+    ['media_movel', 'media_dow', 'perfil_hora', 'tendencia'].every(
+      (f) => rotuloDaFonte(f).eModelo === false
+    ),
+  JSON.stringify(['media_dow', 'perfil_hora'].map((f) => rotuloDaFonte(f)))
+)
+
+// 3. Fonte desconhecida NÃO é promovida a modelo por omissão. Um valor novo no
+//    banco tem de aparecer estranho na tela, não ganhar o selo de previsão.
+check(
+  'fonte desconhecida nao vira modelo',
+  rotuloDaFonte('chute_novo').eModelo === false &&
+    rotuloDaFonte(null).eModelo === false &&
+    rotuloDaFonte(undefined).eModelo === false,
+  JSON.stringify(rotuloDaFonte('chute_novo'))
+)
+
+// 4. Faixa só quando TODOS os buckets a trazem. Meia curva com banda sugere que
+//    a incerteza acabou no meio do caminho.
+const serieComFaixa = [
+  { kwh_previsto: 10, kwh_p10: 5, kwh_p90: 18 },
+  { kwh_previsto: 12, kwh_p10: 6, kwh_p90: 20 }
+]
+const faixaPelaMetade = [serieComFaixa[0], { kwh_previsto: 12, kwh_p10: null, kwh_p90: null }]
+check(
+  'faixa so quando a serie inteira a declara',
+  temFaixaNaSerie(serieComFaixa) === true &&
+    temFaixaNaSerie(faixaPelaMetade) === false &&
+    temFaixaNaSerie([]) === false,
+  `${temFaixaNaSerie(serieComFaixa)} / ${temFaixaNaSerie(faixaPelaMetade)}`
+)
+
+// 5. A escala considera o p90. Escalar pelo previsto cortaria a faixa superior
+//    na borda, e banda cortada mente sobre o quanto o número pode variar.
+check(
+  'a escala sobe ate o p90, nao ate o previsto',
+  topoDaSerie(serieComFaixa) === 20,
+  String(topoDaSerie(serieComFaixa))
+)
+
+// 6. Série vazia ou zerada não zera a escala: dividir por zero apaga o gráfico.
+check(
+  'escala nunca e zero',
+  topoDaSerie([]) === 1 && topoDaSerie([{ kwh_previsto: 0 }]) === 1,
+  `${topoDaSerie([])} / ${topoDaSerie([{ kwh_previsto: 0 }])}`
+)
+
+// 7. Cada janela rotula o eixo do jeito que ela pede. A hora SEM a hora é
+//    inútil, e o ano com dia e mês é ruído.
+const bucketDeHora = '2026-09-24T20:00:00-03:00'
+const SP = 'America/Sao_Paulo'
+check(
+  'o rotulo da janela horaria traz a hora',
+  /\dh$/.test(rotuloDoBucket(bucketDeHora, 'hora', SP)),
+  rotuloDoBucket(bucketDeHora, 'hora', SP)
+)
+
+// 7b. O FUSO manda, nao o relogio da maquina. O mesmo instante rotulado em dois
+//     fusos tem de dar horas diferentes - e e' o que impede a curva do dia de
+//     sair deslocada para quem abre a tela fora do fuso da praca. O CI pegou
+//     isso rodando em UTC.
+check(
+  'o rotulo horario segue o fuso declarado',
+  rotuloDoBucket(bucketDeHora, 'hora', SP) === '24/09 20h' &&
+    rotuloDoBucket(bucketDeHora, 'hora', 'UTC') === '24/09 23h',
+  `${rotuloDoBucket(bucketDeHora, 'hora', SP)} / ${rotuloDoBucket(bucketDeHora, 'hora', 'UTC')}`
+)
+check(
+  'o rotulo da janela anual e so o ano',
+  /^\d{4}$/.test(rotuloDoBucket('2027-01-01T00:00:00-03:00', 'ano', SP)),
+  rotuloDoBucket('2027-01-01T00:00:00-03:00', 'ano', SP)
+)
+check(
+  'o rotulo semanal se distingue do diario',
+  rotuloDoBucket(bucketDeHora, 'semana', SP) !== rotuloDoBucket(bucketDeHora, 'dia', SP) &&
+    rotuloDoBucket(bucketDeHora, 'semana', SP).startsWith('sem '),
+  `${rotuloDoBucket(bucketDeHora, 'semana', SP)} / ${rotuloDoBucket(bucketDeHora, 'dia', SP)}`
+)
+check(
+  'rotulo de data invalida nao vira "Invalid Date" na tela',
+  rotuloDoBucket('nao e data', 'dia', SP) === '' && rotuloDoBucket(null, 'hora', SP) === '',
+  `"${rotuloDoBucket('nao e data', 'dia', SP)}"`
+)
+
+// 8. Faturamento da REDE vem NULO, e não zero. A rede é gravada sem reais porque
+//    somar praças com tarifas diferentes daria um preço que não existe em
+//    contrato nenhum - e zero afirmaria que a rede não fatura.
+const serieDaRede = [{ kwh_previsto: 100 }, { kwh_previsto: 200 }]
+const serieDaPraca = [
+  { kwh_previsto: 100, faturamento_previsto_brl: 260 },
+  { kwh_previsto: 200, faturamento_previsto_brl: 520 }
+]
+check(
+  'faturamento ausente vira nulo, nao zero',
+  totaisDaSerie(serieDaRede).brl === null && totaisDaSerie(serieDaRede).kwh === 300,
+  JSON.stringify(totaisDaSerie(serieDaRede))
+)
+check(
+  'faturamento presente e somado',
+  totaisDaSerie(serieDaPraca).brl === 780,
+  JSON.stringify(totaisDaSerie(serieDaPraca))
+)
+
 rmSync(saida, { force: true })
 rmSync(saidaCampanha, { force: true })
 rmSync(saidaManutencao, { force: true })
@@ -1100,5 +1236,6 @@ rmSync(saidaContrato, { force: true })
 rmSync(saidaAnalytics, { force: true })
 rmSync(saidaCarteira, { force: true })
 rmSync(saidaPraca, { force: true })
+rmSync(saidaJanelas, { force: true })
 console.log(falhas === 0 ? '\nTodos os cenarios passaram.' : `\n${falhas} falha(s).`)
 process.exit(falhas === 0 ? 0 : 1)

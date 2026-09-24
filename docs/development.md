@@ -114,9 +114,21 @@ docker build -t chargegrid-forecast apps/forecast
 # treinar com os dados do banco (ao mudar a rede, ou por trimestre)
 docker run --rm --network backend_default   -e POSTGRES_HOST=db -e POSTGRES_USER=... -e POSTGRES_PASSWORD=... -e POSTGRES_DB=...   -v "$PWD/apps/forecast/modelos:/forecast/modelos"   chargegrid-forecast python treinar.py
 
-# gerar a previsao do mes e gravar em site_forecasts
+# gravar o mes+1 de cada praca (do modelo, quando o portao aprova)
 docker run --rm --network backend_default   -e POSTGRES_HOST=db -e POSTGRES_USER=... -e POSTGRES_PASSWORD=... -e POSTGRES_DB=...   -v "$PWD/apps/forecast/modelos:/forecast/modelos"   chargegrid-forecast python exportar.py
+
+# gravar as outras janelas - hora, dia, semana, ano - e a previsao da REDE
+docker run --rm --network backend_default   -e POSTGRES_HOST=db -e POSTGRES_USER=... -e POSTGRES_PASSWORD=...   -e POSTGRES_DB=... chargegrid-forecast python exportar_janelas.py
 ```
+
+Da raiz, os mesmos passos sao `npm run forecast` (que encadeia os tres),
+`npm run forecast:janelas` sozinho, e `npm run forecast:folga` para ver quanta
+folga cada janela tem sem escrever nada.
+
+A ORDEM entre os dois exports importa. `exportar.py` grava so' o mes+1, que e' o
+unico bucket que o modelo consegue prever - ele e' um previsor direto de um mes a
+frente. `exportar_janelas.py` pula esse bucket de proposito, para nao sobrescrever
+previsao de modelo com regua.
 
 Sem linha na tabela, o painel mostra "nenhuma previsao calculada" — que e' melhor que um numero
 inventado. O artefato `.joblib` nao e' versionado: o seed e' deterministico, entao `treinar.py`

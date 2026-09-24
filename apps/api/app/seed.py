@@ -195,11 +195,18 @@ GESTOR_DA_FROTA = "maria.souza@email.com"
 # numero deixa claro que a escolha e' convencao, nao ajuste fino.
 SEMENTE_DO_HISTORICO = 42
 
-# Dois anos. O piso real vem do modelo de previsao: ele descarta local com menos
-# de 150 dias de energia, e a feature `dias_operacao` foi treinada na faixa de
-# 176 a 1276 dias. Com 730 sobra folga para aquecer a media de 182 dias E ainda
-# haver alvo para prever.
-DIAS_DE_HISTORICO = 730
+# Quatro anos, e o numero vem de uma conta sobre SAZONALIDADE, nao de folga.
+#
+# Eram dois anos, que bastam para o piso de 150 dias do modelo e para aquecer a
+# media de 182. Mas o backtest treina so' com meses estritamente anteriores ao
+# mes de teste: para prever julho de 2026 com dois anos de historico, o modelo
+# viu julho UMA vez. Sao 12 parametros sazonais com uma observacao cada - nao e'
+# estimavel, e o resultado medido foi o modelo perdendo da media movel mesmo
+# depois de `PESOS_MENSAIS` criar o sinal (16,6% contra 11,4% da regua).
+#
+# Com quatro anos cada mes do ano aparece tres vezes antes de ser previsto. O
+# gargalo nao era numero de pracas - era comprimento de historico.
+DIAS_DE_HISTORICO = 1460
 
 # O historico e' gerado em hora local porque as janelas de tarifa (ponta 18h-21h)
 # sao locais. Gerar em UTC deslocaria a ponta em tres horas, e o conselho de
@@ -326,9 +333,33 @@ PERFIS_SEMANAIS = {
     "condominio": (1.00, 1.00, 1.02, 1.05, 1.10, 0.95, 0.88),
 }
 
-# Sazonalidade brasileira, por mes. Janeiro e julho caem por ferias escolares;
-# dezembro sobe pelas compras e pela viagem de fim de ano.
-PESO_DO_MES = (0.88, 0.92, 1.03, 1.00, 1.02, 0.98, 0.90, 1.00, 1.03, 1.05, 1.06, 1.12)
+# Sazonalidade anual por CARATER do local, e nao uma curva so' para a rede.
+#
+# Era uma tupla unica, igual para todas as pracas. O efeito disso e' medivel, e
+# foi medido: com sazonalidade comum nao ha o que o modelo de previsao
+# diferencie entre locais, e ele perde da propria regua - 9,26% de WAPE mensal
+# contra 9,07%. No painel do projeto de origem do pipeline, onde o peso mensal
+# varia por carater, o MESMO codigo faz 7,78% contra 10,40%: ganha por 2,6
+# pontos. E as reguas medem praticamente igual nos dois dados (m28 diario 33,08
+# aqui, 33,06 la'), ou seja, o que muda e' so' o modelo - assinatura de sinal
+# aprendivel que regua nenhuma alcanca.
+#
+# E' tambem o comportamento real. Uma rodovia enche nas ferias justamente
+# quando um corporativo esvazia: janeiro e' +30% num caso e -20% no outro. Uma
+# media movel de 28 dias nao tem como saber disso; um modelo com `archetype`
+# como feature tem.
+#
+# Os numeros vem de `simulate/gerador_cdr.py` do projeto de origem
+# (`_MES_RODOVIA`, `_MES_SHOP`, `_MES_CORP`, `_MES_NEUTRO`), onde o raciocinio
+# ja' estava feito: ferias de janeiro e julho, festas de fim de ano, retracao
+# corporativa em dezembro e janeiro.
+PESOS_MENSAIS = {
+    "rodovia": (1.30, 1.10, 0.95, 0.95, 0.90, 0.95, 1.25, 1.00, 0.95, 1.05, 1.05, 1.35),
+    "shopping": (0.95, 0.95, 1.00, 1.00, 1.00, 1.00, 1.05, 1.00, 1.00, 1.05, 1.10, 1.30),
+    "corporativo": (0.80, 1.00, 1.05, 1.05, 1.05, 1.00, 0.95, 1.05, 1.05, 1.05, 1.00, 0.75),
+    # Quem mora no predio carrega o ano todo: nao ha ferias que mudem isso.
+    "condominio": (1.0,) * 12,
+}
 
 # Crescimento da frota eletrica no periodo, ao ano. A rede nao tem o mesmo
 # movimento em 2024 e em 2026, e um historico plano ensinaria ao modelo que o
@@ -338,16 +369,31 @@ CRESCIMENTO_ANUAL = 0.38
 # Um local recem-aberto nao enche no primeiro dia. Meia-vida de 90 dias.
 MEIA_VIDA_DE_MATURACAO = 90
 
-# Energia por sessao: lognormal. Mediana de ~18 kWh e cauda longa refletem o
-# padrao real (muita recarga de oportunidade, poucas de bateria vazia). O teto
-# e' fisico - nenhum carro do seed tem bateria maior que isso.
-LOG_MEDIA_KWH = math.log(18.0)
-LOG_DESVIO_KWH = 0.55
+# Energia por sessao: lognormal, com mediana e dispersao POR CARATER.
+#
+# Era uma mediana unica de 18 kWh para todos, mais um fator de 1,45 so' para
+# rodovia. Isso subestimava a estrada (26 kWh efetivos) e superestimava predio:
+# um DC de 60 kW na Anhanguera nao entrega o mesmo que um AC de 22 kW num
+# escritorio, porque quem para na estrada enche o tanque e quem estaciona no
+# trabalho completa o que gastou vindo.
+#
+# A dispersao tambem e' por carater, e e' o que mais importa para a previsao:
+# era 0,55 em tudo. Corporativo e condominio tem rotina - a mesma pessoa, o
+# mesmo trajeto - e dispersam pouco (0,35 e 0,30). Rodovia e shopping recebem
+# quem passa, e dispersam mais. Sigma alto em local de rotina inventava ruido
+# que nao existe, e ruido inventado e' erro que nenhum modelo pode remover.
+#
+# Numeros de `simulate/gerador_cdr.py` do projeto de origem (`kwh_mediana`,
+# `kwh_sigma`), onde a calibragem por arquetipo ja' estava feita.
+ENERGIA_POR_SESSAO = {
+    "rodovia": (38.0, 0.45),
+    "shopping": (24.0, 0.50),
+    "corporativo": (19.0, 0.35),
+    "condominio": (16.0, 0.30),
+}
 MINIMO_KWH = 1.8
+# Teto fisico: nenhum carro do seed tem bateria maior que isso.
 TETO_KWH = 78.0
-
-# Ponto DC entrega mais por sessao: quem para na estrada enche o tanque.
-FATOR_KWH_RODOVIA = 1.45
 
 # Fracao da potencia nominal efetivamente entregue. Bateria nao aceita carga
 # nominal do inicio ao fim; o valor sai da curva de aceitacao tipica.
@@ -417,6 +463,83 @@ SITES = [
         170.0,
         DIAS_DE_HISTORICO,
         PONTOS_RODOVIA,
+    ),
+    # A SEGUNDA praca de cada carater, e a razao e' medida.
+    #
+    # Com uma praca por arquetipo, `archetype` fica perfeitamente colinear com
+    # `location_id`: o modelo aprende "esta praca tem este padrao", nunca
+    # "rodovias tem este padrao", e nao generaliza para uma praca nova. Pior,
+    # com dois anos de historico sao DUAS observacoes por mes do ano para cada
+    # padrao sazonal - o modelo paga a variancia de tentar aprender sazonalidade
+    # sem dado que a fixe.
+    #
+    # O projeto de origem do pipeline tem 8 estacoes em 4 arquetipos, 2 a 3 de
+    # cada, e la' o modelo ganha da melhor regua por 1,44 ponto. Duas de cada e'
+    # o minimo para a feature significar carater em vez de identidade.
+    #
+    # Tamanhos de proposito diferentes dos primeiros: clonar uma praca nao
+    # acrescenta informacao nenhuma ao treino.
+    (
+        "centro-empresarial-berrini",
+        "Centro Empresarial Berrini",
+        "Av. Engenheiro Luis Carlos Berrini, 1681 - Brooklin, Sao Paulo",
+        "Sao Paulo",
+        "SP",
+        -23.610800,
+        -46.694400,
+        "corporativo",
+        7.0,
+        60.0,
+        55.0,
+        DIAS_DE_HISTORICO,
+        CHARGE_POINTS,
+    ),
+    (
+        "shopping-tambore",
+        "Shopping Tambore",
+        "Av. Piracema, 669 - Tambore, Barueri",
+        "Barueri",
+        "SP",
+        -23.500100,
+        -46.842200,
+        "shopping",
+        11.0,
+        100.0,
+        95.0,
+        DIAS_DE_HISTORICO,
+        CHARGE_POINTS,
+    ),
+    (
+        "rodovia-castello-km-32",
+        "Rodovia Castello km 32",
+        "Rodovia Castello Branco, km 32 - Barueri",
+        "Barueri",
+        "SP",
+        -23.510600,
+        -46.876100,
+        "rodovia",
+        12.0,
+        150.0,
+        140.0,
+        DIAS_DE_HISTORICO,
+        PONTOS_RODOVIA,
+    ),
+    # Condominio com historico completo. O outro condominio do seed tem 118 dias
+    # de proposito, e sem este o carater nao entraria no treino em local nenhum.
+    (
+        "residencial-parque-das-nacoes",
+        "Residencial Parque das Nacoes",
+        "Av. das Nacoes Unidas, 1200 - Centro, Osasco",
+        "Osasco",
+        "SP",
+        -23.532400,
+        -46.791600,
+        "condominio",
+        4.0,
+        37.0,
+        33.0,
+        DIAS_DE_HISTORICO,
+        CHARGE_POINTS[:3],
     ),
     # Aberto ha quatro meses, de proposito: fica ABAIXO dos 150 dias que o modelo
     # de previsao exige. E' o caso que faz a tela dizer "sem historico suficiente"
@@ -679,6 +802,8 @@ def _sessoes_do_site(rng: random.Random, montado: dict, agora: datetime) -> list
     carater = montado["carater"]
     horas = PERFIS_HORARIOS[carater]
     semana = PERFIS_SEMANAIS[carater]
+    mes_a_mes = PESOS_MENSAIS[carater]
+    mediana_kwh, desvio_kwh = ENERGIA_POR_SESSAO[carater]
     pontos = montado["pontos"]
     dias = montado["dias"]
     e_rodovia = carater == "rodovia"
@@ -705,7 +830,7 @@ def _sessoes_do_site(rng: random.Random, montado: dict, agora: datetime) -> list
         media = (
             montado["sessoes_dia"]
             * semana[dia.weekday()]
-            * PESO_DO_MES[dia.month - 1]
+            * mes_a_mes[dia.month - 1]
             * crescimento
             * maturacao
         )
@@ -733,9 +858,7 @@ def _sessoes_do_site(rng: random.Random, montado: dict, agora: datetime) -> list
                 if inicio.date() != dia:
                     break
 
-                kwh = rng.lognormvariate(LOG_MEDIA_KWH, LOG_DESVIO_KWH)
-                if e_rodovia:
-                    kwh *= FATOR_KWH_RODOVIA
+                kwh = rng.lognormvariate(math.log(mediana_kwh), desvio_kwh)
                 kwh = round(min(max(kwh, MINIMO_KWH), TETO_KWH), 3)
 
                 potencia = float(ponto.rated_kw) * RENDIMENTO_DO_PONTO

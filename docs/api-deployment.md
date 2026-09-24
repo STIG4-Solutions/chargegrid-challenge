@@ -32,7 +32,7 @@ Quatro workflows, e nenhum deles publica a aplicação:
 | `ci` | todo push e PR | ruff, pytest, typecheck, os três `verify`, as suítes de renderização, build e bundle |
 | `migrate-staging` | push em `staging` que toque `apps/api/**` | `alembic upgrade head` contra o Neon do staging |
 | `migrate-production` | manual | o mesmo, contra produção |
-| `forecast-staging` | dia 1 de cada mês, ou manual | treina o modelo e grava a previsão do mês |
+| `forecast-staging` | dia 1 de cada mês, ou manual | treina o modelo, grava o mês+1 de cada praça e depois as outras quatro janelas (hora, dia, semana, ano) mais a previsão da rede |
 
 **O deploy da API é do Render**, pelo gancho dele com o repositório — não há workflow aqui que o
 dispare. Consequência que vale saber: a ordem entre a migração e o deploy não é garantida por
