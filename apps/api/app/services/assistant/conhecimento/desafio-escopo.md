@@ -1,0 +1,4 @@
+<!-- GERADO por scripts/exportar_conhecimento.py a partir de docs/challenge/brief.md. Nao edite: rode o script. -->
+<!-- titulo: Escopo do desafio ChargeGrid -->
+
+O ChargeGrid Intelligence foca no gerenciamento automatizado da infraestrutura de recarga para o setor comercial. O projeto propõe o controle de demanda e a integração de eletropostos, utilizando o EV Charger instalado na **FIAP** e o ecossistema digital da GoodWe. O desafio aborda a ausência de mecanismos integrados em eletropostos comerciais para gerenciar a potência, registrar o ciclo da sessão e aplicar políticas de tarifação e pagamento. A proposta consiste em desenvolver uma plataforma para orquestrar a recarga comercial, registrar dados da sessão e acionar regras de cobrança dinâmica. A solução integra automação física, comunicação via protocolo **MODBUS**, e análise de dados.
