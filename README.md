@@ -113,6 +113,61 @@ desistir do modelo: quando ele passar a ganhar — com operação real, com mais
 próprio backtest inverte a escolha sem ninguém mexer em código.
 `apps/forecast/README.md` detalha.
 
+## Assistente do operador
+
+Um botão no canto do painel abre um assistente (Azure OpenAI) que responde perguntas de
+operação em português: "vou estourar a demanda nas próximas horas?", "qual ponto se paga?",
+"tenho cobrança em atraso?". Ele não é uma interface a mais sobre os dados: é a camada que
+traduz o que as nove abas já calculam — potência, rateio, receita, ocupação, previsão,
+manutenção — em resposta gerencial, que é o papel de NLP que o desafio pede.
+
+**Todo número vem de uma ferramenta, e toda ferramenta é a rota GET da aba.** O modelo não
+consulta o banco e não recebe uma cópia dos dados: ele escolhe entre 24 ferramentas, e cada uma
+chama a mesma rota que a aba correspondente chama. Uma consulta "equivalente" escrita de novo
+divergiria na primeira correção que só uma das duas recebesse, e o assistente passaria a
+responder um número que a aba não mostra.
+
+As guardas que valem mesmo se o modelo desobedecer ficam no código, não no prompt:
+
+| Guarda | Onde |
+|---|---|
+| A praça vem do token (`ScopedSiteId`); nenhuma ferramenta aceita `site_id`, e argumento desconhecido é erro | `tools.py` |
+| Ferramenta roda em savepoint `READ ONLY` com `statement_timeout`: escrever falha no Postgres | `guardrails.py` |
+| Ferramenta de rede (`visao_da_rede`) só existe para admin — nem aparece na lista do operador | `tools.py` |
+| Cota por usuário (minuto e dia), contada no banco | `guardrails.py` |
+| Canário no system prompt: se aparecer na saída, a resposta é barrada | `guardrails.py` |
+| Filtro de conteúdo e Prompt Shields do deployment Azure, traduzidos em evento `bloqueado` | `client.py` |
+| Teto de rodadas de ferramenta; a última vai sem ferramentas e obriga a responder | `orchestrator.py` |
+| Conversa presa à praça em que nasceu; trocar de praça abre outra | `api/v1/assistant.py` |
+
+**Especificação técnica vem da documentação, não da memória do modelo.** A ferramenta
+`buscar_documentacao` faz busca textual (BM25) no manual, no datasheet e no mapa Modbus do HCA G2,
+na mentoria da GoodWe e nas regras de negócio deste README. A imagem Docker só leva `apps/api`,
+então os documentos têm uma cópia gerada em `app/services/assistant/conhecimento/`
+(`python -m scripts.exportar_conhecimento`), e `test_conhecimento.py` recusa a cópia desatualizada
+— o mesmo arranjo do `openapi.json`.
+
+**Custo, medido no `gpt-5.4-mini`:** uma pergunta típica usa ~5,8 mil tokens de entrada, dos quais
+~78% saem do cache de prompt do Azure (a parte fixa — ferramentas e instruções — vem primeiro de
+propósito), e ~100 de saída: cerca de US$ 0,002 por pergunta. Três tetos em tokens protegem o
+crédito da conta: por resposta (`ASSISTANT_MAX_INPUT_TOKENS_PER_ANSWER`, a rodada seguinte vai
+sem ferramentas), por usuário e por instalação a cada 24 h (`ASSISTANT_DAILY_TOKENS_PER_USER`,
+`ASSISTANT_DAILY_TOKENS_TOTAL`, 429 na pergunta seguinte).
+
+Cada pergunta, cada chamada de ferramenta (com argumentos e resultado) e cada resposta ficam em
+`assistant_messages`, com tokens e latência — é o rastro de onde saiu cada número. Mensagem
+barrada sai do histórico que volta ao modelo; senão a conversa inteira seria recusada dali em
+diante.
+
+Desligado por padrão (`ASSISTANT_ENABLED=false`): a API sobe sem Azure nenhum e o widget não
+aparece. O SDK do `openai` só é importado na primeira conversa, pelo mesmo motivo que o
+LightGBM mora fora — o processo da API também roda o rebalanceamento de potência.
+
+`pytest` cobre o código com um modelo roteirizado. O que o modelo **de verdade** faz diante de
+jailbreak, pedido do prompt, injeção escondida num reporte de motorista e perguntas-ouro (o
+número tem de bater com a aba) é medido por `python -m scripts.redteam_assistente`, fora do CI:
+custa tokens e não é determinístico. Rode ao trocar de deployment, de modelo ou de prompt.
+
 ## Rodar
 
 **Backend** (sobe Postgres, migra, popula e serve):
@@ -343,6 +398,7 @@ cd apps/api && python -m pytest -q          # 757 testes (precisa do Postgres)
 cd apps/api && python -m ruff check .
 cd apps/api && python -m ruff format --check .
 cd apps/api && python -m scripts.smoke_test # 117 cenários ponta a ponta (API no ar)
+cd apps/api && python -m scripts.redteam_assistente # ataque e perguntas-ouro contra o Azure real
 npm run gen:contrato                       # regera openapi.json e os tipos do SDK
 npm run forecast:test                      # 4 testes do pipeline de previsão
 npm run forecast:lint                      # regra e forma no código de previsão que é deste projeto
