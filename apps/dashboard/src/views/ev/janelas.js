@@ -88,23 +88,33 @@ export function topoDaSerie(buckets) {
  * resolve só o caso diário — e porque aquele recebe data pura (`2026-09-24`)
  * enquanto estes buckets chegam com fuso.
  *
- * O instante vem correto do banco (o job converte a hora local da praça antes de
- * gravar), então a conversão do navegador acerta para quem opera no Brasil. Quem
- * abrir a tela em outro fuso verá a curva deslocada — é inerente a mostrar um
- * instante, e não um defeito escondido.
+ * O `fuso` NÃO é opcional por capricho. A resposta carrega o instante em UTC, e
+ * sem fuso explícito o navegador o converte para o de quem olha — o que desloca a
+ * curva do dia para qualquer pessoa fora do fuso da praça. Uma versão anterior
+ * disto usava o relógio do navegador e chamava o deslocamento de "inerente"; o CI
+ * provou que não é aceitável, ao rodar em UTC e ver o pico das 17h como 20h. É a
+ * curva do dia que dá sentido à janela horária, então o deslocamento não é
+ * cosmético: é a feature errada.
+ *
+ * `timezone` vem da resposta da API, que o declara junto dos buckets.
  */
-export function rotuloDoBucket(iso, janela) {
+export function rotuloDoBucket(iso, janela, fuso = 'UTC') {
   if (!iso) return ''
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ''
+  const formatar = (opcoes) =>
+    new Intl.DateTimeFormat('pt-BR', { timeZone: fuso, ...opcoes }).format(d)
+
   if (janela === 'hora') {
-    return `${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} ${d.getHours()}h`
+    const dia = formatar({ day: '2-digit', month: '2-digit' })
+    // `hour12: false` e não o padrão: em pt-BR o padrão já é 24h, mas o `hourCycle`
+    // varia entre motores, e "10h" virando "10 AM" quebraria o eixo em silêncio.
+    const hora = formatar({ hour: 'numeric', hour12: false })
+    return `${dia} ${hora}h`
   }
-  if (janela === 'ano') return String(d.getFullYear())
-  if (janela === 'mes') {
-    return d.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).replace('.', '')
-  }
-  const curto = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+  if (janela === 'ano') return formatar({ year: 'numeric' })
+  if (janela === 'mes') return formatar({ month: 'short', year: '2-digit' }).replace('.', '')
+  const curto = formatar({ day: '2-digit', month: '2-digit' })
   return janela === 'semana' ? `sem ${curto}` : curto
 }
 

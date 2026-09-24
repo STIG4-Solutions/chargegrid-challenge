@@ -1174,26 +1174,38 @@ check(
 // 7. Cada janela rotula o eixo do jeito que ela pede. A hora SEM a hora é
 //    inútil, e o ano com dia e mês é ruído.
 const bucketDeHora = '2026-09-24T20:00:00-03:00'
+const SP = 'America/Sao_Paulo'
 check(
   'o rotulo da janela horaria traz a hora',
-  /\dh$/.test(rotuloDoBucket(bucketDeHora, 'hora')),
-  rotuloDoBucket(bucketDeHora, 'hora')
+  /\dh$/.test(rotuloDoBucket(bucketDeHora, 'hora', SP)),
+  rotuloDoBucket(bucketDeHora, 'hora', SP)
+)
+
+// 7b. O FUSO manda, nao o relogio da maquina. O mesmo instante rotulado em dois
+//     fusos tem de dar horas diferentes - e e' o que impede a curva do dia de
+//     sair deslocada para quem abre a tela fora do fuso da praca. O CI pegou
+//     isso rodando em UTC.
+check(
+  'o rotulo horario segue o fuso declarado',
+  rotuloDoBucket(bucketDeHora, 'hora', SP) === '24/09 20h' &&
+    rotuloDoBucket(bucketDeHora, 'hora', 'UTC') === '24/09 23h',
+  `${rotuloDoBucket(bucketDeHora, 'hora', SP)} / ${rotuloDoBucket(bucketDeHora, 'hora', 'UTC')}`
 )
 check(
   'o rotulo da janela anual e so o ano',
-  /^\d{4}$/.test(rotuloDoBucket('2027-01-01T00:00:00-03:00', 'ano')),
-  rotuloDoBucket('2027-01-01T00:00:00-03:00', 'ano')
+  /^\d{4}$/.test(rotuloDoBucket('2027-01-01T00:00:00-03:00', 'ano', SP)),
+  rotuloDoBucket('2027-01-01T00:00:00-03:00', 'ano', SP)
 )
 check(
   'o rotulo semanal se distingue do diario',
-  rotuloDoBucket(bucketDeHora, 'semana') !== rotuloDoBucket(bucketDeHora, 'dia') &&
-    rotuloDoBucket(bucketDeHora, 'semana').startsWith('sem '),
-  `${rotuloDoBucket(bucketDeHora, 'semana')} / ${rotuloDoBucket(bucketDeHora, 'dia')}`
+  rotuloDoBucket(bucketDeHora, 'semana', SP) !== rotuloDoBucket(bucketDeHora, 'dia', SP) &&
+    rotuloDoBucket(bucketDeHora, 'semana', SP).startsWith('sem '),
+  `${rotuloDoBucket(bucketDeHora, 'semana', SP)} / ${rotuloDoBucket(bucketDeHora, 'dia', SP)}`
 )
 check(
   'rotulo de data invalida nao vira "Invalid Date" na tela',
-  rotuloDoBucket('nao e data', 'dia') === '' && rotuloDoBucket(null, 'hora') === '',
-  `"${rotuloDoBucket('nao e data', 'dia')}"`
+  rotuloDoBucket('nao e data', 'dia', SP) === '' && rotuloDoBucket(null, 'hora', SP) === '',
+  `"${rotuloDoBucket('nao e data', 'dia', SP)}"`
 )
 
 // 8. Faturamento da REDE vem NULO, e não zero. A rede é gravada sem reais porque

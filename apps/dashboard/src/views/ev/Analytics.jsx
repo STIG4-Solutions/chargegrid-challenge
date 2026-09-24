@@ -525,6 +525,10 @@ function SeriePrevista({ d, janela }) {
   const buckets = Array.isArray(d.buckets) ? d.buckets : []
   if (!buckets.length) return null
 
+  // O fuso em que os buckets foram CONTADOS, declarado pela API. Sem ele o
+  // navegador rotularia o eixo no fuso de quem olha, deslocando a curva do dia -
+  // e a curva do dia e' o que da' sentido a janela horaria.
+  const fuso = d.timezone || 'UTC'
   const fonte = rotuloDaFonte(buckets[0]?.fonte)
   const totais = totaisDaSerie(buckets)
   const comFaixa = temFaixaNaSerie(buckets)
@@ -558,9 +562,9 @@ function SeriePrevista({ d, janela }) {
       )}
 
       {comFaixa ? (
-        <Faixa buckets={buckets} janela={janela} />
+        <Faixa buckets={buckets} janela={janela} fuso={fuso} />
       ) : (
-        <BarrasPrevistas buckets={buckets} janela={janela} />
+        <BarrasPrevistas buckets={buckets} janela={janela} fuso={fuso} />
       )}
 
       {comFaixa && (
@@ -583,7 +587,7 @@ function SeriePrevista({ d, janela }) {
  * ANTES da linha no SVG de propósito: desenhada depois, cobriria a linha que ela
  * deveria emoldurar.
  */
-export function Faixa({ buckets, janela }) {
+export function Faixa({ buckets, janela, fuso = 'UTC' }) {
   const topo = topoDaSerie(buckets)
   const n = buckets.length
   const x = (i) => (n === 1 ? 50 : (i / (n - 1)) * 100)
@@ -615,13 +619,13 @@ export function Faixa({ buckets, janela }) {
           />
         </svg>
       </div>
-      <EixoDeBuckets buckets={buckets} indices={indices} janela={janela} />
+      <EixoDeBuckets buckets={buckets} indices={indices} janela={janela} fuso={fuso} />
     </div>
   )
 }
 
 /** A previsão em barras, para as janelas sem faixa. Mesmo idioma de `Barras`. */
-export function BarrasPrevistas({ buckets, janela }) {
+export function BarrasPrevistas({ buckets, janela, fuso = 'UTC' }) {
   const topo = topoDaSerie(buckets)
   const largura = 100 / buckets.length
   const indices = rotulosDoEixo(buckets, 6)
@@ -650,18 +654,18 @@ export function BarrasPrevistas({ buckets, janela }) {
                 fill="var(--sems-blue)"
                 opacity={valor > 0 ? 0.75 : 0.18}
               >
-                <title>{`${rotuloDoBucket(b.bucket_inicio, janela)}: ${comoKwh(valor)}`}</title>
+                <title>{`${rotuloDoBucket(b.bucket_inicio, janela, fuso)}: ${comoKwh(valor)}`}</title>
               </rect>
             )
           })}
         </svg>
       </div>
-      <EixoDeBuckets buckets={buckets} indices={indices} janela={janela} />
+      <EixoDeBuckets buckets={buckets} indices={indices} janela={janela} fuso={fuso} />
     </div>
   )
 }
 
-function EixoDeBuckets({ buckets, indices, janela }) {
+function EixoDeBuckets({ buckets, indices, janela, fuso = 'UTC' }) {
   return (
     <div style={{ display: 'flex', marginTop: 4 }}>
       {buckets.map((b, i) => (
@@ -676,7 +680,7 @@ function EixoDeBuckets({ buckets, indices, janela }) {
             visibility: indices.includes(i) ? 'visible' : 'hidden'
           }}
         >
-          {rotuloDoBucket(b.bucket_inicio, janela)}
+          {rotuloDoBucket(b.bucket_inicio, janela, fuso)}
         </span>
       ))}
     </div>

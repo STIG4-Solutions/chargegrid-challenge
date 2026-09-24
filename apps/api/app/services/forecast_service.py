@@ -35,6 +35,7 @@ from sqlalchemy import Date, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.forecast import SiteForecast
+from app.models.site import Site
 
 # Quanto a faixa p10-p90 promete conter. E' a definicao dos quantis, nao opiniao.
 COBERTURA_ESPERADA = Decimal("80")
@@ -76,6 +77,30 @@ def _bucket(linha: SiteForecast) -> dict:
 
 def _float(valor) -> float | None:
     return None if valor is None else float(valor)
+
+
+async def _fuso_dos_buckets(db: AsyncSession, site_id: uuid.UUID | None) -> str:
+    """Em que fuso os buckets foram CONTADOS.
+
+    Sem isto a tela nao tem como rotular a janela de hora. A resposta carrega o
+    instante em UTC, e o navegador o converte para o fuso de QUEM OLHA - o que
+    desloca a curva do dia para qualquer pessoa fora do fuso da praca. O CI pegou
+    isso: o runner roda em UTC e viu o pico das 17h como 20h.
+
+    E' a curva do dia que da' sentido a janela horaria, entao o deslocamento nao e'
+    cosmetico: e' a feature errada.
+
+    Para a REDE nao existe uma praca, e o fuso vem do conjunto. O job que escreve
+    (`exportar_janelas.py`) RECUSA gravar quando as pracas estao em fusos
+    diferentes, entao aqui ha no maximo um - e o `min` e' so' determinismo.
+    """
+    if site_id is not None:
+        fuso = (
+            await db.execute(select(Site.timezone).where(Site.id == site_id))
+        ).scalar_one_or_none()
+        return fuso or "UTC"
+    fuso = (await db.execute(select(func.min(Site.timezone)))).scalar_one_or_none()
+    return fuso or "UTC"
 
 
 def _mes_corrente():
@@ -254,11 +279,14 @@ async def serie_por_janela(
         .all()
     )
 
+    fuso = await _fuso_dos_buckets(db, site_id)
+
     if not linhas:
         return {
             "disponivel": False,
             "janela": janela,
             "escopo": "rede" if site_id is None else "praca",
+            "timezone": fuso,
             "motivo": (
                 f"Nenhuma previsão de janela '{janela}' calculada ainda. "
                 "O cálculo roda fora da API."
@@ -273,6 +301,9 @@ async def serie_por_janela(
         "disponivel": True,
         "janela": janela,
         "escopo": "rede" if site_id is None else "praca",
+        # O fuso em que os buckets foram contados. A tela rotula o eixo com ele, e
+        # nao com o do navegador - ver `_fuso_dos_buckets`.
+        "timezone": fuso,
         "gerado_em": ultima.gerado_em.isoformat(),
         "modelo_versao": ultima.modelo_versao,
         "wape_modelo_pct": _float(ultima.wape_modelo_pct),

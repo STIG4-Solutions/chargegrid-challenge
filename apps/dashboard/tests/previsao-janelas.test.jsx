@@ -21,6 +21,11 @@ const serie = (janela, buckets, extra = {}) => ({
   disponivel: true,
   janela,
   escopo: 'praca',
+  // O fuso vem da API, e o teste o FIXA. Sem isso o resultado depende do relogio
+  // da maquina: o CI roda em UTC e via o pico das 17h como 20h, derrubando o
+  // teste do eixo horario. Nao era falha do teste - era a tela rotulando no fuso
+  // de quem olha, e nao no da praca.
+  timezone: 'America/Sao_Paulo',
   gerado_em: '2026-09-24T03:00:00+00:00',
   modelo_versao: '1.0.0',
   wape_modelo_pct: 11.98,
@@ -144,12 +149,25 @@ describe('a seção de previsão por janela', () => {
     expect(hora.getAttribute('aria-pressed')).toBe('false')
   })
 
-  it('o eixo da janela horária mostra a hora', () => {
+  it('o eixo da janela horária mostra a hora, no fuso da praça', () => {
     render(<Previsao d={serie('hora', horas())} janela="hora" onJanela={semRuido} />)
 
     // Sem a hora, a curva do dia não diz nada - é o sinal que a janela existe
-    // para mostrar.
+    // para mostrar. E o bucket `10:00-03:00` tem de sair como 10h porque o fuso
+    // declarado é o de São Paulo, INDEPENDENTE de onde o navegador está.
     expect(screen.getByText(/24\/09 10h/)).toBeTruthy()
+  })
+
+  it('o eixo respeita o fuso declarado, e nao o do navegador', () => {
+    // A MESMA série, declarada em UTC: o instante `10:00-03:00` é 13h em UTC.
+    // Se a tela usasse o relógio do navegador, este teste e o de cima não
+    // poderiam passar os dois na mesma máquina.
+    render(
+      <Previsao d={serie('hora', horas(), { timezone: 'UTC' })} janela="hora" onJanela={semRuido} />
+    )
+
+    expect(screen.getByText(/24\/09 13h/)).toBeTruthy()
+    expect(screen.queryByText(/24\/09 10h/)).toBeNull()
   })
 
   it('faturamento ausente vira travessão, e não R$ 0,00', () => {

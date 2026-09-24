@@ -232,3 +232,40 @@ async def test_a_rota_mensal_antiga_nao_mudou(db, site, como_operador_do_site, a
     # Formato PLANO, sem `buckets`: e' o contrato que a tela ja' consome.
     assert "buckets" not in corpo
     assert "competencia" in corpo
+
+
+# ------------------------------------------------------------------- o fuso
+
+
+async def test_a_serie_declara_o_fuso_dos_buckets(db, site):
+    """Sem isto a tela nao tem como rotular a janela de hora.
+
+    A resposta carrega o instante em UTC, e sem fuso explicito o navegador o
+    converte para o de QUEM OLHA - deslocando a curva do dia para qualquer pessoa
+    fora do fuso da praca. O CI pegou isso: o runner roda em UTC e viu o pico das
+    17h como 20h. E' a curva do dia que da' sentido a janela horaria, entao o
+    deslocamento nao e' cosmetico - e' a feature errada.
+    """
+    await _linha(db, site)
+
+    saida = await forecast_service.serie_por_janela(db, "hora", site.id)
+    assert saida["timezone"] == site.timezone
+
+
+async def test_a_serie_da_rede_tambem_declara_fuso(db, site):
+    """A rede nao tem praca, e o fuso vem do conjunto.
+
+    `exportar_janelas.py` recusa gravar com pracas em fusos diferentes, entao aqui
+    ha no maximo um.
+    """
+    await _linha(db, None)
+
+    saida = await forecast_service.serie_por_janela(db, "hora", None)
+    assert saida["timezone"] == site.timezone
+
+
+async def test_o_fuso_vem_junto_mesmo_sem_previsao(db, site):
+    """A tela escolhe o rotulo do eixo antes de saber se ha dado."""
+    saida = await forecast_service.serie_por_janela(db, "hora", site.id)
+    assert saida["disponivel"] is False
+    assert saida["timezone"] == site.timezone
