@@ -46,8 +46,17 @@ _COMUNS = """
     faturamento_previsto_brl, fat_p10_brl, fat_p90_brl,
     modelo_aplicavel, fonte, created_at, updated_at
 """
+# O bucket chega do painel como timestamp LOCAL INGENUO - `painel_horario` faz
+# `AT TIME ZONE s.timezone`, que devolve hora de parede sem fuso. Gravar isso
+# direto numa coluna `TIMESTAMPTZ` faz o Postgres le-lo como UTC, e o instante sai
+# tres horas deslocado em Sao Paulo: o pico do dia apareceria as 13h em vez das
+# 17h, que e' justamente o que a janela horaria existe para mostrar. Entao a
+# conversao acontece no SQL, com o fuso de quem opera - mesma forma do
+# `exportar.py`, e `CAST` em vez de `::` pelo mesmo motivo que la'.
 _VALORES = """
-    :granularidade, :bucket_inicio, :competencia, :gerado_em,
+    :granularidade,
+    (CAST(:bucket_inicio AS timestamp) AT TIME ZONE {fuso}),
+    :competencia, :gerado_em,
     :kwh_previsto, :kwh_p10, :kwh_p90,
     :fat_prev, :fat_p10, :fat_p90,
     false, :fonte, now(), now()
@@ -64,13 +73,19 @@ _ATUALIZA = """
     updated_at = now()
 """
 
+# A praca tira o fuso do proprio registro, pelo `JOIN sites`. A rede nao tem
+# praca, entao o fuso vem por parametro - e `main` recusa rodar se as pracas
+# estiverem em fusos diferentes, em vez de escolher um e nao dizer.
+_VALORES_PRACA = _VALORES.format(fuso="s.timezone")
+_VALORES_REDE = _VALORES.format(fuso=":fuso")
+
 # Duas sentencas, e nao uma com CASE: a da praca resolve o slug em UUID pelo
 # `JOIN sites`, e a da rede grava `site_id` NULL. Misturar as duas num unico SQL
 # esconderia justamente a diferenca que importa.
 _UPSERT_PRACA = text(
     f"""
     INSERT INTO site_forecasts (id, site_id, {_COMUNS})
-    SELECT :id, s.id, {_VALORES}
+    SELECT :id, s.id, {_VALORES_PRACA}
     FROM sites s WHERE s.slug = :slug
     ON CONFLICT (site_id, granularidade, bucket_inicio) DO UPDATE SET {_ATUALIZA}
     """
@@ -79,7 +94,7 @@ _UPSERT_PRACA = text(
 _UPSERT_REDE = text(
     f"""
     INSERT INTO site_forecasts (id, site_id, {_COMUNS})
-    VALUES (:id, NULL, {_VALORES})
+    VALUES (:id, NULL, {_VALORES_REDE})
     ON CONFLICT (site_id, granularidade, bucket_inicio) DO UPDATE SET {_ATUALIZA}
     """
 )
@@ -115,7 +130,14 @@ def _sem_o_primeiro_mes(linhas: list[dict]) -> list[dict]:
     ]
 
 
-def _gravar(conexao, sentenca, linhas: list[dict], agora: datetime, slug: str | None) -> int:
+def _gravar(
+    conexao,
+    sentenca,
+    linhas: list[dict],
+    agora: datetime,
+    slug: str | None,
+    fuso: str | None = None,
+) -> int:
     n = 0
     for linha in linhas:
         parametros = {
@@ -134,6 +156,8 @@ def _gravar(conexao, sentenca, linhas: list[dict], agora: datetime, slug: str | 
         }
         if slug is not None:
             parametros["slug"] = slug
+        if fuso is not None:
+            parametros["fuso"] = fuso
         conexao.execute(sentenca, parametros)
         n += 1
     return n
@@ -148,12 +172,35 @@ def main() -> int:
     ate = date.fromisoformat(args.ate) if args.ate else date.today() - timedelta(days=1)
 
     engine = conectar()
+
+    # O fuso da REDE. As linhas de praca tiram o fuso do proprio registro; a rede
+    # nao tem praca, e escolher um fuso em silencio deslocaria a curva horaria de
+    # todas as outras. Com mais de um fuso na rede a decisao nao e' tecnica - e'
+    # de produto - e este job recusa em vez de fingir que sabe.
+    fusos = sorted(
+        {
+            linha[0]
+            for linha in engine.connect().execute(text("SELECT DISTINCT timezone FROM sites"))
+        }
+    )
+    if not fusos:
+        raise SystemExit("nenhuma praca cadastrada - rode o seed antes")
+    if len(fusos) > 1:
+        raise SystemExit(
+            "as pracas estao em fusos diferentes ("
+            + ", ".join(fusos)
+            + "). A serie horaria da REDE soma hora de parede, e somar 20h de "
+            "dois fusos diferentes nao produz uma hora - produz uma media sem "
+            "significado. Decida o fuso de referencia da rede antes de gravar."
+        )
+    fuso_da_rede = fusos[0]
+
     diario, estacoes, tarifas = carregar(engine, ate=ate)
     horario = painel_horario(engine, ate=ate)
     agora = datetime.now(UTC)
     precos = _tarifa_por_praca(tarifas, pd.Timestamp(ate))
 
-    print(f"historico ate' {ate}")
+    print(f"historico ate' {ate} | fuso da rede: {fuso_da_rede}")
     total = 0
     with engine.begin() as conexao:
         # ------------------------------------------------------------- a rede
@@ -166,7 +213,7 @@ def main() -> int:
             serie(na_rede(diario.rename(columns={"date": "bucket"}))),
             tarifa=None,
         )
-        n = _gravar(conexao, _UPSERT_REDE, linhas, agora, None)
+        n = _gravar(conexao, _UPSERT_REDE, linhas, agora, None, fuso=fuso_da_rede)
         total += n
         print(f"  rede                          {n:5d} linha(s)")
 
