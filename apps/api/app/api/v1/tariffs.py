@@ -80,6 +80,29 @@ async def create_tariff(
     for window in payload.windows:
         tariff.windows.append(TariffWindow(**window.model_dump()))
     db.add(tariff)
+    await db.flush()
+
+    # A PRIMEIRA tarifa da praca vira a PADRAO dela.
+    #
+    # `default_tariff_id` so' era definido dentro do `seed()`. Enquanto apenas o
+    # seed criava praca, isso bastava - mas desde que o painel ganhou "Nova
+    # praca", toda praca nascida pelo produto ficava sem tarifa padrao e sem jeito
+    # de ganhar uma: nao ha rota que a defina.
+    #
+    # As consequencias eram tres, e nenhuma dava erro:
+    #   - `session_service` precifica por cartao > ponto > PADRAO DO SITE. Sem
+    #     nenhum dos tres, a sessao fica sem tarifa e sem fatura.
+    #   - o app do motorista so' mostra preco quando ha padrao.
+    #   - `forecast/banco._TARIFAS` junta por `default_tariff_id`, entao a
+    #     previsao daquela praca saia sem faturamento.
+    #
+    # A regra e' a que nao surpreende ninguem: a primeira tarifa de uma praca e'
+    # obviamente a dela. Nao sobrepoe uma escolha existente - se ja' ha padrao,
+    # trocar exige acao explicita, e nao um efeito colateral de cadastrar tarifa.
+    site = (await db.execute(select(Site).where(Site.id == site_id))).scalar_one()
+    if site.default_tariff_id is None:
+        site.default_tariff_id = tariff.id
+
     await db.commit()
     await db.refresh(tariff, attribute_names=["windows"])
     return tariff
