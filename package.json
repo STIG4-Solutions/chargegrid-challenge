@@ -34,6 +34,7 @@
     "test:dashboard": "npm run test -w @chargegrid/dashboard",
     "test:mobile": "npm run test -w @chargegrid/mobile",
     "test:site": "npm run test -w @chargegrid/site",
+    "test:mobile-release": "node --test scripts/mobile-release.test.mjs",
     "gen:openapi": "docker compose --env-file apps/api/.env run --rm --no-deps -v \"./apps/api:/app\" api python -m scripts.exportar_openapi",
     "gen:contrato": "npm run gen:openapi && npm run gen:types",
     "gen:types": "npm run gen:types -w @chargegrid/sdk",
