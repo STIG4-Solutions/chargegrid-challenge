@@ -125,6 +125,20 @@ As guardas que valem mesmo se o modelo desobedecer ficam no código, não no pro
 | Teto de rodadas de ferramenta; a última vai sem ferramentas e obriga a responder | `orchestrator.py` |
 | Conversa presa à praça em que nasceu; trocar de praça abre outra | `api/v1/assistant.py` |
 
+**Especificação técnica vem da documentação, não da memória do modelo.** A ferramenta
+`buscar_documentacao` faz busca textual (BM25) no manual, no datasheet e no mapa Modbus do HCA G2,
+na mentoria da GoodWe e nas regras de negócio deste README. A imagem Docker só leva `apps/api`,
+então os documentos têm uma cópia gerada em `app/services/assistant/conhecimento/`
+(`python -m scripts.exportar_conhecimento`), e `test_conhecimento.py` recusa a cópia desatualizada
+— o mesmo arranjo do `openapi.json`.
+
+**Custo, medido no `gpt-5.4-mini`:** uma pergunta típica usa ~5,8 mil tokens de entrada, dos quais
+~78% saem do cache de prompt do Azure (a parte fixa — ferramentas e instruções — vem primeiro de
+propósito), e ~100 de saída: cerca de US$ 0,002 por pergunta. Três tetos em tokens protegem o
+crédito da conta: por resposta (`ASSISTANT_MAX_INPUT_TOKENS_PER_ANSWER`, a rodada seguinte vai
+sem ferramentas), por usuário e por instalação a cada 24 h (`ASSISTANT_DAILY_TOKENS_PER_USER`,
+`ASSISTANT_DAILY_TOKENS_TOTAL`, 429 na pergunta seguinte).
+
 Cada pergunta, cada chamada de ferramenta (com argumentos e resultado) e cada resposta ficam em
 `assistant_messages`, com tokens e latência — é o rastro de onde saiu cada número. Mensagem
 barrada sai do histórico que volta ao modelo; senão a conversa inteira seria recusada dali em
