@@ -242,6 +242,25 @@ def _grade_completa(estacoes: pd.DataFrame, medido: pd.DataFrame, ate: date) -> 
                 }
             )
         )
+    if not pedacos:
+        # TODA praca nasceu depois do corte. `pd.concat([])` levanta
+        # "No objects to concatenate", que nao diz nada a quem abre a execucao -
+        # foi o que a primeira corrida do job em staging produziu, onde a unica
+        # praca abriu em 2026-09-03 contra um corte em 2026-08-31.
+        #
+        # Nao ha painel possivel aqui, e insistir seria pior: o modelo exige 150
+        # dias de energia e a media movel exige 28. A mensagem diz o corte, a
+        # praca mais antiga, e o que fazer.
+        mais_antiga = pd.to_datetime(estacoes["opened_at"]).min()
+        raise SystemExit(
+            f"nenhuma praca havia aberto ate' {fim.date()}. A mais antiga abriu "
+            f"em {mais_antiga.date()}, {(mais_antiga - fim).days} dia(s) DEPOIS "
+            "do corte. O corte padrao de `treinar.py` e' o ultimo dia do mes "
+            "anterior; use `--ate` para alcancar a operacao que existe, ou espere "
+            "haver historico. O modelo pede 150 dias de energia por praca, e a "
+            "media movel pede 28."
+        )
+
     grade = pd.concat(pedacos, ignore_index=True)
     grade["location_id"] = grade["location_id"].astype("string")
 
