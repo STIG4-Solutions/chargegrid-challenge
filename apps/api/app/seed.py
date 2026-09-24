@@ -61,22 +61,53 @@ from app.models.user import RfidCard, User, Vehicle
 
 log = get_logger(__name__)
 
-CHARGE_POINTS = [
+# O equipamento sai do CARATER do local, e nao de uma lista solta por praca.
+#
+# Era uma lista geral mais uma de rodovia, e quase toda praca usava a geral - um
+# shopping e um condominio recebiam o mesmo hardware de um escritorio. Isso passou
+# a importar quando o modelo de previsao deixou de ler o arquetipo de um mapa de
+# slugs e passou a INFERI-LO do equipamento (`forecast/banco.arquetipo_de`): com
+# hardware igual, shopping e condominio seriam lidos como corporativo, e a
+# sazonalidade por arquetipo deixaria de valer justamente neles.
+#
+# Os quatro sao separaveis sem ambiguidade, o que e' o requisito da inferencia:
+#
+#   rodovia      DC >= 100 kW   enche o tanque em quinze minutos
+#   shopping     DC  <  100 kW  carrega enquanto a pessoa esta' no cinema
+#   corporativo  AC trifasico   o carro fica o turno inteiro
+#   condominio   AC monofasico  carrega de noite, a vaga e' da pessoa
+#
+# Numeros na faixa do `gerador_cdr.py` do projeto de origem do pipeline, onde a
+# calibragem por arquetipo ja' estava feita: 150 / 60 / 22 / 7,4 kW.
+PONTOS_POR_CARATER = {
     # code, nome, conector, kW nominal, fases, prioridade
-    ("CP-01", "Ponto de Recarga 01", ConnectorType.CCS2, 22.0, PhaseType.THREE, 200),
-    ("CP-02", "Ponto de Recarga 02", ConnectorType.TYPE2, 22.0, PhaseType.THREE, 100),
-    ("CP-03", "Ponto de Recarga 03", ConnectorType.CHADEMO, 11.0, PhaseType.THREE, 100),
-    ("CP-04", "Ponto de Recarga 04", ConnectorType.TYPE2, 7.0, PhaseType.SINGLE, 50),
-]
-
-# Parada de rodovia e' outro negocio: ninguem para tres horas na estrada. Sao
-# pontos DC, e a energia por sessao muda junto com eles.
-PONTOS_RODOVIA = [
-    ("CP-01", "Carregador Rapido 01", ConnectorType.CCS2, 60.0, PhaseType.THREE, 200),
-    ("CP-02", "Carregador Rapido 02", ConnectorType.CCS2, 60.0, PhaseType.THREE, 200),
-    ("CP-03", "Carregador Rapido 03", ConnectorType.CHADEMO, 50.0, PhaseType.THREE, 150),
-    ("CP-04", "Ponto de Recarga 04", ConnectorType.TYPE2, 22.0, PhaseType.THREE, 100),
-]
+    "rodovia": [
+        ("CP-01", "Carregador Ultrarrapido 01", ConnectorType.CCS2, 150.0, PhaseType.THREE, 200),
+        ("CP-02", "Carregador Ultrarrapido 02", ConnectorType.CCS2, 150.0, PhaseType.THREE, 200),
+        ("CP-03", "Carregador Rapido 03", ConnectorType.CHADEMO, 120.0, PhaseType.THREE, 150),
+        ("CP-04", "Carregador Rapido 04", ConnectorType.CCS2, 100.0, PhaseType.THREE, 150),
+    ],
+    "shopping": [
+        ("CP-01", "Carregador Rapido 01", ConnectorType.CCS2, 60.0, PhaseType.THREE, 200),
+        ("CP-02", "Carregador Rapido 02", ConnectorType.CCS2, 60.0, PhaseType.THREE, 200),
+        ("CP-03", "Carregador Rapido 03", ConnectorType.CHADEMO, 50.0, PhaseType.THREE, 150),
+        ("CP-04", "Carregador Rapido 04", ConnectorType.CCS2, 60.0, PhaseType.THREE, 100),
+    ],
+    "corporativo": [
+        ("CP-01", "Ponto de Recarga 01", ConnectorType.TYPE2, 22.0, PhaseType.THREE, 200),
+        ("CP-02", "Ponto de Recarga 02", ConnectorType.TYPE2, 22.0, PhaseType.THREE, 100),
+        ("CP-03", "Ponto de Recarga 03", ConnectorType.TYPE2, 22.0, PhaseType.THREE, 100),
+        ("CP-04", "Ponto de Recarga 04", ConnectorType.TYPE2, 11.0, PhaseType.THREE, 50),
+    ],
+    # TODOS monofasicos, e nao por estilo: um unico ponto trifasico faria a
+    # inferencia ler o predio como escritorio.
+    "condominio": [
+        ("CP-01", "Ponto de Recarga 01", ConnectorType.TYPE2, 7.4, PhaseType.SINGLE, 200),
+        ("CP-02", "Ponto de Recarga 02", ConnectorType.TYPE2, 7.4, PhaseType.SINGLE, 100),
+        ("CP-03", "Ponto de Recarga 03", ConnectorType.TYPE2, 7.4, PhaseType.SINGLE, 100),
+        ("CP-04", "Ponto de Recarga 04", ConnectorType.TYPE2, 7.4, PhaseType.SINGLE, 50),
+    ],
+}
 
 
 def _senha(configurada: str | None, rotulo: str, sorteadas: dict[str, str]) -> str:
@@ -417,7 +448,8 @@ PROPORCAO_SEM_DONO = 0.82
 DIAS_COM_FATURA_ABERTA = 6
 
 # slug, nome, endereco, cidade, UF, lat, lon, carater, sessoes/dia, kW da rede,
-# demanda contratada, dias de operacao, pontos
+# demanda contratada, dias de operacao, QUANTIDADE de pontos (o hardware sai do
+# carater, em PONTOS_POR_CARATER)
 SITES = [
     (
         "lab-fiap-eco-station",
@@ -432,7 +464,7 @@ SITES = [
         75.0,
         75.0,
         DIAS_DE_HISTORICO,
-        CHARGE_POINTS,
+        4,
     ),
     (
         "shopping-morumbi-g3",
@@ -447,7 +479,7 @@ SITES = [
         120.0,
         110.0,
         DIAS_DE_HISTORICO,
-        CHARGE_POINTS,
+        4,
     ),
     (
         "posto-anhanguera-km-68",
@@ -459,10 +491,10 @@ SITES = [
         -46.897300,
         "rodovia",
         15.0,
-        180.0,
-        170.0,
+        400.0,
+        380.0,
         DIAS_DE_HISTORICO,
-        PONTOS_RODOVIA,
+        4,
     ),
     # A SEGUNDA praca de cada carater, e a razao e' medida.
     #
@@ -492,7 +524,7 @@ SITES = [
         60.0,
         55.0,
         DIAS_DE_HISTORICO,
-        CHARGE_POINTS,
+        4,
     ),
     (
         "shopping-tambore",
@@ -507,7 +539,7 @@ SITES = [
         100.0,
         95.0,
         DIAS_DE_HISTORICO,
-        CHARGE_POINTS,
+        4,
     ),
     (
         "rodovia-castello-km-32",
@@ -519,10 +551,10 @@ SITES = [
         -46.876100,
         "rodovia",
         12.0,
-        150.0,
-        140.0,
+        350.0,
+        330.0,
         DIAS_DE_HISTORICO,
-        PONTOS_RODOVIA,
+        4,
     ),
     # Condominio com historico completo. O outro condominio do seed tem 118 dias
     # de proposito, e sem este o carater nao entraria no treino em local nenhum.
@@ -539,7 +571,7 @@ SITES = [
         37.0,
         33.0,
         DIAS_DE_HISTORICO,
-        CHARGE_POINTS[:3],
+        3,
     ),
     # Aberto ha quatro meses, de proposito: fica ABAIXO dos 150 dias que o modelo
     # de previsao exige. E' o caso que faz a tela dizer "sem historico suficiente"
@@ -558,7 +590,7 @@ SITES = [
         45.0,
         40.0,
         118,
-        CHARGE_POINTS[:3],
+        3,
     ),
 ]
 
@@ -632,8 +664,13 @@ async def _montar_site(db, especificacao: tuple) -> dict:
         grid_kw,
         demanda_kw,
         dias,
-        pontos,
+        quantos_pontos,
     ) = especificacao
+
+    # O hardware sai do carater, nao da tupla: e' o que torna impossivel um
+    # shopping nascer com equipamento de escritorio - e a inferencia de arquetipo
+    # le' justamente o equipamento.
+    pontos = PONTOS_POR_CARATER[carater][:quantos_pontos]
 
     site = Site(
         slug=slug,

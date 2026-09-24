@@ -185,20 +185,52 @@ dentro o comando que o refaz. Se a tabela divergir do arquivo, **o arquivo manda
 
 | métrica | valor |
 |---|---|
-| WAPE mensal do modelo | **11,98%** |
-| WAPE mensal da média móvel de 28 dias | 15,38% |
-| WAPE mensal da média por dia da semana | 13,63% |
-| WAPE diário do modelo | **25,69%** |
-| WAPE diário da melhor régua | 27,57% |
-| Cobertura da faixa p10–p90 | **71,3%** (deveria ser ~80%) |
+| WAPE mensal do modelo | 16,45% |
+| WAPE mensal da média móvel de 28 dias | 16,04% |
+| WAPE mensal da média por dia da semana | **14,08%** |
+| WAPE diário do modelo | 29,42% |
+| WAPE diário da melhor régua | **28,79%** |
+| Cobertura da faixa p10–p90 | **61,5%** (deveria ser ~80%) |
 
-**O modelo ganha das duas réguas, nos dois eixos.** É a primeira vez, e por isso
-`exportar.py` grava `fonte = 'modelo'` — o portão não mudou, o resultado mudou.
+**O modelo perde das réguas por 2,37 pontos no mensal.** `exportar.py` grava a
+régua e `fonte` diz isso. O portão está funcionando: nenhum número pior chega à
+tela.
 
-### O que virou o jogo, e em que ordem
+### A vantagem existiu, e era frágil — vale registrar como se perdeu
 
-Durante meses o modelo perdia no mensal (9,26% contra 9,07% da média móvel). Três
-mudanças, medidas uma a uma:
+Por um momento o modelo ganhou: **11,98% contra 13,63%**, a primeira vez na
+história do projeto que o portão promoveu o modelo. Aquele número é real e está
+no histórico do Git.
+
+Ele desapareceu quando o hardware do seed passou a variar por arquétipo — uma
+mudança de **realismo**, feita porque o arquétipo deixou de vir de um mapa de
+slugs e passou a ser inferido do equipamento. Sem ela, um shopping e um
+condomínio nasciam com o mesmo equipamento de um escritório e eram lidos como
+corporativos.
+
+O erro subiu para todos (a melhor régua foi de 13,63% para 14,08%), e para o
+modelo subiu muito mais. O diagnóstico por praça mostra onde: as duas praças
+**corporativas** erram 29,4% e 17,6% contra 19,5% e 10,1% das réguas. E o
+coeficiente de variação diário explica por quê — corporativo e condomínio ficam
+em 0,85 contra 0,64 de rodovia e shopping, porque o perfil semanal de escritório
+cai a 22% no domingo. Série mais barulhenta, e a vantagem do modelo é a primeira
+coisa que o ruído come.
+
+**A leitura honesta não é "o modelo piorou".** É que a vantagem dele era
+específica de um recorte do gerador, e uma mudança plausível de hardware a
+removeu. Num dado sintético, "o modelo ganha" é propriedade do gerador antes de
+ser propriedade do modelo — e essa frase vale para os 11,98% tanto quanto para
+os 16,45%.
+
+Não houve ajuste do gerador para recuperar o número. Perseguir acurácia contra
+dado inventado é exatamente o que produz um resultado que não se reproduz em
+operação real.
+
+### As três mudanças que já foram medidas, e o que cada uma valeu
+
+Partindo de 9,26% contra 9,07% da média móvel, medidas uma a uma. Elas continuam
+valendo mesmo com o veredito atual: a perda certa e um gerador mais rico são
+melhorias independentes de quem ganha o portão.
 
 **1. A perda estava errada para o alvo.** `treinar_um` usava `objective="l1"`, que
 ajusta a **mediana** condicional de um dia — e o número da tela é uma **soma** de
@@ -236,6 +268,12 @@ corrigidas em `app/seed.py`:
 - E havia **uma praça por arquétipo**, o que tornava `archetype` colinear com
   `location_id`: o modelo aprendia "esta praça tem este padrão", nunca "rodovias
   têm este padrão". Agora são duas de cada, oito no total.
+- E o **hardware passou a variar por arquétipo** (`PONTOS_POR_CARATER`): DC de
+  150 kW na rodovia, DC de 60 kW no shopping, AC trifásico de 22 kW no
+  corporativo, AC monofásico de 7,4 kW no condomínio. Não é enfeite: é o que
+  permite ao modelo **inferir** o arquétipo do equipamento em vez de lê-lo de uma
+  lista de slugs escrita à mão — e foi esta mudança que custou a vantagem
+  descrita acima.
 
 **3. Quatro anos em vez de dois.** O backtest treina só com meses anteriores ao mês
 de teste; com dois anos, prever julho significava ter visto julho **uma vez**. Isso

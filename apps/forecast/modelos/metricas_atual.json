@@ -12,7 +12,7 @@
     "2026-08-31"
   ],
   "n_linhas_treino": 8960,
-  "impressao_do_treino": "3adb8e482075964db612091f66d1003f",
+  "impressao_do_treino": "15efb3f815e8ba7df09000c5f91df36c",
   "estacoes_treinadas": [
     "centro-empresarial-berrini",
     "lab-fiap-eco-station",
@@ -35,13 +35,13 @@
     ],
     "n_obs_teste": 644,
     "n_obs_mensal": 21,
-    "wape_diario": 25.69,
-    "wape_mensal": 11.98,
-    "wape_mensal_baseline_m28": 15.38,
-    "wape_mensal_baseline_dow": 13.63,
-    "wape_diario_baseline_m28": 34.64,
-    "wape_diario_baseline_dow": 27.57,
-    "vies_medio_pct": 2.14,
-    "cobertura_p10_p90_diaria": 71.3
+    "wape_diario": 29.42,
+    "wape_mensal": 16.45,
+    "wape_mensal_baseline_m28": 16.04,
+    "wape_mensal_baseline_dow": 14.08,
+    "wape_diario_baseline_m28": 36.26,
+    "wape_diario_baseline_dow": 28.79,
+    "vies_medio_pct": 0.83,
+    "cobertura_p10_p90_diaria": 61.5
   }
 }
