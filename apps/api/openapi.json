@@ -6275,6 +6275,272 @@
           }
         ]
       }
+    },
+    "/api/v1/assistant/status": {
+      "get": {
+        "tags": [
+          "assistente"
+        ],
+        "summary": "Status",
+        "description": "O widget pergunta isto antes de aparecer: desligado, ele nem se mostra.",
+        "operationId": "status_api_v1_assistant_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistenteStatus"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/assistant/conversations": {
+      "post": {
+        "tags": [
+          "assistente"
+        ],
+        "summary": "Criar Conversa",
+        "operationId": "criar_conversa_api_v1_assistant_conversations_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversaOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "assistente"
+        ],
+        "summary": "Listar Conversas",
+        "description": "As conversas deste usuario NESTA praca, mais recentes primeiro.",
+        "operationId": "listar_conversas_api_v1_assistant_conversations_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConversaOut"
+                  },
+                  "title": "Response Listar Conversas Api V1 Assistant Conversations Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assistant/conversations/{conversa_id}": {
+      "get": {
+        "tags": [
+          "assistente"
+        ],
+        "summary": "Ler Conversa",
+        "operationId": "ler_conversa_api_v1_assistant_conversations__conversa_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "conversa_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Conversa Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversaDetalhe"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assistant/conversations/{conversa_id}/messages": {
+      "post": {
+        "tags": [
+          "assistente"
+        ],
+        "summary": "Enviar Mensagem",
+        "description": "Grava a pergunta e transmite a resposta como eventos SSE.\n\nEventos: `meta`, `delta`, `ferramenta`, `bloqueado`, `erro`, `fim`.",
+        "operationId": "enviar_mensagem_api_v1_assistant_conversations__conversa_id__messages_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "conversa_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Conversa Id"
+            }
+          },
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MensagemIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "eventos SSE",
+            "content": {
+              "text/event-stream": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -6367,6 +6633,24 @@
           "reason"
         ],
         "title": "AllocationOut"
+      },
+      "AssistenteStatus": {
+        "properties": {
+          "habilitado": {
+            "type": "boolean",
+            "title": "Habilitado"
+          },
+          "limite_de_caracteres": {
+            "type": "integer",
+            "title": "Limite De Caracteres"
+          }
+        },
+        "type": "object",
+        "required": [
+          "habilitado",
+          "limite_de_caracteres"
+        ],
+        "title": "AssistenteStatus"
       },
       "AuthMethod": {
         "type": "string",
@@ -7113,6 +7397,90 @@
         "title": "ContaOut",
         "description": "O que a tela de contas mostra.\n\nDeliberadamente menos que `UserOut`: saldo de carteira, telefone e documento\nsao dados do MOTORISTA, e nao tem o que fazer numa tela sobre quem opera a\nrede. `last_login_at` entra porque e' a pergunta que essa tela responde e\nnenhuma outra - conta criada e nunca usada.\n\nHerda `ORMModel` para ENTRAR na guarda de `test_cobertura_de_schema`: aquela\nvarredura so' enxerga subclasses de `ORMModel`, entao um schema de resposta\nem `BaseModel` escaparia tanto da tabela de omissoes quanto da checagem de\ncampo sigiloso - e este aqui carrega colunas de `User`."
       },
+      "ConversaDetalhe": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "titulo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Titulo"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "mensagens": {
+            "items": {
+              "$ref": "#/components/schemas/MensagemOut"
+            },
+            "type": "array",
+            "title": "Mensagens"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "titulo",
+          "created_at",
+          "updated_at",
+          "mensagens"
+        ],
+        "title": "ConversaDetalhe"
+      },
+      "ConversaOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "titulo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Titulo"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "titulo",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ConversaOut"
+      },
       "DesempenhoOut": {
         "properties": {
           "campanha_id": {
@@ -7400,6 +7768,87 @@
           "password"
         ],
         "title": "LoginRequest"
+      },
+      "MensagemIn": {
+        "properties": {
+          "texto": {
+            "type": "string",
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Texto"
+          },
+          "aba": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aba",
+            "description": "rota do painel aberta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "texto"
+        ],
+        "title": "MensagemIn"
+      },
+      "MensagemOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "papel": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant"
+            ],
+            "title": "Papel"
+          },
+          "conteudo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conteudo"
+          },
+          "bloqueio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bloqueio"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "papel",
+          "conteudo",
+          "bloqueio",
+          "created_at"
+        ],
+        "title": "MensagemOut"
       },
       "MeterReadingIn": {
         "properties": {
@@ -7946,6 +8395,11 @@
           "available_kw": {
             "type": "number",
             "title": "Available Kw"
+          },
+          "grid_import_kw": {
+            "type": "number",
+            "title": "Grid Import Kw",
+            "default": 0.0
           },
           "reading_at": {
             "anyOf": [
@@ -10713,6 +11167,10 @@
     {
       "name": "tempo real",
       "description": "O SEMS+ só responde a consulta. Este WebSocket empurra telemetria e plano de potência, e é o que faz o painel mudar sozinho."
+    },
+    {
+      "name": "assistente",
+      "description": "Assistente do operador (Azure OpenAI). Só consulta: cada número da resposta vem de uma rota GET das abas do painel, executada em transação somente leitura e no escopo da praça. A resposta sai em `text/event-stream`."
     },
     {
       "name": "infra",

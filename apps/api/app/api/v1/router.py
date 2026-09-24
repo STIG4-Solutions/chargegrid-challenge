@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from app.api.v1 import (
+    assistant,
     auth,
     campaigns,
     mobile,
@@ -24,3 +25,4 @@ api_router.include_router(sessions.router)
 api_router.include_router(tariffs.router)
 api_router.include_router(mobile.router)
 api_router.include_router(ws.router)
+api_router.include_router(assistant.router)
