@@ -1,11 +1,13 @@
 # Deploy do site e do APK Android
 
-Este documento registra os pontos de configuração externos ao repositório. Nenhuma URL real de APK, chave ou credencial deve ser versionada.
+Este documento registra os pontos de configuração externos ao repositório. Os
+endereços estáveis podem ser documentados; URLs de builds individuais, chaves e
+credenciais não devem ser versionadas.
 
 ## Arquitetura
 
 - `stig4.com`: site de produção, público.
-- `staging.stig4.com`: site de homologação, restrito à equipe pelo Cloudflare Access.
+- `staging.stig4.com`: site de homologação público.
 - `/download`: página estática que explica o aplicativo e a instalação.
 - `/download/android`: Pages Function que responde `302` para a variável `ANDROID_APK_URL` do ambiente.
 - APK de produção: objeto no R2 acessível por um domínio personalizado público.
@@ -33,14 +35,16 @@ Em **Settings → Variables and Secrets**, crie `ANDROID_APK_URL` nos dois ambie
 
 | Ambiente Pages | Valor |
 |---|---|
-| Production | `<URL HTTPS do APK de produção no domínio personalizado do R2>` |
-| Preview | `<URL HTTPS do APK de staging no domínio personalizado do R2>` |
+| Production | `https://downloads.stig4.com/latest/chargegrid.apk` |
+| Preview | `https://downloads.staging.stig4.com/latest/chargegrid.apk` |
 
 Os valores precisam ser URLs HTTPS completas. A Function recusa valor ausente, inválido ou iniciado com `http:`.
 
 Não reutilize o endereço de staging em Production. O caminho público `https://stig4.com/download/android` deve sempre terminar no APK de produção.
 
-Depois de alterar uma variável, execute um novo deploy do ambiente correspondente.
+Esses dois valores são estáveis. Cada release substitui o objeto `latest/chargegrid.apk`
+no bucket correto, portanto não é necessário alterar a variável nem executar um novo
+deploy do Pages a cada APK.
 
 ## Domínios e branches
 
@@ -49,48 +53,70 @@ Depois de alterar uma variável, execute um novo deploy do ambiente corresponden
 3. Adicione `staging.stig4.com` como domínio personalizado.
 4. No DNS do domínio, mantenha o registro com proxy ativado e altere o destino do CNAME para o alias da branch `staging` mostrado pelo Pages.
 
-Não registre no repositório o nome gerado do projeto `pages.dev`; ele pertence à configuração da conta Cloudflare.
+O projeto atual usa `chargegrid-site.pages.dev`. Configure um Bulk Redirect desse
+hostname exato para `https://stig4.com`, preservando caminho e query string, mas sem
+incluir subdomínios. Assim o alias `staging.chargegrid-site.pages.dev` continua disponível.
+
+Para `www`, crie outro Bulk Redirect de `www.stig4.com` para `https://stig4.com`,
+também preservando caminho e query. O hostname `www` precisa de um registro `A`
+proxied para `192.0.2.1`, usado apenas para que a regra passe pela borda Cloudflare.
 
 ## R2 de produção
 
-1. Envie o APK de produção ao bucket escolhido.
-2. Conecte ao bucket um domínio personalizado de produção.
-3. Mantenha esse domínio público.
-4. Desative o endereço público `r2.dev` do bucket.
-5. Copie a URL HTTPS completa do objeto para `ANDROID_APK_URL` no ambiente Production do Pages.
-
-Use um nome de objeto versionado, por exemplo com a versão do aplicativo no nome. O padrão exato deve ser decidido no processo de release, sem ser fixado no código do site.
+1. Conecte o domínio personalizado `downloads.stig4.com` ao bucket de produção.
+2. Mantenha esse domínio público, sem Cloudflare Access.
+3. Desative o endereço público `r2.dev` do bucket.
+4. Configure `ANDROID_APK_URL` uma única vez com a URL `latest` da tabela anterior.
 
 ## R2 de staging
 
-1. Defina o domínio personalizado que será usado pelo bucket de staging.
-2. Antes de conectar esse domínio ao bucket, crie uma aplicação **Self-hosted** no Cloudflare Zero Trust para esse hostname.
+1. Use o domínio personalizado `downloads.staging.stig4.com`.
+2. Antes de conectá-lo ao bucket, crie uma aplicação **Self-hosted** no Cloudflare Zero Trust para esse hostname.
 3. Adicione uma política Allow limitada aos e-mails ou ao provedor de identidade da equipe.
 4. Conecte o domínio protegido ao bucket.
 5. Desative o endereço público `r2.dev` do bucket.
-6. Copie a URL HTTPS completa do objeto para `ANDROID_APK_URL` no ambiente Preview do Pages.
+6. Configure `ANDROID_APK_URL` uma única vez com a URL `latest` da tabela anterior.
 
-Proteger somente `staging.stig4.com` não protege o objeto após o redirecionamento. O domínio personalizado do R2 de staging também precisa da própria aplicação e política do Cloudflare Access.
-
-## Restringir a página de staging
-
-No Cloudflare Zero Trust:
-
-1. Crie uma aplicação Self-hosted para `staging.stig4.com/*`.
-2. Adicione uma política Allow exclusiva para a equipe.
-3. No projeto Pages, habilite a política de acesso para Preview Deployments, impedindo que os endereços de preview gerados fiquem públicos.
-
-Com essas duas proteções, a página de staging e os previews exigem autenticação. A proteção do domínio R2 descrita anteriormente impede acesso direto ao APK de staging.
+Proteger o site não protegeria o objeto após o redirecionamento. A fronteira de acesso
+fica no domínio R2: as páginas de staging são públicas, enquanto o APK exige login.
 
 ## Publicar uma nova versão do APK
 
-1. Gere e valide o APK do ambiente correto.
-2. Envie o arquivo ao bucket R2 correspondente usando um objeto versionado.
-3. Atualize `ANDROID_APK_URL` somente no ambiente Pages correspondente.
-4. Faça um novo deploy do Pages.
-5. Abra `/download/android` no domínio correspondente e confirme o destino do redirecionamento.
+1. Altere `expo.version` em `apps/mobile/app.json` no PR do release.
+2. No GitHub Actions, execute **Publish Android APK** para `staging`.
+3. Instale e valide o APK protegido de staging.
+4. Depois que o mesmo código estiver em `main`, execute o workflow para `production`.
+5. Aprove o GitHub Environment `mobile-production`.
 
-Não é necessário alterar o React nem criar um commit apenas para trocar o APK.
+O workflow gera o APK no EAS, valida package e versão, calcula SHA-256 e publica:
+
+```text
+releases/<versão>/<commit>/chargegrid.apk
+releases/<versão>/<commit>/chargegrid.apk.sha256
+releases/<versão>/<commit>/release.json
+latest/chargegrid.apk
+latest/chargegrid.apk.sha256
+latest/release.json
+```
+
+Produção recusa versão igual ou inferior à última publicada. Staging permite novos
+builds da mesma versão, pois o commit também faz parte do caminho imutável.
+
+### Configuração única do GitHub
+
+Crie os Environments `mobile-staging` e `mobile-production`. Em produção, configure
+um required reviewer. Em ambos, adicione:
+
+| Tipo | Nome | Valor |
+|---|---|---|
+| Variable | `R2_ACCOUNT_ID` | ID da conta Cloudflare |
+| Variable | `R2_BUCKET` | bucket do ambiente |
+| Variable | `R2_BASE_URL` | domínio HTTPS do bucket, sem barra final |
+| Secret | `R2_ACCESS_KEY_ID` | credencial S3 restrita ao bucket |
+| Secret | `R2_SECRET_ACCESS_KEY` | segredo da mesma credencial |
+
+Crie também o repository secret `EXPO_TOKEN`. As duas credenciais R2 devem ter
+**Object Read & Write** e acesso somente ao bucket do próprio ambiente.
 
 ## Desenvolvimento local
 
@@ -115,7 +141,8 @@ O valor local deve ser descartável e nunca deve ser salvo em um arquivo version
 - `npm run build:site` passou.
 - `stig4.com/download` abre sem autenticação.
 - `stig4.com/download/android` redireciona somente para o APK de produção.
-- `staging.stig4.com` exige Cloudflare Access.
+- `staging.stig4.com/download` abre sem autenticação.
 - O domínio R2 de staging exige Cloudflare Access mesmo quando acessado diretamente.
+- `downloads.stig4.com/latest/chargegrid.apk` baixa sem autenticação.
 - Os endereços `r2.dev` dos buckets estão desativados.
-- Nenhuma URL real do objeto ou credencial entrou no Git.
+- Nenhuma URL de build individual ou credencial entrou no Git.

@@ -235,12 +235,27 @@ npx eas-cli build -p android --profile preview
 O build roda em Linux, onde esse limite não existe, e devolve um link para baixar
 o APK.
 
+### Release automatizado
+
+Depois da configuração inicial descrita em `docs/site-deployment.md`, a publicação
+distribuível acontece pelo workflow **Publish Android APK** no GitHub Actions:
+
+1. altere apenas `expo.version` em `app.json` no PR do release;
+2. execute o workflow para `staging` e valide o APK;
+3. leve o mesmo código para `main` e execute o workflow para `production`;
+4. aprove o Environment de produção.
+
+O workflow usa os perfis `preview` e `production` do `eas.json`, valida o APK e
+mantém no R2 uma cópia imutável por versão/commit e o endereço estável
+`latest/chargegrid.apk`. Não é necessário baixar o artefato do EAS, criar pastas
+no R2 ou republicar o site manualmente.
+
 > **Duas coisas para acertar antes de gerar o APK.**
 >
-> O APK sai da nuvem com o endereço da API **embutido**, vindo de
-> `build.preview.env.EXPO_PUBLIC_API_URL` no `eas.json`. Ele precisa apontar para
-> uma máquina que o aparelho alcance — não adianta `localhost` nem `10.0.2.2`.
-> Ajuste para o IP da sua máquina na rede (`ipconfig`) sempre que ele mudar.
+> O APK sai da nuvem com o endereço da API **embutido**, vindo do Environment
+> selecionado pelo perfil no EAS. `preview` usa `https://api.staging.stig4.com` e
+> `production` usa `https://api.stig4.com`. Em builds locais de desenvolvimento,
+> `EXPO_PUBLIC_API_URL` ainda pode apontar para um endereço acessível pelo aparelho.
 >
 > E a API tem que escutar **fora do loopback**, senão nada na rede a alcança:
 >

@@ -1,0 +1,318 @@
+name: Publish Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Ambiente que receberá o APK
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+
+concurrency:
+  group: mobile-release-${{ inputs.target }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish ${{ inputs.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment:
+      name: mobile-${{ inputs.target }}
+      url: ${{ steps.prepare.outputs.latest_url }}
+
+    env:
+      TARGET: ${{ inputs.target }}
+      SOURCE_REF: ${{ inputs.target == 'production' && 'main' || 'staging' }}
+      EAS_PROFILE: ${{ inputs.target == 'production' && 'production' || 'preview' }}
+      EXPECTED_PACKAGE: ${{ inputs.target == 'production' && 'br.com.chargegrid.app' || 'br.com.chargegrid.app.staging' }}
+      R2_ACCOUNT_ID: ${{ vars.R2_ACCOUNT_ID }}
+      R2_BUCKET: ${{ vars.R2_BUCKET }}
+      R2_BASE_URL: ${{ vars.R2_BASE_URL }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+    steps:
+      - name: Check out the release branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.SOURCE_REF }}
+          fetch-depth: 1
+
+      - name: Record release commit
+        id: source
+        shell: bash
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Validate release configuration
+        shell: bash
+        run: |
+          missing=0
+          for variable in EXPO_TOKEN R2_ACCOUNT_ID R2_BUCKET R2_BASE_URL AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; do
+            if [ -z "${!variable}" ]; then
+              echo "::error::A configuração $variable não foi definida nos secrets/variables do release."
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+          case "$R2_BASE_URL" in
+            https://*) ;;
+            *) echo "::error::R2_BASE_URL precisa começar com https://"; exit 1 ;;
+          esac
+
+      - name: Set up Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          packager: npm
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install project dependencies
+        run: npm ci
+
+      - name: Test release tooling
+        run: npm run test:mobile-release
+
+      - name: Verify mobile project
+        run: |
+          npm run verify:mobile
+          npm run test:mobile
+          cd apps/mobile
+          npx expo-doctor
+
+      - name: Install R2 client
+        run: python -m pip install --disable-pip-version-check awscli
+
+      - name: Read application version
+        id: version
+        run: >-
+          node scripts/mobile-release.mjs version
+          --app-json apps/mobile/app.json
+          --github-output "$GITHUB_OUTPUT"
+
+      - name: Validate production version
+        if: inputs.target == 'production'
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          R2_ENDPOINT: https://${{ env.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+        run: |
+          mkdir -p artifacts
+          current_key=$(aws s3api list-objects-v2 \
+            --bucket "$R2_BUCKET" \
+            --prefix latest/release.json \
+            --max-items 1 \
+            --query "Contents[?Key=='latest/release.json'].Key | [0]" \
+            --output text \
+            --endpoint-url "$R2_ENDPOINT")
+
+          if [ "$current_key" = "None" ] || [ -z "$current_key" ]; then
+            echo "Primeira versão automatizada de produção: não há manifesto anterior."
+            exit 0
+          fi
+
+          aws s3 cp \
+            "s3://$R2_BUCKET/latest/release.json" \
+            artifacts/current-release.json \
+            --endpoint-url "$R2_ENDPOINT"
+
+          node scripts/mobile-release.mjs assert-newer \
+            --candidate "$VERSION" \
+            --current-manifest artifacts/current-release.json
+
+      - name: Build APK on EAS
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          cd apps/mobile
+          eas build \
+            --platform android \
+            --profile "$EAS_PROFILE" \
+            --non-interactive \
+            --wait \
+            --json > ../../artifacts/eas-build.json
+
+      - name: Read EAS build result
+        id: eas
+        run: >-
+          node scripts/mobile-release.mjs eas-build
+          --input artifacts/eas-build.json
+          --github-output "$GITHUB_OUTPUT"
+
+      - name: Download APK
+        env:
+          ARTIFACT_URL: ${{ steps.eas.outputs.artifact_url }}
+        run: >-
+          curl --fail --location --retry 3 --retry-all-errors
+          --output artifacts/chargegrid.apk
+          "$ARTIFACT_URL"
+
+      - name: Inspect APK
+        shell: bash
+        run: |
+          aapt=$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)
+          if [ -z "$aapt" ]; then
+            echo "::error::aapt não foi encontrado no runner Android."
+            exit 1
+          fi
+          "$aapt" dump badging artifacts/chargegrid.apk > artifacts/aapt.txt
+
+      - name: Prepare release metadata
+        id: prepare
+        run: >-
+          node scripts/mobile-release.mjs prepare
+          --app-json apps/mobile/app.json
+          --eas-json artifacts/eas-build.json
+          --aapt-output artifacts/aapt.txt
+          --apk artifacts/chargegrid.apk
+          --environment "$TARGET"
+          --expected-package "$EXPECTED_PACKAGE"
+          --git-commit "${{ steps.source.outputs.sha }}"
+          --base-url "$R2_BASE_URL"
+          --output-dir artifacts
+          --github-output "$GITHUB_OUTPUT"
+
+      - name: Upload immutable release
+        shell: bash
+        env:
+          ARCHIVE_PREFIX: ${{ steps.prepare.outputs.archive_prefix }}
+          VERSION: ${{ steps.prepare.outputs.version }}
+          R2_ENDPOINT: https://${{ env.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+        run: |
+          aws s3 cp artifacts/chargegrid.apk \
+            "s3://$R2_BUCKET/$ARCHIVE_PREFIX/chargegrid.apk" \
+            --content-type application/vnd.android.package-archive \
+            --content-disposition "attachment; filename=ChargeGrid-$VERSION.apk" \
+            --cache-control "public,max-age=31536000,immutable" \
+            --endpoint-url "$R2_ENDPOINT"
+
+          aws s3 cp artifacts/chargegrid.apk.sha256 \
+            "s3://$R2_BUCKET/$ARCHIVE_PREFIX/chargegrid.apk.sha256" \
+            --content-type text/plain \
+            --cache-control "public,max-age=31536000,immutable" \
+            --endpoint-url "$R2_ENDPOINT"
+
+          aws s3 cp artifacts/release.json \
+            "s3://$R2_BUCKET/$ARCHIVE_PREFIX/release.json" \
+            --content-type application/json \
+            --cache-control "public,max-age=31536000,immutable" \
+            --endpoint-url "$R2_ENDPOINT"
+
+          for object in chargegrid.apk chargegrid.apk.sha256 release.json; do
+            aws s3api head-object \
+              --bucket "$R2_BUCKET" \
+              --key "$ARCHIVE_PREFIX/$object" \
+              --endpoint-url "$R2_ENDPOINT" > /dev/null
+          done
+
+      - name: Update latest release
+        shell: bash
+        env:
+          VERSION: ${{ steps.prepare.outputs.version }}
+          R2_ENDPOINT: https://${{ env.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+        run: |
+          aws s3 cp artifacts/chargegrid.apk \
+            "s3://$R2_BUCKET/latest/chargegrid.apk" \
+            --content-type application/vnd.android.package-archive \
+            --content-disposition "attachment; filename=ChargeGrid-$VERSION.apk" \
+            --cache-control "no-store,max-age=0" \
+            --endpoint-url "$R2_ENDPOINT"
+
+          aws s3 cp artifacts/chargegrid.apk.sha256 \
+            "s3://$R2_BUCKET/latest/chargegrid.apk.sha256" \
+            --content-type text/plain \
+            --cache-control "no-store,max-age=0" \
+            --endpoint-url "$R2_ENDPOINT"
+
+          # O manifesto é o marcador de conclusão e sempre entra por último.
+          aws s3 cp artifacts/release.json \
+            "s3://$R2_BUCKET/latest/release.json" \
+            --content-type application/json \
+            --cache-control "no-store,max-age=0" \
+            --endpoint-url "$R2_ENDPOINT"
+
+          for object in chargegrid.apk chargegrid.apk.sha256 release.json; do
+            aws s3api head-object \
+              --bucket "$R2_BUCKET" \
+              --key "latest/$object" \
+              --endpoint-url "$R2_ENDPOINT" > /dev/null
+          done
+
+      - name: Verify published URL
+        shell: bash
+        env:
+          LATEST_URL: ${{ steps.prepare.outputs.latest_url }}
+        run: |
+          headers=$(mktemp)
+          status=$(curl --silent --show-error --head \
+            --dump-header "$headers" \
+            --output /dev/null \
+            --max-redirs 0 \
+            --write-out "%{http_code}" \
+            "$LATEST_URL")
+
+          if [ "$TARGET" = "production" ]; then
+            if [ "$status" != "200" ]; then
+              echo "::error::APK de produção respondeu HTTP $status; esperado 200."
+              exit 1
+            fi
+          else
+            if [ "$status" != "302" ] || ! grep -Eqi '^location: https://[^/]+\.cloudflareaccess\.com/cdn-cgi/access/login/' "$headers"; then
+              echo "::error::APK de staging não redirecionou para o Cloudflare Access."
+              exit 1
+            fi
+          fi
+
+      - name: Write release summary
+        env:
+          VERSION: ${{ steps.prepare.outputs.version }}
+          ARCHIVE_URL: ${{ steps.prepare.outputs.archive_url }}
+          LATEST_URL: ${{ steps.prepare.outputs.latest_url }}
+          SHA256: ${{ steps.prepare.outputs.sha256 }}
+          EAS_BUILD_ID: ${{ steps.eas.outputs.eas_build_id }}
+        run: |
+          {
+            echo "## ChargeGrid Android $VERSION"
+            echo
+            echo "- Ambiente: \`$TARGET\`"
+            echo "- Branch: \`$SOURCE_REF\`"
+            echo "- EAS build: \`$EAS_BUILD_ID\`"
+            echo "- SHA-256: \`$SHA256\`"
+            echo "- Arquivo versionado: $ARCHIVE_URL"
+            echo "- Download atual: $LATEST_URL"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-${{ inputs.target }}-${{ steps.version.outputs.version }}-${{ github.run_number }}
+          path: |
+            artifacts/eas-build.json
+            artifacts/aapt.txt
+            artifacts/chargegrid.apk
+            artifacts/release.json
+            artifacts/chargegrid.apk.sha256
+          if-no-files-found: warn
+          retention-days: 30

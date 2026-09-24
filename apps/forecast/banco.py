@@ -58,11 +58,50 @@ def com_driver_sincrono(url: str) -> str:
 
     `postgres://` entra na lista porque e' o formato que varios provedores
     entregam, e o SQLAlchemy nao o aceita sem driver.
+
+    TROCAR O DRIVER NAO E' SO' TROCAR O PREFIXO. Os parametros de conexao tem
+    nomes diferentes em cada um, e o TLS e' o que aparece primeiro: asyncpg le
+    `ssl=require`, libpq (psycopg) le `sslmode=require`. A primeira versao desta
+    funcao trocava so' o prefixo, e o job morreu contra o Neon com
+    `invalid connection option "ssl"` - depois de resolver o host e as
+    credenciais, o que torna a mensagem enganosa: parece problema de rede.
     """
     for prefixo in _DRIVERS_DE_OUTREM:
         if url.startswith(prefixo):
-            return DRIVER + "://" + url[len(prefixo) :]
-    return url
+            url = DRIVER + "://" + url[len(prefixo) :]
+            break
+
+    if not url.startswith(DRIVER + "://"):
+        return url
+    return _com_parametros_do_libpq(url)
+
+
+def _com_parametros_do_libpq(url: str) -> str:
+    """Renomeia os parametros de consulta que mudam de nome entre os drivers.
+
+    So' o nome muda: o vocabulario de valores e' o mesmo (`require`, `disable`,
+    `prefer`, `verify-full`), entao renomear a chave basta.
+
+    Um `sslmode` que ja' venha na URL vence o `ssl`: se quem escreveu o segredo
+    foi explicito no formato do libpq, nao e' este codigo que vai contradizer.
+    """
+    from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+    partes = urlsplit(url)
+    if not partes.query:
+        return url
+
+    consulta = parse_qsl(partes.query, keep_blank_values=True)
+    ja_tem_sslmode = any(chave == "sslmode" for chave, _ in consulta)
+
+    traduzida = [
+        ("sslmode", valor) if chave == "ssl" and not ja_tem_sslmode else (chave, valor)
+        for chave, valor in consulta
+    ]
+    if ja_tem_sslmode:
+        traduzida = [(c, v) for c, v in traduzida if c != "ssl"]
+
+    return urlunsplit(partes._replace(query=urlencode(traduzida)))
 
 
 def url_do_banco() -> str:
