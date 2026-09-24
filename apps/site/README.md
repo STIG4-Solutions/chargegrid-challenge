@@ -39,6 +39,9 @@ npm run build:site
 - Comando de build: `npm run build`
 - Diretório de saída: `dist`
 - Produção: branch `main`, domínio `stig4.com`
-- Homologação: branch `staging`, domínio `staging.stig4.com`
+- Homologação: branch `staging`, domínio público `staging.stig4.com`
 
-Configure `ANDROID_APK_URL` separadamente em Production e Preview. Veja `docs/site-deployment.md` para a configuração do Pages, R2 e Cloudflare Access.
+Configure `ANDROID_APK_URL` uma vez por ambiente, apontando para o objeto estável
+`latest/chargegrid.apk`. O workflow **Publish Android APK** atualiza esse objeto sem
+alterar nem republicar o site. Veja `docs/site-deployment.md` para a configuração
+do Pages, R2, GitHub Actions e Cloudflare Access.
