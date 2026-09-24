@@ -106,6 +106,101 @@ def tendencia(s: pd.Series, janelas: int = 24, minimo: int = 8) -> pd.Series:
     return s.shift(1).rolling(janelas, min_periods=minimo).apply(projeta, raw=False)
 
 
+# ---------------------------------------------------------------------------
+# A forma HONESTA, para janela mais grossa que o grao da fonte
+# ---------------------------------------------------------------------------
+#
+# As funcoes acima devolvem uma serie alinhada a entrada: a previsao de cada
+# bucket usa os anteriores DELE. Isso e' correto quando a janela e' o proprio
+# grao - prever o dia de amanha com o historico de hoje.
+#
+# Nao serve para uma janela mais grossa. Somar trinta previsoes de um-dia-a-
+# frente da' a cada dia do mes o direito de ver o dia anterior, e a previsao
+# mensal de verdade tem UMA origem: o fim do mes passado, com horizonte de 1 a 31
+# dias. Medido: `media_movel` somada do jeito errado da' 4,33% no mes, e a mesma
+# regua com origem unica da' 15,38% - o numero que o backtest do pipeline mede.
+# Era vazamento, e fazia toda janela agregada parecer facil.
+#
+# Daqui para baixo, entao: passado FECHADO na origem, alvos no futuro.
+
+
+def _media_das_ultimas(passado: pd.Series, quantas: int) -> float:
+    j = passado.tail(quantas).dropna()
+    return float(j.mean()) if len(j) else float("nan")
+
+
+def prever_media_movel(passado: pd.Series, alvos: pd.DatetimeIndex, janelas: int = 28):
+    """O nivel recente, repetido em todo bucket do alvo.
+
+    Somado no mes, e' exatamente `media_diaria_28d x dias` de
+    `exportar._pela_regua` - a regua que o portao usa hoje.
+    """
+    return pd.Series(_media_das_ultimas(passado, janelas), index=alvos, dtype=float)
+
+
+def _media_por_chave(passado: pd.Series, chave_de, quantas: int) -> dict:
+    g = pd.Series([chave_de(t) for t in passado.index], index=passado.index)
+    return {k: float(x.tail(quantas).mean()) for k, x in passado.groupby(g, observed=True)}
+
+
+def prever_por_dia_da_semana(
+    passado: pd.Series, alvos: pd.DatetimeIndex, semanas: int = 8, janelas: int = 28
+):
+    """A media de cada dia da semana na origem, aplicada ao dia certo do alvo.
+
+    E' o `hist_dow` que ja' era feature do modelo - e que, usado cru, batia o
+    modelo E a regua do portao.
+    """
+    por_dow = _media_por_chave(passado, lambda t: t.dayofweek, semanas)
+    recuo = _media_das_ultimas(passado, janelas)
+    return pd.Series([por_dow.get(t.dayofweek, recuo) for t in alvos], index=alvos, dtype=float)
+
+
+def prever_por_dow_e_hora(
+    passado: pd.Series, alvos: pd.DatetimeIndex, semanas: int = 8, janelas: int = 672
+):
+    """A media de cada (dia da semana, hora) na origem. A regua da janela de hora."""
+    por_chave = _media_por_chave(passado, lambda t: (t.dayofweek, t.hour), semanas)
+    recuo = _media_das_ultimas(passado, janelas)
+    return pd.Series(
+        [por_chave.get((t.dayofweek, t.hour), recuo) for t in alvos], index=alvos, dtype=float
+    )
+
+
+def prever_tendencia(passado: pd.Series, alvos: pd.DatetimeIndex, janelas: int = 180):
+    """Reta no log dos ultimos `janelas` buckets, projetada em CADA horizonte.
+
+    Ao contrario das outras, esta nao repete um valor: um alvo trinta dias a
+    frente recebe trinta passos de crescimento, nao um. Repetir o primeiro passo
+    subestimaria o fim da janela - e e' justamente o fim que pesa num total.
+    """
+    j = passado.tail(janelas)
+    y = j.to_numpy(dtype=float)
+    bons = np.isfinite(y) & (y > 0)
+    if bons.sum() < 2:
+        return pd.Series(_media_das_ultimas(passado, janelas), index=alvos, dtype=float)
+
+    t = np.arange(len(y), dtype=float)
+    inclinacao, intercepto = np.polyfit(t[bons], np.log(y[bons]), 1)
+    # Horizonte em numero de buckets da FONTE depois do ultimo ponto do passado.
+    passo = (j.index[1] - j.index[0]) if len(j) > 1 else pd.Timedelta(days=1)
+    h = np.array([(a - j.index[-1]) / passo for a in alvos], dtype=float)
+    return pd.Series(np.exp(intercepto + inclinacao * (len(y) - 1 + h)), index=alvos)
+
+
+PREVISORES = {
+    "media_movel": prever_media_movel,
+    "por_dia_da_semana": prever_por_dia_da_semana,
+    "por_dow_e_hora": prever_por_dow_e_hora,
+    "tendencia": prever_tendencia,
+}
+
+
+def prever(nome: str, passado: pd.Series, alvos: pd.DatetimeIndex) -> pd.Series:
+    """A regua `nome` prevendo `alvos` com passado FECHADO. Sem espiar o alvo."""
+    return PREVISORES[nome](passado, alvos)
+
+
 # As reguas de cada janela, em ordem de dificuldade. O portao tem de bater a
 # MELHOR delas, nao a mais conveniente - foi por comparar so' com a media movel
 # que `hist_dow` passou anos batendo o que ia para producao sem ninguem ver.
