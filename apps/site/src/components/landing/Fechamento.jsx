@@ -1,5 +1,5 @@
 import { DEMO_PASSWORD, DEMO_USER } from '../../config/landing.js'
-import { BotaoApp, BotaoPainel, CompativelGoodWe, MarcaChargeGrid } from './Marcas.jsx'
+import { BotaoApp, BotaoPainel, LogoGoodWe, MarcaChargeGrid } from './Marcas.jsx'
 
 const LOJISTA = [
   'Nova receita sem obra na rede elétrica.',
@@ -63,7 +63,7 @@ export function Rodape() {
     <footer className="lp-rodape">
       <div className="lp-conteudo lp-rodape-linha">
         <MarcaChargeGrid />
-        <CompativelGoodWe />
+        <LogoGoodWe />
         <BotaoApp className="lp-rodape-link" />
         <span className="lp-rodape-ano">© {new Date().getFullYear()} ChargeGrid</span>
       </div>

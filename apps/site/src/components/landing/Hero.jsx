@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { faixa, useReducedMotion, useScrollProgress } from './hooks.js'
-import { BotaoApp, BotaoPainel, CompativelGoodWe } from './Marcas.jsx'
+import { BotaoApp, BotaoPainel, LogoGoodWe } from './Marcas.jsx'
 
 // Quadros inteiros (1280 x 720) dos primeiros 7 s do video, a 12 por segundo.
 // A rolagem do hero e' curta; o video nao precisa aparecer inteiro.
@@ -143,7 +143,7 @@ export default function Hero() {
             </>
           )}
           <span className="lp-hero-degrade" aria-hidden="true" />
-          <CompativelGoodWe className="lp-hero-selo" />
+          <LogoGoodWe className="lp-hero-selo" />
           <div
             className="lp-hero-card"
             style={{ opacity: card, transform: `translate3d(0, ${(1 - card) * 16}px, 0)` }}

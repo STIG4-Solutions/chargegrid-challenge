@@ -24,7 +24,7 @@ const PONTOS = [
   },
   {
     titulo: 'Protocolo aberto.',
-    texto: 'Comunicação via Modbus, compatível com o carregador HCA G2 da',
+    texto: 'Comunicação via Modbus com o carregador HCA G2 da',
     goodwe: true
   }
 ]

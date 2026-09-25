@@ -11,11 +11,10 @@ export function MarcaChargeGrid({ className = '' }) {
   )
 }
 
-/** "Compativel com" + logo oficial da GoodWe. Sempre o SVG, nunca texto. */
-export function CompativelGoodWe({ className = '' }) {
+/** Logo oficial da GoodWe. Sempre o SVG, nunca texto. */
+export function LogoGoodWe({ className = '' }) {
   return (
     <span className={`lp-goodwe ${className}`}>
-      <span>Compatível com</span>
       <img src="/landing/goodwe-logo.svg" alt="GoodWe" width="92" height="14" />
     </span>
   )
