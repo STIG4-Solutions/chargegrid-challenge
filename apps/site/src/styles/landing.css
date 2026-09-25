@@ -64,6 +64,12 @@
   scroll-margin-top: 96px;
 }
 
+/* O "Como funciona" ocupa uma tela exata: com recuo, a legenda da base ficaria
+   fora da tela. O topo do palco e' fundo escuro; o cabecalho fica por cima. */
+.lp section#como-funciona {
+  scroll-margin-top: 0;
+}
+
 .lp-lead {
   font-size: clamp(16px, 1.35vw, 19px);
   line-height: 1.55;
