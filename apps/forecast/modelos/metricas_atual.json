@@ -52,13 +52,13 @@
     "wape_mensal_baseline_dow": 14.2,
     "wape_mensal_forma_somada": 8.67,
     "vies_medio_pct": 2.1,
-    "wape_diario": 27.51,
+    "wape_diario": 27.5,
     "wape_diario_baseline_m28": 36.31,
     "wape_diario_baseline_ano": 34.67,
     "wape_diario_baseline_dow": 29.85,
     "n_com_faixa_diaria": 2555,
     "n_com_faixa_mensal": 84,
-    "cobertura_p10_p90_diaria": 80.0,
+    "cobertura_p10_p90_diaria": 79.6,
     "cobertura_p10_p90_mensal": 76.2,
     "quantis_da_faixa": [
       0.1,
@@ -66,8 +66,8 @@
     ],
     "fatores_da_faixa": {
       "dia": [
-        0.446744808310202,
-        1.6327889118326209
+        0.4467016274256247,
+        1.6143597657197593
       ],
       "mes": [
         0.8654014304102027,

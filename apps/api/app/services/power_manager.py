@@ -23,6 +23,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.charge_point import ChargePoint
 from app.models.enums import ChargePointStatus, ReservationStatus
@@ -87,6 +88,17 @@ class PowerBudget:
         non_ev = max(self.reserved_kw, self.building_load_kw)
         return max(0.0, round(supply - non_ev - self.booked_kw, 2))
 
+    @property
+    def grid_import_kw(self) -> float:
+        """O que sai da rede agora: predio + eletropostos - solar - bateria.
+
+        Mesma conta da previsao de demanda (`demand_service`). Nunca negativo:
+        injecao na rede nao reduz demanda. Sem este campo, "quanto puxo da rede"
+        so' tinha `ev_load_kw` como candidato - e ele e' so' a carga dos pontos.
+        """
+        demanda = self.building_load_kw + self.ev_load_kw - self.pv_kw - self.battery_kw
+        return max(0.0, round(demanda, 2))
+
     def as_dict(self) -> dict:
         return {
             "grid_limit_kw": self.grid_limit_kw,
@@ -97,6 +109,7 @@ class PowerBudget:
             "ev_load_kw": self.ev_load_kw,
             "booked_kw": self.booked_kw,
             "available_kw": self.available_kw,
+            "grid_import_kw": self.grid_import_kw,
             "reading_at": self.reading_at.isoformat() if self.reading_at else None,
             "reading_stale": self.reading_stale,
         }
@@ -470,4 +483,12 @@ async def rebalance_site(
     budget = await load_budget(db, site)
     prioridades = await priority_service.resolver_para_site(db, site, points)
     plan = build_plan(budget, points, prioridades=prioridades)
-    return await apply_plan(db, plan, points, triggered_by=triggered_by, dry_run=dry_run)
+    result = await apply_plan(db, plan, points, triggered_by=triggered_by, dry_run=dry_run)
+    if get_settings().precificacao_dinamica and not dry_run:
+        from app.services import bandeira
+
+        result["bandeira"] = await bandeira.registrar(db, site, plan)
+        # `rebalance_once` publica `result["plan"]` como evento `power_plan`: e'
+        # por aqui que a aba Potencia recebe a cor nova sem esperar o poll.
+        result["plan"]["bandeira"] = result["bandeira"]
+    return result

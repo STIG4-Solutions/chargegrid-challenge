@@ -211,12 +211,12 @@ Walk-forward de 12 meses, 7 praças, n=84 registros mensais e 2.555 dias:
 | régua de média móvel de 28 dias | 13,95% | 36,31% |
 | régua por dia da semana (`hist_dow`) | 14,20% | 29,85% |
 | régua de ano-a-ano | 8,67% | 34,67% |
-| **o modelo** | **8,06%** | **27,51%** |
+| **o modelo** | **8,06%** | **27,50%** |
 
 | faixa p10–p90 | valor |
 |---|---|
 | cobertura declarada | 80,0% |
-| cobertura medida, diária | **80,0%** |
+| cobertura medida, diária | **79,6%** |
 | cobertura medida, mensal | 76,2% |
 
 **O modelo passou a ganhar, e por pouco.** 0,61 ponto sobre a melhor régua no mês,
@@ -255,7 +255,7 @@ Não é teoria — normalizado pela régua de ano-a-ano, que sozinha faz 8,67%, 
 por cima dela fazia **12,20%**. Ele piorava em 3,5 pontos o nível que recebia pronto,
 enquanto melhorava o eixo diário, o que tornava o problema invisível em qualquer
 métrica isolada. Prender a razão à própria média no mês alvo melhora **os dois**
-eixos: no dia, 29,24% → 27,51%.
+eixos: no dia, 29,24% → 27,50%.
 
 **3. Nível e forma têm vencedores diferentes.** Um modelo só para os dois eixos fazia
 cada um estragar o outro. São dois: um mensal, que corrige a régua de ano-a-ano, e um
@@ -385,10 +385,11 @@ critério de aceite dela é **cobertura**, não WAPE.
 
 ### O que continua aberto
 
-- **A cobertura mensal é 76,2%, e a declarada é 80%.** A diária fecha em 80,0%; a
-  mensal fica 3,8 pontos abaixo porque tem um resíduo por praça-mês, e 6 meses de
-  calibração dão 42 deles contra ~600 no grão diário. Está dentro da faixa de aceite
-  (75–85%), mas no limite de baixo, e o número medido vai para a tela.
+- **A cobertura fica abaixo do declarado nos dois grãos**: 79,6% no diário e 76,2% no
+  mensal, contra 80%. O diário é praticamente o alvo; o mensal fica 3,8 pontos abaixo
+  porque tem um resíduo por praça-mês, e 6 meses de calibração dão 42 deles contra
+  ~600 no grão diário. Os dois estão na faixa de aceite (75–85%), o mensal no limite
+  de baixo, e o número medido vai para a tela ao lado do declarado.
 - **A vantagem do modelo é de 0,61 ponto.** Ver a tabela acima: menor que a
   dispersão da grade de hiperparâmetros. É a pendência de modelo mais concreta, e a
   saída honesta não é ajustar mais — é mais dado.

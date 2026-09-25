@@ -18,8 +18,14 @@ que o modelo nao viu, tira os percentis 10 e 90 deles, e a faixa passa a ser
 `previsto x f10` .. `previsto x f90`. Cobertura deixa de depender do que a perda
 promete e passa a ser propriedade do conjunto de calibracao.
 
-Resultado medido, mesmos 12 meses: 80,0% no agregado, entre 75,6% e 86,2% mes a
-mes. O criterio do plano era 75-85%, e 11 dos 12 meses caem dentro.
+Resultado medido, mesmos 12 meses: 79,6% no grao diario e 76,2% no mensal. O criterio
+do plano era 75-85%, e os dois caem dentro - o mensal no limite de baixo, porque ali
+cada praca-mes da UM residuo e a calibracao tem 42 deles contra ~600 no diario.
+
+No arnes que motivou a troca, medindo mes a mes, a cobertura diaria ficou entre 75,6%
+e 86,2% com 80,0% no agregado. O numero do artefato e' um decimo diferente porque o
+arnes calibrava com uma janela rolante de 3 meses e o backtest publica os fatores de
+toda a janela - a diferenca esta' na calibracao, nao no metodo.
 
 O PRECO, dito junto: a faixa fica MAIS LARGA - 113% do previsto contra 87,7% da
 anterior. Uma faixa honesta de 80% e' mais larga que uma faixa que mente 80% e

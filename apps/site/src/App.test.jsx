@@ -14,10 +14,19 @@ function renderAt(pathname) {
 }
 
 describe('rotas públicas do site', () => {
-  test('mantém a landing vazia', () => {
-    const { container } = renderAt('/')
+  test('apresenta a landing com o título e o caminho para o app', () => {
+    renderAt('/')
 
-    expect(container).toBeEmptyDOMElement()
+    expect(
+      screen.getByRole('heading', {
+        level: 1,
+        name: 'Recarga que dá lucro sem estourar a energia da sua loja.'
+      })
+    ).toBeInTheDocument()
+
+    for (const link of screen.getAllByRole('link', { name: 'Baixar o app' })) {
+      expect(link).toHaveAttribute('href', '/download')
+    }
   })
 
   test('apresenta o download Android e os três passos de instalação', () => {

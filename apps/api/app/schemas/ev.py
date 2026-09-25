@@ -112,6 +112,8 @@ class PowerBudgetOut(BaseModel):
     # Potência segurada por agendamentos em curso, fora do rateio.
     booked_kw: float = 0.0
     available_kw: float
+    # Importação da rede agora: prédio + eletropostos - solar - bateria, >= 0.
+    grid_import_kw: float = 0.0
     # Frescor da leitura do medidor: obsoleta significa que PV e bateria sairam
     # do orcamento e so a rede sustenta os pontos.
     reading_at: datetime | None = None
@@ -158,6 +160,19 @@ class PowerPlanOut(BaseModel):
     allocations: list[AllocationOut]
 
 
+class BandeiraOut(BaseModel):
+    """Bandeira do site: a folga de potencia traduzida em preco."""
+
+    cor: str
+    multiplicador: float
+    folga_pct: float
+    motivo: str
+    calculada_em: datetime
+    # Mais velha que BANDEIRA_VALIDADE_S: o rebalanceador parou, e a sessao
+    # iniciada agora trava 1,00 em vez desta cor.
+    desatualizada: bool
+
+
 class PowerOverview(BaseModel):
     budget: PowerBudgetOut
     settings: SiteSettingsOut
@@ -168,6 +183,17 @@ class PowerOverview(BaseModel):
     active_count: int
     total_count: int
     charge_points: list[ChargePointOut]
+    # Nula com a precificacao dinamica desligada ou antes do primeiro ciclo.
+    bandeira: BandeiraOut | None = None
+    # O gatilho de pico de demo so' existe com carregador E medidor simulados.
+    demo_disponivel: bool = False
+    pico_simulado_ate: datetime | None = None
+
+
+class PicoSimuladoRequest(BaseModel):
+    duracao_min: int = Field(default=5, ge=1, le=15)
+    # Sem valor, o suficiente para deixar a folga em 10% (bandeira vermelha).
+    acrescimo_kw: float | None = Field(default=None, gt=0, le=5000)
 
 
 class SetLimitRequest(BaseModel):
@@ -523,6 +549,10 @@ class StationPointOut(BaseModel):
     rated_kw: float
     status: str
     available: bool
+    # O que o motorista paga por kWh se iniciar agora: janela vigente x bandeira.
+    # Nulo quando o ponto nao tem tarifa.
+    preco_kwh_final: float | None = None
+    bandeira: BandeiraOut | None = None
 
 
 class ScannedChargePointOut(StationPointOut):

@@ -45,7 +45,9 @@ class Tariff(UUIDMixin, TimestampMixin, Base):
     )
     free_minutes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
-    # Precificacao dinamica: multiplicador aplicado pelo modulo de IA (1.0 = neutro).
+    # Multiplicador digitado pelo operador (1.0 = neutro). E' o caminho LEGADO: com a
+    # precificacao dinamica ligada, o multiplicador vem da bandeira do site (folga de
+    # potencia) e fica travado na sessao; este so' vale para sessao sem travado.
     dynamic_multiplier: Mapped[float] = mapped_column(Numeric(5, 3), default=1.0, nullable=False)
     dynamic_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 

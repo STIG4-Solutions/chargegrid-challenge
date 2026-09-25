@@ -349,6 +349,15 @@ async def start(
     """
     from app.services import power_manager
 
+    # O preco trava AQUI, antes de decidir entre fila e inicio: quem espera na
+    # fila paga o multiplicador do momento em que pediu. E so' uma vez - promover
+    # da fila passa por esta mesma funcao, e nao pode reescrever o preco.
+    if settings.precificacao_dinamica and session.multiplicador_travado is None:
+        from app.services import bandeira
+
+        site = await db.get(Site, charge_point.site_id)
+        session.multiplicador_travado, session.cor_travada = bandeira.para_travar(site)
+
     # Consulta o rateio ANTES de mudar de estado: sem potencia a sessao vai para
     # a fila, e ela nunca chegou a iniciar. Transicionar para STARTING primeiro
     # deixava a sessao num estado de onde nao ha caminho para QUEUED.

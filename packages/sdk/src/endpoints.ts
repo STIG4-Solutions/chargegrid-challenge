@@ -4,7 +4,8 @@
  * Separado por escopo: `painel` são as rotas do operador, `app` as do motorista.
  * O empacotador remove o que cada cliente não importa.
  */
-import { api, request } from './http'
+import { api, request, streamRequest } from './http'
+import { lerSse } from './sse'
 import type * as T from './types'
 
 /**
@@ -148,6 +149,9 @@ export const power = {
     api.get<Record<string, unknown>>('/power/demand/avoided-cost', { dias }),
   rebalance: (dryRun = false) =>
     api.post<Record<string, unknown>>('/power/rebalance', undefined, { dry_run: dryRun }),
+  /** Demo: pico simulado de consumo do predio. So' admin, so' com site simulado. */
+  simulatePeak: (duracaoMin = 5) =>
+    api.post<Record<string, unknown>>('/power/demo/pico-predio', { duracao_min: duracaoMin }),
   setLimit: (id: string, limitKw: number) =>
     api.post<T.PontoDeRecarga>(`/power/charge-points/${id}/limit`, { limit_kw: limitKw }),
   throttle: (id: string, enabled: boolean) =>
@@ -283,6 +287,37 @@ export const platform = {
   /** Baixa MANUAL da cobranca. So' admin: nao ha liquidacao automatica. */
   settle: (cobrancaId: string) =>
     api.post<Record<string, unknown>>(`/platform/invoices/${cobrancaId}/settle`, {})
+}
+
+// ---- assistente do operador -------------------------------------------------
+export const assistant = {
+  /** Habilitado nesta instalação? Desligado, o widget nem aparece. */
+  status: () => api.get<T.AssistenteStatus>('/assistant/status'),
+  /** Conversas deste usuário na praça do seletor, mais recentes primeiro. */
+  conversas: () => api.get<T.ConversaAssistente[]>('/assistant/conversations'),
+  conversa: (id: string) => api.get<T.ConversaAssistenteDetalhe>(`/assistant/conversations/${id}`),
+  /** A conversa nasce presa à praça do seletor; trocar de praça pede outra. */
+  criarConversa: () => api.post<T.ConversaAssistente>('/assistant/conversations'),
+  /**
+   * Envia a pergunta e devolve os eventos da resposta conforme chegam.
+   *
+   * Cancelar o `signal` fecha a conexão; o servidor guarda o que já tinha
+   * saído como resposta interrompida.
+   */
+  enviar: async function* (
+    conversaId: string,
+    texto: string,
+    opcoes: { aba?: string; signal?: AbortSignal } = {}
+  ): AsyncGenerator<T.EventoAssistente> {
+    const corpo = await streamRequest(
+      `/assistant/conversations/${conversaId}/messages`,
+      { texto, aba: opcoes.aba },
+      { signal: opcoes.signal }
+    )
+    for await (const { evento, dados } of lerSse(corpo)) {
+      yield { tipo: evento, ...JSON.parse(dados) } as T.EventoAssistente
+    }
+  }
 }
 
 export const app = {

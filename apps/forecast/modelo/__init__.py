@@ -17,7 +17,7 @@ mensais e 2.555 dias:
     regua por dia da semana (hist_dow)         14,20    29,85
     o modelo como estava (razao sobre m28)     13,96    29,24
     regua de ano-a-ano                          8,67    34,67
-    forma presa ao nivel                        8,67    27,51
+    forma presa ao nivel                        8,67    27,50
     nivel por modelo mensal sobre a regua       8,06        -
 
 Nenhuma regua ganha nos dois eixos, e e' por isso que as tres ficam medidas nos
@@ -34,7 +34,7 @@ Tres achados, nesta ordem:
    dessas razoes desvia de 1,0, o nivel anda. Era por isso que o modelo
    normalizado pela regua de ano-a-ano PIORAVA o numero dela (12,20 contra
    8,67). Prender a razao a propria media no mes alvo fecha a fuga e melhora os
-   DOIS eixos - o diario cai de 29,24 para 27,51.
+   DOIS eixos - o diario cai de 29,24 para 27,50.
 
 3. NIVEL E FORMA TEM VENCEDORES DIFERENTES. No nivel mensal ganha um modelo
    pequeno no grao mensal; na forma diaria ganha o modelo diario, por 2,3 pontos
@@ -45,6 +45,17 @@ O QUE ISTO NAO ATINGIU, dito junto. O plano pedia bater a melhor regua por >= 1
 ponto no mes; o ganho medido e' 0,61. A tela serve o modelo porque ele ganha, e a
 `fonte` o declara, mas 0,61 ponto sobre 84 observacoes nao e' uma vitoria
 folgada - e' uma vantagem pequena que o proximo retreino pode perder.
+
+A REPRODUTIBILIDADE DESTES NUMEROS depende de uma coisa que nao era obvia: a ordem
+das linhas do painel. `banco._SESSOES` agrupava sem `ORDER BY`, e ordem sem `ORDER BY`
+sai do plano do PostgreSQL - que muda com estatistica de tabela e paralelismo. Medido:
+tres planos, tres ordens diferentes. E ordem muda o modelo, porque o LightGBM soma em
+ponto flutuante para montar histograma e soma de ponto flutuante nao e' associativa.
+
+Era a explicacao do mistero que `treinar.py` registrava como irresolvido - o WAPE
+saindo 8,31 de manha e 9,94 a tarde com as mesmas linhas. A impressao digital ordena
+antes de hashear, entao ela provava que o CONJUNTO era o mesmo e escondia que a ORDEM
+nao era. Com `ORDER BY`, duas corridas seguidas dao o mesmo numero.
 
 LIMITE DA EVIDENCIA, dito antes e nao depois: o seed repete `PESOS_MENSAIS` ano
 a ano por construcao, entao ano-a-ano e' generoso aqui de um jeito que nao se

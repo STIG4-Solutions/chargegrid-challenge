@@ -68,6 +68,7 @@ export type ResumoDeReceita = S['RevenueSummary']
 // App do motorista
 export type Estacao = S['StationOut']
 export type PontoDaEstacao = S['StationPointOut']
+export type Bandeira = S['BandeiraOut']
 export type PontoLido = S['ScannedChargePointOut']
 export type Agendamento = S['ReservationOut']
 export type StatusAgendamento = S['ReservationStatus']
@@ -192,3 +193,32 @@ export interface Pagina<T> {
   limit: number
   offset: number
 }
+
+// Assistente do operador
+export type AssistenteStatus = S['AssistenteStatus']
+export type ConversaAssistente = S['ConversaOut']
+export type ConversaAssistenteDetalhe = S['ConversaDetalhe']
+export type MensagemAssistente = S['MensagemOut']
+
+/**
+ * Um evento do fluxo de resposta do assistente.
+ *
+ * Escrito à mão: a resposta é `text/event-stream`, e o OpenAPI não descreve
+ * eventos. A fonte é o docstring de `apps/api/app/services/assistant/orchestrator.py`.
+ *
+ * `bloqueado` pede que o cliente DESCARTE o texto parcial já mostrado: é
+ * justamente ele que foi barrado.
+ */
+export type EventoAssistente =
+  | { tipo: 'meta'; conversa_id: string; mensagem_id: string }
+  | { tipo: 'delta'; texto: string }
+  | {
+      tipo: 'ferramenta'
+      nome: string
+      rotulo: string
+      estado: 'inicio' | 'fim'
+      ok?: boolean
+    }
+  | { tipo: 'bloqueado'; motivo: string; mensagem: string }
+  | { tipo: 'erro'; mensagem: string }
+  | { tipo: 'fim'; mensagem_id: string; tokens_entrada: number; tokens_saida: number }

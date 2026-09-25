@@ -20,16 +20,26 @@ que a faixa usa sao calibrados nos residuos DO MODELO; aplica-los a uma regua
 seria emprestar a incerteza de um previsor para outro. Regua sem faixa e' o
 comportamento honesto, e e' o que `kwh_p10 IS NULL` ja' significa.
 
-Revision ID: 0029_fonte_ano_a_ano
-Revises: 0028_previsao_por_janela
+O 0032 E O ENCADEAMENTO. Esta migracao nasceu como `0029`, atras da
+`0028_previsao_por_janela`, que era a ponta quando o trabalho comecou. Nesse meio
+tempo duas outras linhas sairam da MESMA 0028 - o assistente (PR #28, direto para
+`main`) e a bandeira (PR #29, para `staging`) - e a `0031` as juntou. Pendurada na
+0028, esta seria uma TERCEIRA ponta e `alembic upgrade head` voltaria a recusar.
+
+Reencadear aqui e' seguro, e nao era para a `0029_assistente`: esta migracao nunca
+rodou em ambiente nenhum. Reescrever `down_revision` do que ja' rodou faria o
+alembic reexecutar; do que nunca rodou, e' so' corrigir a ordem antes do merge.
+
+Revision ID: 0032_fonte_ano_a_ano
+Revises: 0031_junta_assistente_e_bandeira
 """
 
 from __future__ import annotations
 
 from alembic import op
 
-revision: str = "0029_fonte_ano_a_ano"
-down_revision: str | None = "0028_previsao_por_janela"
+revision: str = "0032_fonte_ano_a_ano"
+down_revision: str | None = "0031_junta_assistente_e_bandeira"
 branch_labels: str | None = None
 depends_on: str | None = None
 

@@ -124,6 +124,14 @@ TAGS = [
             "potência, e é o que faz o painel mudar sozinho."
         ),
     },
+    {
+        "name": "assistente",
+        "description": (
+            "Assistente do operador (Azure OpenAI). Só consulta: cada número da resposta vem "
+            "de uma rota GET das abas do painel, executada em transação somente leitura e no "
+            "escopo da praça. A resposta sai em `text/event-stream`."
+        ),
+    },
     {"name": "infra", "description": "Checagem de vida usada pelo Docker e pelo balanceador."},
 ]
 

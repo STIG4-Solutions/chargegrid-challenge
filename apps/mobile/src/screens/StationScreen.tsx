@@ -18,6 +18,7 @@ import {
   validar,
   type Limite
 } from '../LimiteDaRecarga'
+import BandeiraDoPonto from '../BandeiraDoPonto'
 import { QuandoComecar } from '../QuandoComecar'
 import { ReportarProblema } from '../ReportarProblema'
 import type { Props } from '../navigation'
@@ -109,6 +110,9 @@ export default function StationScreen({ route, navigation }: Props<'Estacao'>) {
                 </View>
                 <Etiqueta texto={rotulo.label} cor={corDoStatus(item.status)} />
               </View>
+              {item.available && (
+                <BandeiraDoPonto bandeira={item.bandeira} preco={item.preco_kwh_final} />
+              )}
               {item.available && <QuandoComecar chargePointId={item.id} />}
               <Botao
                 titulo={item.available ? 'Iniciar recarga' : 'Indisponivel'}
