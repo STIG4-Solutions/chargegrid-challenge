@@ -24,6 +24,7 @@ deixa de ser uma opcao, que era exatamente o que permitia os tres casos acima.
 
 from sqlalchemy import inspect
 
+from app.models.assistant import AssistantConversation, AssistantMessage
 from app.models.billing import Invoice, InvoiceLine, Payment, SitePaymentMethod
 from app.models.campaign import Campaign, Mission, Reward
 from app.models.charge_point import ChargePoint
@@ -32,6 +33,7 @@ from app.models.reservation import Reservation
 from app.models.session import ChargingSession, SessionEvent
 from app.models.tariff import Tariff, TariffWindow
 from app.models.user import RfidCard, User, Vehicle
+from app.schemas import assistente as Z
 from app.schemas import auth as A
 from app.schemas import campanha as C
 from app.schemas import ev as E
@@ -177,6 +179,21 @@ OMISSOES = {
         ),
         "created_at": AUDITORIA,
         "updated_at": AUDITORIA,
+    },
+    (AssistantConversation, Z.ConversaOut): {
+        "user_id": "a conversa so' e' lida pelo proprio dono; o id dele vem do token",
+        "site_id": ESCOPO,
+    },
+    (AssistantMessage, Z.MensagemOut): {
+        "conversa_id": PAI,
+        "ferramenta": "rastro de auditoria; o operador le a resposta, nao a consulta que a embasou",
+        "argumentos": "idem - o JSON que o modelo pediu",
+        "resultado": "idem - o JSON que voltou ao modelo, ja' truncado",
+        "tokens_entrada": "custo por mensagem; medida de quem opera a instalacao",
+        "tokens_saida": "idem",
+        "tokens_em_cache": "idem - parte da entrada cobrada com desconto",
+        "latencia_ms": "idem - desempenho, nao informacao de produto",
+        "fim": INTERNO,
     },
 }
 

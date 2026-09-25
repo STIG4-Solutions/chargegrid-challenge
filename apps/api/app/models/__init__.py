@@ -1,6 +1,7 @@
 """Importa todos os modelos para que o Alembic enxergue o metadata completo."""
 
 from app.db.base import Base
+from app.models.assistant import AssistantConversation, AssistantMessage
 from app.models.audit import AuditLog, CommandLog
 from app.models.billing import (
     Invoice,
@@ -45,6 +46,8 @@ from app.models.user import RfidCard, User, Vehicle
 __all__ = [
     "ACTIVE_SESSION_STATES",
     "TERMINAL_SESSION_STATES",
+    "AssistantConversation",
+    "AssistantMessage",
     "AuditLog",
     "AuthMethod",
     "Base",

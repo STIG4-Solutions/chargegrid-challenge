@@ -1985,6 +1985,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/assistant/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Status
+         * @description O widget pergunta isto antes de aparecer: desligado, ele nem se mostra.
+         */
+        get: operations["status_api_v1_assistant_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assistant/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Listar Conversas
+         * @description As conversas deste usuario NESTA praca, mais recentes primeiro.
+         */
+        get: operations["listar_conversas_api_v1_assistant_conversations_get"];
+        put?: never;
+        /** Criar Conversa */
+        post: operations["criar_conversa_api_v1_assistant_conversations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assistant/conversations/{conversa_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Ler Conversa */
+        get: operations["ler_conversa_api_v1_assistant_conversations__conversa_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/assistant/conversations/{conversa_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enviar Mensagem
+         * @description Grava a pergunta e transmite a resposta como eventos SSE.
+         *
+         *     Eventos: `meta`, `delta`, `ferramenta`, `bloqueado`, `erro`, `fim`.
+         */
+        post: operations["enviar_mensagem_api_v1_assistant_conversations__conversa_id__messages_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2031,6 +2111,13 @@ export interface components {
              * @default
              */
             regra: string;
+        };
+        /** AssistenteStatus */
+        AssistenteStatus: {
+            /** Habilitado */
+            habilitado: boolean;
+            /** Limite De Caracteres */
+            limite_de_caracteres: number;
         };
         /**
          * AuthMethod
@@ -2327,6 +2414,48 @@ export interface components {
             /** Last Login At */
             last_login_at: string | null;
         };
+        /** ConversaDetalhe */
+        ConversaDetalhe: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Titulo */
+            titulo: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Mensagens */
+            mensagens: components["schemas"]["MensagemOut"][];
+        };
+        /** ConversaOut */
+        ConversaOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Titulo */
+            titulo: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
         /**
          * DesempenhoOut
          * @description O que o operador precisa para decidir se a campanha vale.
@@ -2457,6 +2586,38 @@ export interface components {
             email: string;
             /** Password */
             password: string;
+        };
+        /** MensagemIn */
+        MensagemIn: {
+            /** Texto */
+            texto: string;
+            /**
+             * Aba
+             * @description rota do painel aberta
+             */
+            aba?: string | null;
+        };
+        /** MensagemOut */
+        MensagemOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Papel
+             * @enum {string}
+             */
+            papel: "user" | "assistant";
+            /** Conteudo */
+            conteudo: string | null;
+            /** Bloqueio */
+            bloqueio: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
         };
         /**
          * MeterReadingIn
@@ -2707,6 +2868,11 @@ export interface components {
             booked_kw: number;
             /** Available Kw */
             available_kw: number;
+            /**
+             * Grid Import Kw
+             * @default 0
+             */
+            grid_import_kw: number;
             /** Reading At */
             reading_at?: string | null;
             /**
@@ -7275,6 +7441,159 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    status_api_v1_assistant_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistenteStatus"];
+                };
+            };
+        };
+    };
+    listar_conversas_api_v1_assistant_conversations_get: {
+        parameters: {
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversaOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    criar_conversa_api_v1_assistant_conversations_post: {
+        parameters: {
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversaOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ler_conversa_api_v1_assistant_conversations__conversa_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversa_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversaDetalhe"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    enviar_mensagem_api_v1_assistant_conversations__conversa_id__messages_post: {
+        parameters: {
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path: {
+                conversa_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MensagemIn"];
+            };
+        };
+        responses: {
+            /** @description eventos SSE */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };
