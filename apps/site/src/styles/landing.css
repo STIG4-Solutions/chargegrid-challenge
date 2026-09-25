@@ -240,6 +240,7 @@
   font-weight: 600;
   letter-spacing: -0.025em;
   max-width: 14em;
+  text-wrap: balance;
 }
 
 .lp-rolagem {
@@ -437,5 +438,133 @@
     height: 38px;
     padding: 0 14px;
     font-size: 13px;
+  }
+}
+
+/* ------------------------------------------------------------ secoes */
+
+.lp-secao {
+  position: relative;
+  padding: clamp(96px, 14vh, 160px) var(--lp-gutter);
+}
+
+.lp-conteudo {
+  max-width: var(--lp-max);
+  margin: 0 auto;
+}
+
+.lp-h2 {
+  font-size: clamp(28px, 3.6vw, 46px);
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  max-width: 18em;
+  text-wrap: balance;
+}
+
+.lp-so-leitor {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------ problema */
+
+.lp-problema {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+}
+
+.lp-problema .lp-conteudo {
+  width: 100%;
+}
+
+.lp-fatos {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: clamp(48px, 8vh, 88px) 0 0;
+  border-top: 1px solid var(--sems-border);
+}
+
+.lp-fato {
+  padding: 32px 32px 8px 0;
+}
+
+.lp-fato + .lp-fato {
+  padding-left: 32px;
+  border-left: 1px solid var(--sems-border);
+}
+
+.lp-fato-numero {
+  font-size: clamp(48px, 5.6vw, 80px);
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.lp-fato dd {
+  margin: 18px 0 0;
+  max-width: 22em;
+  color: var(--sems-muted);
+}
+
+.lp-mercado {
+  margin-top: clamp(56px, 9vh, 96px);
+  padding-top: 24px;
+  border-top: 1px solid var(--sems-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+}
+
+.lp-mercado ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 32px;
+  font-size: 14px;
+  color: var(--sems-muted);
+}
+
+.lp-fonte {
+  flex: none;
+  font-size: 12px;
+  color: var(--sems-muted-2);
+}
+
+@media (max-width: 860px) {
+  .lp-fatos {
+    grid-template-columns: 1fr;
+  }
+
+  .lp-fato,
+  .lp-fato + .lp-fato {
+    padding: 28px 0 24px;
+    border-left: 0;
+    border-bottom: 1px solid var(--sems-border);
+  }
+
+  .lp-fato dd {
+    margin-top: 10px;
+  }
+
+  .lp-mercado {
+    flex-direction: column;
+    align-items: flex-start;
+    border-top: 0;
+    padding-top: 0;
+  }
+
+  .lp-mercado ul {
+    grid-template-columns: 1fr;
+    gap: 14px;
   }
 }

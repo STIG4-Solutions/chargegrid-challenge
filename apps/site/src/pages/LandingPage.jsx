@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import Cabecalho from '../components/landing/Cabecalho.jsx'
 import Hero from '../components/landing/Hero.jsx'
+import Problema from '../components/landing/Problema.jsx'
 import '../styles/landing.css'
 
 export default function LandingPage() {
@@ -21,6 +22,7 @@ export default function LandingPage() {
       <Cabecalho />
       <main>
         <Hero />
+        <Problema />
       </main>
     </div>
   )
