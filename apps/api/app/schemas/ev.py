@@ -112,6 +112,8 @@ class PowerBudgetOut(BaseModel):
     # Potência segurada por agendamentos em curso, fora do rateio.
     booked_kw: float = 0.0
     available_kw: float
+    # Importação da rede agora: prédio + eletropostos - solar - bateria, >= 0.
+    grid_import_kw: float = 0.0
     # Frescor da leitura do medidor: obsoleta significa que PV e bateria sairam
     # do orcamento e so a rede sustenta os pontos.
     reading_at: datetime | None = None

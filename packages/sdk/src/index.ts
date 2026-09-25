@@ -18,10 +18,12 @@ export {
   tokensHidratados,
   type TokenPair
 } from './tokens'
-export { api, request, type Metodo, type RequestOptions } from './http'
+export { api, request, streamRequest, type Metodo, type RequestOptions } from './http'
+export { criarLeitorSse, lerSse, type EventoSse } from './sse'
 export {
   admin,
   app,
+  assistant,
   auth,
   campaigns,
   payments,

@@ -98,3 +98,57 @@ def test_prod_com_cors_so_local_e_recusado():
 
 def test_dev_com_cors_local_continua_normal():
     Settings(env="dev", cors_origins=["http://localhost:5173"], **SEGREDOS_DEV)
+
+
+# ----------------------------------------------------------------- assistente
+
+AZURE = {
+    "azure_openai_endpoint": "https://recurso.openai.azure.com",
+    "azure_openai_api_key": "chave-real-do-recurso",
+    "azure_openai_deployment": "gpt-operacao",
+}
+
+
+def test_prod_sobe_com_o_assistente_desligado_e_sem_azure():
+    """Desligado, nenhuma variavel do Azure e' exigida.
+
+    Tudo explicito: `Settings` le o `.env` da maquina, e um `.env` local com o
+    assistente ligado faria o cenario deixar de ser "desligado e sem Azure".
+    """
+    config = _prod(
+        assistant_enabled=False,
+        azure_openai_endpoint=None,
+        azure_openai_api_key=None,
+        azure_openai_deployment=None,
+    )
+    assert config.assistente_configurado is False
+
+
+def test_prod_recusa_assistente_ligado_com_chave_de_molde():
+    with pytest.raises(ValueError, match="AZURE_OPENAI_API_KEY"):
+        _prod(
+            assistant_enabled=True,
+            **{**AZURE, "azure_openai_api_key": "TROQUE-ME-chave-do-azure-openai"},
+        )
+
+
+def test_prod_recusa_assistente_ligado_sem_deployment():
+    with pytest.raises(ValueError, match="AZURE_OPENAI_DEPLOYMENT"):
+        _prod(assistant_enabled=True, **{**AZURE, "azure_openai_deployment": None})
+
+
+def test_prod_recusa_endpoint_sem_https():
+    with pytest.raises(ValueError, match="https"):
+        _prod(
+            assistant_enabled=True,
+            **{**AZURE, "azure_openai_endpoint": "http://recurso.openai.azure.com"},
+        )
+
+
+def test_prod_aceita_assistente_bem_configurado():
+    assert _prod(assistant_enabled=True, **AZURE).assistente_configurado is True
+
+
+def test_temperatura_em_branco_vira_nula():
+    """`AZURE_OPENAI_TEMPERATURE=` no .env nao pode derrubar a subida."""
+    assert Settings(env="dev", azure_openai_temperature="").azure_openai_temperature is None

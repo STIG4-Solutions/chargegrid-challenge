@@ -95,8 +95,56 @@ globalThis.fetch = async (url, init = {}) => {
     )
   }
   if (u.includes('/rede')) throw new TypeError('fetch failed')
+  if (u.includes('/assistant/conversations/cheia/')) {
+    return new Response(JSON.stringify({ detail: 'limite de 6 mensagens por minuto' }), {
+      status: 429
+    })
+  }
+  if (u.includes('/assistant/conversations/pendurada/')) {
+    // Fluxo que nunca termina sozinho. Como o fetch de verdade, cancelar o
+    // signal derruba o corpo com AbortError.
+    const corpo = new ReadableStream({
+      start(controle) {
+        controle.enqueue(new TextEncoder().encode('event: meta\ndata: {"conversa_id":"p"}\n\n'))
+        init.signal?.addEventListener('abort', () =>
+          controle.error(new DOMException('abortado', 'AbortError'))
+        )
+      }
+    })
+    return new Response(corpo, { status: 200 })
+  }
+  if (u.includes('/assistant/conversations/c1/messages')) {
+    if (init.headers?.Authorization !== 'Bearer novo') {
+      return new Response(JSON.stringify({ detail: 'credenciais invalidas' }), { status: 401 })
+    }
+    pedidoDoFluxo = JSON.parse(init.body)
+    // Pedacos cortados onde a rede corta: no meio da linha, entre o '\n' duplo,
+    // e no meio do 'ç' (2 bytes em UTF-8).
+    const bytes = new TextEncoder().encode(
+      'event: meta\ndata: {"conversa_id":"c1","mensagem_id":"m1"}\n\n' +
+        ': keep-alive\n\n' +
+        'event: ferramenta\ndata: {"nome":"potencia_agora","rotulo":"Consultando","estado":"inicio"}\n\n' +
+        'event: delta\ndata: {"texto":"Potência "}\n\n' +
+        'event: delta\ndata: {"texto":"disponível: 55 kW"}\r\n\r\n' +
+        'event: fim\ndata: {"mensagem_id":"m2","tokens_entrada":10,"tokens_saida":5}\n\n'
+    )
+    const cedilha = bytes.indexOf(0xc3)
+    const cortes = [7, 30, 61, cedilha + 1, bytes.length - 3, bytes.length]
+    const corpo = new ReadableStream({
+      start(controle) {
+        let inicio = 0
+        for (const fim of cortes) {
+          controle.enqueue(bytes.slice(inicio, fim))
+          inicio = fim
+        }
+        controle.close()
+      }
+    })
+    return new Response(corpo, { status: 200, headers: { 'content-type': 'text/event-stream' } })
+  }
   return new Response(null, { status: 204 })
 }
+let pedidoDoFluxo = null
 
 let falhas = 0
 const check = (nome, cond, extra = '') => {
@@ -208,6 +256,76 @@ check(
   'barra final e removida',
   socketUrl('/ws/site', accessToken()) === wsAntes,
   socketUrl('/ws/site', accessToken())
+)
+
+// 9. Fluxo do assistente (SSE sobre fetch).
+const { assistant, criarLeitorSse } = sdk
+recusarRefresh = false
+await saveTokens({ access_token: 'velho', refresh_token: 'r1' })
+refreshCount = 0
+calls.length = 0
+configureSdk({ siteId: 'praca-1' })
+const recebidos = []
+for await (const evento of assistant.enviar('c1', 'Como está?', { aba: '/ev/power' })) {
+  recebidos.push(evento)
+}
+check(
+  'fluxo: 401 antes de abrir renova o token e repete',
+  refreshCount === 1 && recebidos.length > 0,
+  `refreshCount=${refreshCount}`
+)
+check(
+  'fluxo: leva site_id do seletor e o corpo da pergunta',
+  calls.some((c) => c === 'POST /api/v1/assistant/conversations/c1/messages?site_id=praca-1') &&
+    pedidoDoFluxo?.texto === 'Como está?' &&
+    pedidoDoFluxo?.aba === '/ev/power',
+  calls.join(' | ')
+)
+check(
+  'fluxo: eventos inteiros apesar dos pedacos partidos',
+  recebidos.map((e) => e.tipo).join(',') === 'meta,ferramenta,delta,delta,fim',
+  recebidos.map((e) => e.tipo).join(',')
+)
+check(
+  'fluxo: acento partido entre pedacos chega intacto',
+  recebidos
+    .filter((e) => e.tipo === 'delta')
+    .map((e) => e.texto)
+    .join('') === 'Potência disponível: 55 kW'
+)
+check('fluxo: comentario keep-alive nao vira evento', !recebidos.some((e) => e.tipo === 'message'))
+configureSdk({ siteId: undefined })
+
+try {
+  for await (const _ of assistant.enviar('cheia', 'oi')) void _
+  check('fluxo: 429 antes de abrir vira ApiError', false)
+} catch (err) {
+  check(
+    'fluxo: 429 antes de abrir vira ApiError com a mensagem do servidor',
+    err instanceof ApiError && err.status === 429 && err.detail.includes('por minuto'),
+    err.detail
+  )
+}
+
+const parar = new AbortController()
+try {
+  for await (const evento of assistant.enviar('pendurada', 'oi', { signal: parar.signal })) {
+    if (evento.tipo === 'meta') parar.abort()
+  }
+  check('fluxo: parar interrompe a leitura', false)
+} catch (err) {
+  check(
+    'fluxo: parar interrompe sem se passar por falta de rede',
+    err?.name === 'AbortError' && !(err instanceof ApiError),
+    String(err)
+  )
+}
+
+const ler = criarLeitorSse()
+const partes = [...ler('event: delta\nda'), ...ler('ta: {"texto":"a"}\n'), ...ler('\n')]
+check(
+  'leitor SSE: evento partido em tres pedacos sai uma vez',
+  partes.length === 1 && partes[0].dados === '{"texto":"a"}'
 )
 
 rmSync(saida, { force: true })

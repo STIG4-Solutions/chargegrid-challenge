@@ -83,8 +83,20 @@ async function traduzirErro(res: Response): Promise<ApiError> {
   return new ApiError(res.status, code, detail)
 }
 
-export async function request<T>(caminho: string, opcoes: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, params, auth = true, retry = true, texto: cru = false } = opcoes
+/**
+ * Monta, envia, renova o token em 401 e traduz erro — tudo menos ler o corpo.
+ *
+ * Separado de `request` por causa do fluxo do assistente: a resposta dele é
+ * lida aos pedaços, e ler o corpo inteiro aqui esperaria a resposta acabar.
+ * O resto — site_id, Bearer, a renovação, a tradução de erro — tem de ser o
+ * mesmo, senão o fluxo seria o único caminho do SDK com regras próprias.
+ */
+async function enviar(
+  caminho: string,
+  opcoes: RequestOptions,
+  signal?: AbortSignal
+): Promise<Response> {
+  const { method = 'GET', body, params, auth = true, retry = true } = opcoes
 
   if (!tokensHidratados()) await hydrateTokens()
 
@@ -113,9 +125,13 @@ export async function request<T>(caminho: string, opcoes: RequestOptions = {}): 
     res = await fetch(url.toString(), {
       method,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body)
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal
     })
-  } catch {
+  } catch (erro) {
+    // Cancelado por quem chamou (botão parar): não é falta de rede, e a tela
+    // não deve dizer que o backend caiu.
+    if (signal?.aborted) throw erro
     throw new ApiError(
       0,
       'network',
@@ -126,14 +142,38 @@ export async function request<T>(caminho: string, opcoes: RequestOptions = {}): 
   // Token expirado: renova uma vez e repete a requisição original.
   if (res.status === 401 && auth && retry) {
     const novos = await renovarToken()
-    if (novos) return request<T>(caminho, { ...opcoes, retry: false })
+    if (novos) return enviar(caminho, { ...opcoes, retry: false }, signal)
   }
 
   if (!res.ok) throw await traduzirErro(res)
+  return res
+}
+
+export async function request<T>(caminho: string, opcoes: RequestOptions = {}): Promise<T> {
+  const res = await enviar(caminho, opcoes)
   if (res.status === 204) return undefined as T
   const texto = await res.text()
-  if (cru) return texto as T
+  if (opcoes.texto) return texto as T
   return (texto ? JSON.parse(texto) : undefined) as T
+}
+
+/**
+ * POST cuja resposta chega aos pedaços (`text/event-stream`).
+ *
+ * Erros ANTES do fluxo abrir — 401 sem refresh, 404, 409, 422, 429 — chegam
+ * como `ApiError`, iguais a qualquer outra chamada. Depois de aberto, o que
+ * der errado vem como evento dentro do próprio fluxo.
+ */
+export async function streamRequest(
+  caminho: string,
+  body: unknown,
+  { signal }: { signal?: AbortSignal } = {}
+): Promise<ReadableStream<Uint8Array>> {
+  const res = await enviar(caminho, { method: 'POST', body }, signal)
+  if (!res.body) {
+    throw new ApiError(0, 'stream_unsupported', 'Este ambiente não lê respostas em fluxo.')
+  }
+  return res.body
 }
 
 export const api = {

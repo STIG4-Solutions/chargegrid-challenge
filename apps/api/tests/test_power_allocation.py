@@ -100,6 +100,23 @@ def test_reserva_predial_reduz_o_orcamento():
     assert b.available_kw == 85.0
 
 
+def test_importacao_da_rede_desconta_solar_e_bateria():
+    # O caso que o assistente errou: pontos parados, bateria segurando o predio.
+    # `ev_load_kw` e' 0, mas a rede ainda entrega a sobra do predio.
+    b = PowerBudget(
+        grid_limit_kw=75,
+        pv_kw=0,
+        battery_kw=12,
+        reserved_kw=20,
+        building_load_kw=12.36,
+        ev_load_kw=0,
+    )
+    assert b.grid_import_kw == 0.36
+    assert b.as_dict()["grid_import_kw"] == 0.36
+    # Solar sobrando nao vira demanda negativa.
+    assert PowerBudget(75, 40, 0, 20, 10, 5).grid_import_kw == 0
+
+
 def test_ponto_disponivel_entra_no_rateio_ao_iniciar():
     """Regressao do impasse de partida.
 
