@@ -1,7 +1,15 @@
 import { useRef } from 'react'
 import { ESTADOS_ASSISTENTE, PainelDoAssistente } from './CenaAssistente.jsx'
 import { useReducedMotion } from './hooks.js'
-import { expo, janela, lerp, suave, useJanela, useLinhaDoTempo } from './linhaDoTempo.js'
+import {
+  expo,
+  janela,
+  lerp,
+  suave,
+  useEncaixeNaChegada,
+  useJanela,
+  useLinhaDoTempo
+} from './linhaDoTempo.js'
 import { estadoDaPraca, TelaApp, TelaFatura, TelaPotencia, TelaTravando } from './Telas.jsx'
 
 /**
@@ -249,10 +257,11 @@ function Estatico() {
 // ------------------------------------------------------------ animacao
 
 export default function ComoFunciona() {
-  const secao = useRef(null)
+  const palco = useRef(null)
   const reduzido = useReducedMotion()
   const { w: vw, h: vh } = useJanela()
-  const { t, fim, reiniciar } = useLinhaDoTempo(secao, DURACAO, !reduzido)
+  const { t, fim, reiniciar } = useLinhaDoTempo(palco, DURACAO, !reduzido)
+  useEncaixeNaChegada(palco, !reduzido)
 
   if (reduzido) {
     return (
@@ -349,8 +358,10 @@ export default function ComoFunciona() {
   const final = e.id === 'final' ? janela(tl, 0.5, 1.3) : 0
 
   return (
-    <section id="como-funciona" ref={secao} className="lp-cf" aria-label="Como funciona">
-      <div className="lp-cf-palco">
+    // ~180vh com o palco fixo: a secao segura a tela por uma rolagem de trackpad
+    // antes de liberar. Nada de wheel/touch/teclado e' interceptado.
+    <section id="como-funciona" className="lp-cf" aria-label="Como funciona">
+      <div className="lp-cf-palco" ref={palco}>
         <span className="lp-cf-brilho lp-cf-brilho-a" aria-hidden="true" />
         <span className="lp-cf-brilho lp-cf-brilho-b" aria-hidden="true" />
 

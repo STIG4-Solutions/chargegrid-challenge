@@ -584,12 +584,16 @@
    Animacao com linha do tempo propria (ComoFunciona.jsx), nao controlada pela
    rolagem. Uma tela inteira, sem borda; o conteudo flutua no escuro. */
 
+/* Pausa suave: a secao tem ~180vh e o palco fica fixo (sticky) enquanto ela
+   passa - segura a tela por cerca de uma rolagem de trackpad e libera. */
 .lp-cf {
   position: relative;
+  height: 180vh;
 }
 
 .lp-cf-palco {
-  position: relative;
+  position: sticky;
+  top: 0;
   height: 100vh;
   min-height: 620px;
   overflow: hidden;
@@ -832,6 +836,7 @@
 
 /* Movimento reduzido: os estados finais, parados, em sequencia. */
 .lp-cf.lp-estatico {
+  height: auto;
   padding: clamp(80px, 12vh, 140px) var(--lp-gutter);
 }
 
