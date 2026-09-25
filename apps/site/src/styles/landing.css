@@ -209,29 +209,81 @@
 
 /* ------------------------------------------------------------ hero */
 
+/* Curto de proposito (~130vh): a secao fixa so' segura o suficiente para a
+   camera andar; um gesto normal de trackpad ja' sai dela. */
 .lp-hero {
   position: relative;
-  height: 300vh;
+  height: 130vh;
 }
 
 .lp-hero-palco {
   position: sticky;
   top: 0;
   height: 100vh;
-  max-width: var(--lp-max);
-  margin: 0 auto;
-  padding: 96px var(--lp-gutter) 40px;
-  display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
-  align-items: center;
-  gap: clamp(24px, 4vw, 64px);
+  overflow: hidden;
+}
+
+/* A imagem ocupa a metade direita inteira: encosta no topo, na base e na borda
+   direita, sem mascara nem desfoque. */
+.lp-hero-midia {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 50%;
+}
+
+.lp-hero-imagem,
+.lp-hero-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: 28% 50%;
+}
+
+/* A unica transicao: do fundo escuro para a imagem, na borda que encosta no
+   texto. */
+.lp-hero-degrade {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 34%;
+  background: linear-gradient(90deg, var(--sems-deep) 0%, rgba(13, 13, 15, 0.7) 40%, transparent);
+  pointer-events: none;
+}
+
+/* Cobre o canto inferior direito do quadro original. */
+.lp-hero-selo {
+  position: absolute;
+  right: 24px;
+  bottom: 20px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(13, 13, 15, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  font-size: 11px;
+}
+
+.lp-hero-selo img {
+  width: 76px;
+  opacity: 0.9;
 }
 
 .lp-hero-texto {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  width: 50%;
+  max-width: calc(var(--lp-max) / 2);
+  margin-left: max(var(--lp-gutter), calc((100% - var(--lp-max)) / 2 + var(--lp-gutter)));
+  padding: 96px 32px 40px 0;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 24px;
-  will-change: opacity, transform;
 }
 
 .lp-hero-texto h1 {
@@ -258,68 +310,11 @@
   background: linear-gradient(var(--sems-muted-2), transparent);
 }
 
-.lp-hero-midia {
-  position: relative;
-  justify-self: end;
-  width: min(100%, 620px, calc(100vh - 150px));
-  --lp-desloca: 0;
-  transform: translate3d(calc(var(--lp-desloca) * (-50% - 2vw)), 0, 0)
-    scale(calc(1 + var(--lp-desloca) * 0.1));
-  will-change: transform;
-}
-
-.lp-hero-quadro {
-  position: relative;
-  aspect-ratio: 1;
-  /* As bordas se dissolvem no fundo: sem moldura. */
-  -webkit-mask-image: radial-gradient(
-    closest-side,
-    #000 48%,
-    rgba(0, 0, 0, 0.55) 74%,
-    transparent 98%
-  );
-  mask-image: radial-gradient(closest-side, #000 48%, rgba(0, 0, 0, 0.55) 74%, transparent 98%);
-}
-
-.lp-hero-imagem,
-.lp-hero-canvas {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-/* Desfoque leve so' nas extremidades, sobre o que ja' esta' desenhado. */
-.lp-hero-borda {
-  position: absolute;
-  inset: 0;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  -webkit-mask-image: radial-gradient(closest-side, transparent 52%, #000 88%);
-  mask-image: radial-gradient(closest-side, transparent 52%, #000 88%);
-  pointer-events: none;
-}
-
-.lp-hero-selo {
-  position: absolute;
-  right: 4%;
-  bottom: 3%;
-  opacity: 0.5;
-  font-size: 11px;
-}
-
-.lp-hero-selo img {
-  width: 76px;
-}
-
 .lp-hero-card {
   position: absolute;
-  /* O carregador fica entre 24% e 47% do quadro; o card flutua no ceu escuro
-     a direita dele, na altura da cabeca do equipamento. */
-  left: 52%;
-  top: 16%;
+  /* Ao lado do carregador, no ceu escuro acima do carro. */
+  left: 50%;
+  top: 22%;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -375,8 +370,8 @@
 
 .lp-hero.lp-estatico .lp-hero-palco {
   position: relative;
-  height: auto;
-  min-height: 100vh;
+  height: 100vh;
+  min-height: 560px;
 }
 
 /* ------------------------------------------------------------ celular */
@@ -391,30 +386,40 @@
     height: 56px;
   }
 
-  .lp-hero-palco {
-    grid-template-columns: 1fr;
-    align-content: center;
-    padding-top: 88px;
-    gap: 8px;
+  /* Imagem em cima, largura total; o degrade vai para a base, onde ela
+     encontra o texto. */
+  .lp-hero-midia {
+    left: 0;
+    bottom: auto;
+    width: 100%;
+    height: 54%;
   }
 
-  .lp-hero-midia {
-    order: -1;
-    justify-self: center;
-    width: min(100%, 440px, calc(100vh - 470px));
-    min-width: 260px;
-    /* No celular o texto fica embaixo: o quadro desce para o meio. */
-    transform: translate3d(0, calc(var(--lp-desloca) * 18vh), 0)
-      scale(calc(1 + var(--lp-desloca) * 0.12));
+  .lp-hero-degrade {
+    inset: auto 0 0 0;
+    width: 100%;
+    height: 42%;
+    background: linear-gradient(0deg, var(--sems-deep) 0%, rgba(13, 13, 15, 0.7) 40%, transparent);
+  }
+
+  .lp-hero-selo {
+    right: 16px;
+    bottom: 14px;
   }
 
   .lp-hero-texto {
+    width: auto;
+    max-width: none;
+    margin: 0 var(--lp-gutter);
+    padding: 0 0 36px;
+    justify-content: flex-end;
     gap: 16px;
   }
 
   .lp-hero-card {
-    left: 50%;
-    top: 12%;
+    left: auto;
+    right: 16px;
+    top: 34%;
     padding: 10px 12px;
     font-size: 12px;
   }
