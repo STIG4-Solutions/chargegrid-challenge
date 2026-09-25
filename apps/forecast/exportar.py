@@ -250,16 +250,19 @@ def main() -> int:
     regua_escolhida = min(disponiveis, key=disponiveis.get) if disponiveis else "media_movel"
     wape_regua = disponiveis.get(regua_escolhida)
 
-    # A ESCOLHA. O modelo so' e' usado quando MEDE melhor que a regua no
-    # backtest; caso contrario grava-se a propria media movel.
+    # A ESCOLHA. O modelo so' e' usado quando MEDE melhor que a MELHOR regua no
+    # backtest; caso contrario grava-se a regua, e `fonte` diz qual.
     #
-    # Nao e' desistir dele: quando passar a ganhar - com operacao real, com mais
-    # estacoes -, o proprio backtest inverte isto sem ninguem mexer em codigo.
+    # Nem promover nem desistir e' decisao de quem escreve codigo: o backtest
+    # inverte isto sozinho quando o numero mudar de lado.
     #
-    # Combinar os dois foi testado e nao resolve: a correlacao entre os erros
-    # mensais e' 0,944 - eles erram junto, porque no agregado os dois sao
-    # essencialmente "nivel x dias". Qualquer peso dado ao modelo piora o WAPE
-    # mensal monotonicamente.
+    # Havia aqui uma medicao de que combinar os dois nao resolvia, com uma
+    # correlacao de 0,944 entre os erros mensais. Ela saiu por duas razoes: vinha
+    # de um artefato que nenhum atual reproduz, e a pergunta mudou. Combinar era
+    # tentador quando modelo e regua empatavam porque os dois eram essencialmente
+    # "nivel x dias"; agora o modelo mensal corrige a regua de ano-a-ano por
+    # construcao, entao ele JA' e' a combinacao dos dois - razao 1,0 devolve a
+    # regua, e o que ele aprende e' o residuo.
     #
     # Sem metrica nenhuma no artefato, o modelo NAO e' usado: e' o valor
     # conservador, e um artefato sem backtest nao provou nada.

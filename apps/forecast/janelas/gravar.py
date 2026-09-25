@@ -9,6 +9,16 @@ QUEM SERVE CADA JANELA, e a razao e' medida - `medir_janelas.py` produz a tabela
   mes      o MODELO                      +3,38  <- o unico com espaco
   ano      extrapolacao de tendencia     n=2, nao mensuravel
 
+ESTA TABELA E' DE ANTES DO EIXO DE ANO-A-ANO, e a linha do mes e' a que ela deixou
+desatualizada: a melhor regua mensal nao e' mais a de dia da semana (14,20%) e sim a
+de ano-a-ano (8,67%), e o modelo passou a bate-la por 0,61 ponto. A folga de +3,38
+foi medida contra a regua errada. `npm run forecast:folga` refaz a medicao.
+
+O mes+1 de cada praca NAO sai daqui: e' de `exportar.py`, que usa o modelo quando
+ele passa no portao - e hoje ele passa. Os meses SEGUINTES continuam saindo de
+regua, porque o modelo preve um mes a frente e nao doze, e `fonte` diz isso em cada
+linha.
+
 Folga e' a distancia entre a melhor regua e uma referencia que usa o futuro de
 proposito. Onde ela e' perto de zero, nenhum modelo pode ganhar: o erro que sobra
 e' ruido de contagem. Foi por isso que quatro das cinco janelas servem regua, e
