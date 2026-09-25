@@ -184,7 +184,7 @@ custa tokens e não é determinístico. Rode ao trocar de deployment, de modelo 
 O seed gera **dois anos de histórico**: 4 sites, ~17.800 sessões faturadas, campanhas com
 missões já em progresso — uma delas dirigida a uma frota, com dois dos cinco motoristas
 dentro dela —, planos de assinatura e um contrato de plataforma. Não é enfeite —
-o modelo de previsão descarta local com menos de 150 dias de energia, os relatórios de ocupação
+o modelo de previsão descarta local com menos de 180 dias de energia, os relatórios de ocupação
 medem janelas de 30 dias, e uma missão de "recarregue 5 vezes este mês" é indemonstrável com
 uma semana de dados. Com poucos dias no banco, as três entregam tela vazia e parecem quebradas.
 

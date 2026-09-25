@@ -301,7 +301,7 @@ def _grade_completa(estacoes: pd.DataFrame, medido: pd.DataFrame, ate: date) -> 
             f"em {mais_antiga.date()}, {(mais_antiga - fim).days} dia(s) DEPOIS "
             "do corte. O corte padrao de `treinar.py` e' o ultimo dia do mes "
             "anterior; use `--ate` para alcancar a operacao que existe, ou espere "
-            "haver historico. O modelo pede 150 dias de energia por praca, e a "
+            "haver historico. O modelo pede 180 dias de energia por praca, e a "
             "media movel pede 28."
         )
 
