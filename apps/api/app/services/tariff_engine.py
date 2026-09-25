@@ -172,6 +172,21 @@ def _split_minutes_by_window(
     return {label: (minutes, price) for label, (minutes, price) in buckets.items()}
 
 
+def multiplicador_efetivo(session: ChargingSession, tariff: Tariff) -> tuple[Decimal, str]:
+    """O multiplicador que vale para esta sessao, e de onde ele veio.
+
+    O travado na sessao (a bandeira do site no inicio da recarga) vence sempre,
+    mesmo em tarifa com o dinamico desligado: a bandeira vale para a praca toda.
+    Sem ele - sessao anterior a feature, ou flag desligada - vale a regra antiga,
+    o multiplicador digitado na tarifa, e so' quando ela o habilita.
+    """
+    if session.multiplicador_travado is not None:
+        return Decimal(str(session.multiplicador_travado)), "bandeira"
+    if tariff.dynamic_enabled:
+        return Decimal(str(tariff.dynamic_multiplier or 1)), "tarifa"
+    return Decimal("1"), "tarifa"
+
+
 def rate_session(
     session: ChargingSession,
     tariff: Tariff,
@@ -330,15 +345,20 @@ def rate_session(
         sum((line.amount for line in result.lines if line.amount > 0), Decimal("0"))
     )
 
-    # Precificacao dinamica: o multiplicador vem do modulo de IA (previsao de pico).
-    multiplier = Decimal(str(tariff.dynamic_multiplier or 1))
-    if tariff.dynamic_enabled and multiplier != 1:
+    # Precificacao dinamica: o multiplicador vem da bandeira do site, travado na
+    # sessao no inicio da recarga (`multiplicador_efetivo`).
+    multiplier, origem = multiplicador_efetivo(session, tariff)
+    if multiplier != 1:
         adjustment = money(result.subtotal * (multiplier - 1))
         if adjustment != 0:
             result.lines.append(
                 RatedLine(
                     kind="dynamic",
-                    description=f"Ajuste dinâmico de demanda (x{multiplier})",
+                    description=(
+                        f"Bandeira {session.cor_travada} (x{multiplier:.2f})".replace(".", ",")
+                        if origem == "bandeira"
+                        else f"Ajuste dinâmico de demanda (x{multiplier})"
+                    ),
                     quantity=Decimal("1"),
                     unit="un",
                     unit_price=adjustment,
@@ -409,6 +429,8 @@ def rate_session(
         "free_minutes": tariff.free_minutes,
         "dynamic_multiplier": float(tariff.dynamic_multiplier),
         "dynamic_enabled": tariff.dynamic_enabled,
+        "multiplicador_aplicado": float(multiplier),
+        "origem_do_multiplicador": origem,
         "idle_grace_minutes": idle_grace_minutes,
         "windows": [
             {

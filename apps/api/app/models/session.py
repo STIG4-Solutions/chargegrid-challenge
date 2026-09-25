@@ -107,6 +107,12 @@ class ChargingSession(UUIDMixin, TimestampMixin, Base):
     limit_minutes: Mapped[int | None] = mapped_column(Integer)
     limit_amount: Mapped[float | None] = mapped_column(Numeric(12, 2))
 
+    # Bandeira do site no inicio da recarga, copiada e nunca mais mudada: o
+    # motorista paga o que viu ao comecar. Nulo = sessao anterior a precificacao
+    # dinamica (ou com ela desligada), e o motor usa a regra da tarifa.
+    multiplicador_travado: Mapped[float | None] = mapped_column(Numeric(5, 3))
+    cor_travada: Mapped[str | None] = mapped_column(String(10))
+
     error_message: Mapped[str | None] = mapped_column(Text)
 
     charge_point = relationship("ChargePoint", back_populates="sessions")

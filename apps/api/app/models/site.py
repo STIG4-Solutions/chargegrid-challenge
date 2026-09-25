@@ -61,6 +61,15 @@ class Site(UUIDMixin, TimestampMixin, Base):
         PGUUID(as_uuid=True), ForeignKey("tariffs.id", ondelete="SET NULL")
     )
 
+    # Ultima bandeira calculada pelo rebalanceador (estado operacional, e por
+    # isso aqui e nao na tarifa, que e' configuracao do operador). Gravada
+    # inteira para que tela, WebSocket e sessao vejam o mesmo numero.
+    bandeira_cor: Mapped[str | None] = mapped_column(String(10))
+    bandeira_multiplicador: Mapped[float | None] = mapped_column(Numeric(5, 3))
+    bandeira_folga_pct: Mapped[float | None] = mapped_column(Numeric(5, 1))
+    bandeira_motivo: Mapped[str | None] = mapped_column(String(160))
+    bandeira_calculada_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
     users = relationship("User", back_populates="site")
     charge_points = relationship("ChargePoint", back_populates="site", cascade="all, delete-orphan")
     tariffs = relationship(

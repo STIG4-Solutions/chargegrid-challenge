@@ -23,6 +23,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.charge_point import ChargePoint
 from app.models.enums import ChargePointStatus, ReservationStatus
@@ -470,4 +471,9 @@ async def rebalance_site(
     budget = await load_budget(db, site)
     prioridades = await priority_service.resolver_para_site(db, site, points)
     plan = build_plan(budget, points, prioridades=prioridades)
-    return await apply_plan(db, plan, points, triggered_by=triggered_by, dry_run=dry_run)
+    result = await apply_plan(db, plan, points, triggered_by=triggered_by, dry_run=dry_run)
+    if get_settings().precificacao_dinamica and not dry_run:
+        from app.services import bandeira
+
+        result["bandeira"] = await bandeira.registrar(db, site, plan)
+    return result
