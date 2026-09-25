@@ -24,7 +24,15 @@
  * acusar por um ponto de diferença só produziria alarme.
  */
 export function bandaConfiavel(medida, declarada, tolerancia = 5) {
-  if (medida == null || declarada == null) return true
+  // `null` = NÃO MEDIDA, e não "aprovada". Antes esta função devolvia `true` aqui,
+  // com a justificativa "sem medição não há o que acusar" — mas a leitura certa é
+  // "sem medição não há o que confirmar". Aconteceu em staging: a faixa mensal tem
+  // fatores calibrados em 54 resíduos e cobertura medida em nenhum, porque a
+  // calibração rolante de 6 meses só juntava 18 com 3 praças. A faixa saía verde.
+  //
+  // Três estados, e a tela distingue: verde (medida e dentro), âmbar (medida e
+  // abaixo, ou não medida).
+  if (medida == null || declarada == null) return null
   return Number(medida) >= Number(declarada) - tolerancia
 }
 

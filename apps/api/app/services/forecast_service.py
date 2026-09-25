@@ -198,6 +198,25 @@ def _avisos(linha: SiteForecast) -> list[dict]:
     # banda nenhuma, e avisar sobre a calibracao de algo que o operador nao esta
     # vendo e' ruido - e ruido faz o aviso seguinte, que importa, ser ignorado.
     medida, declarada = linha.cobertura_medida_pct, linha.cobertura_declarada_pct
+
+    # Faixa DESENHADA cuja cobertura nao foi medida. Acontece quando os fatores da
+    # calibracao existem mas a verificacao fora da amostra nao teve observacoes
+    # suficientes - em staging, 3 pracas dao 18 residuos mensais contra o minimo de
+    # 30. A faixa e' legitima; o que falta e' a afericao dela, e isso tem de ser dito.
+    # Sem este aviso o operador ve' uma faixa sem nada distinguindo-a de uma aferida.
+    if linha.fonte == "modelo" and linha.kwh_p10 is not None and medida is None:
+        avisos.append(
+            {
+                "nivel": "medio",
+                "texto": (
+                    "A faixa foi calibrada, mas a cobertura dela não foi medida neste "
+                    "teste — faltaram observações fora da amostra. Ela continua sendo a "
+                    "melhor estimativa de incerteza disponível; só não há número "
+                    "confirmando que contém o valor real na frequência que promete."
+                ),
+            }
+        )
+
     if linha.fonte == "modelo" and medida is not None and declarada is not None:
         if Decimal(str(medida)) < Decimal(str(declarada)) - TOLERANCIA_DE_COBERTURA:
             avisos.append(

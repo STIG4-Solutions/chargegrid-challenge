@@ -231,10 +231,19 @@ def main() -> int:
     # e' este numero que diz isso em vez de esconder.
     #
     # A mensal e' a que descreve o card: a linha gravada aqui e' um TOTAL de mes, e
-    # a cobertura de uma faixa diaria nao vale para a soma de trinta dias. A
-    # diaria fica como reserva para artefato antigo, que nao tem a mensal.
+    # a cobertura de uma faixa diaria nao vale para a soma de trinta dias.
+    #
+    # AUSENTE e' diferente de NAO MEDIDA, e era um `or` que juntava as duas. Artefato
+    # antigo nao TEM a chave mensal, e ai a diaria e' a melhor aproximacao
+    # disponivel. Artefato novo TEM a chave com valor `None` quando a cobertura nao
+    # pode ser medida - e' o caso de staging, onde 3 pracas dao 18 residuos mensais
+    # contra o minimo de 30. Nesse caso a diaria nao serve: o card anunciaria 81,2%
+    # de cobertura sobre uma faixa que ninguem mediu, com numero de outro grao.
     metricas = artefato.get("metricas_backtest", {})
-    medida = metricas.get("cobertura_p10_p90_mensal") or metricas.get("cobertura_p10_p90_diaria")
+    if "cobertura_p10_p90_mensal" in metricas:
+        medida = metricas["cobertura_p10_p90_mensal"]
+    else:
+        medida = metricas.get("cobertura_p10_p90_diaria")
     wape_modelo = metricas.get("wape_mensal")
 
     # AS DUAS REGUAS, e a melhor delas e' a barra. Comparar so' com a media movel
