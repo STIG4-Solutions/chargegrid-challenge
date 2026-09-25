@@ -476,4 +476,7 @@ async def rebalance_site(
         from app.services import bandeira
 
         result["bandeira"] = await bandeira.registrar(db, site, plan)
+        # `rebalance_once` publica `result["plan"]` como evento `power_plan`: e'
+        # por aqui que a aba Potencia recebe a cor nova sem esperar o poll.
+        result["plan"]["bandeira"] = result["bandeira"]
     return result

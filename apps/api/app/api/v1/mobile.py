@@ -9,13 +9,16 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from decimal import Decimal
 from math import asin, cos, radians, sin, sqrt
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
 from app.core.deps import DbSession, DriverUser, FleetManager
 from app.core.errors import PaymentError
 from app.db.base import RESERVATION_CODE_SEQ
@@ -58,6 +61,7 @@ from app.schemas.ev import (
     StationPointOut,
 )
 from app.services import (
+    bandeira,
     billing_service,
     campaign_service,
     fleet_service,
@@ -68,6 +72,7 @@ from app.services import (
     subscription_service,
     wallet_service,
 )
+from app.services.tariff_engine import money, resolve_rates
 
 # Teto de agendamentos simultaneos por motorista. Nao e' regra de negocio
 # fechada - e' um limite de sanidade para uma conta nao drenar o orcamento do
@@ -172,18 +177,37 @@ async def station_points(site_id: uuid.UUID, db: DbSession, _: DriverUser) -> li
         .scalars()
         .all()
     )
-    return [
-        StationPointOut(
-            id=cp.id,
-            code=cp.code,
-            name=cp.name,
-            connector=str(cp.connector),
-            rated_kw=float(cp.rated_kw),
-            status=str(cp.status),
-            available=cp.status == ChargePointStatus.AVAILABLE,
+    site = await db.get(Site, site_id)
+    agora = datetime.now(UTC)
+    # O multiplicador que uma recarga iniciada agora travaria - o preco da tela
+    # tem de ser o da fatura. Desligada a flag, ou velha a bandeira, vale 1.
+    multiplicador = Decimal("1")
+    if site is not None and settings.precificacao_dinamica:
+        multiplicador, _cor = bandeira.para_travar(site, agora=agora)
+    painel = bandeira.do_site(site, agora=agora) if site is not None else None
+
+    saida = []
+    for cp in points:
+        tarifa = await session_service.resolve_tariff(db, cp, None)
+        preco = None
+        if tarifa is not None:
+            fuso = ZoneInfo(site.timezone if site is not None else "America/Sao_Paulo")
+            base = resolve_rates(tarifa, agora.astimezone(fuso)).per_kwh
+            preco = float(money(base * multiplicador))
+        saida.append(
+            StationPointOut(
+                id=cp.id,
+                code=cp.code,
+                name=cp.name,
+                connector=str(cp.connector),
+                rated_kw=float(cp.rated_kw),
+                status=str(cp.status),
+                available=cp.status == ChargePointStatus.AVAILABLE,
+                preco_kwh_final=preco,
+                bandeira=painel,
+            )
         )
-        for cp in points
-    ]
+    return saida
 
 
 @router.get("/charge-points/by-code/{codigo}", response_model=ScannedChargePointOut)

@@ -401,6 +401,76 @@
         }
       }
     },
+    "/api/v1/power/demo/pico-predio": {
+      "post": {
+        "tags": [
+          "recarga ev · potência"
+        ],
+        "summary": "Simular Pico Do Predio",
+        "description": "Demo: soma consumo ao predio por alguns minutos e roda o ciclo na hora.\n\nSo' com carregador E medidor simulados. Num site com hardware real isto\nfalsificaria a medicao que decide o preco de quem esta' carregando, entao a\nrota recusa - nao existe modo \"so' desta vez\".\n\nO pico expira sozinho: o medidor virtual o limpa na primeira leitura depois\ndo prazo, e o ciclo seguinte devolve a cor. Nao ha rota de cancelar.",
+        "operationId": "simular_pico_do_predio_api_v1_power_demo_pico_predio_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "site_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "admin: escolhe o site da rede",
+              "title": "Site Id"
+            },
+            "description": "admin: escolhe o site da rede"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PicoSimuladoRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Simular Pico Do Predio Api V1 Power Demo Pico Predio Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/power/budget": {
       "get": {
         "tags": [
@@ -6538,6 +6608,46 @@
         ],
         "title": "AuthMethod"
       },
+      "BandeiraOut": {
+        "properties": {
+          "cor": {
+            "type": "string",
+            "title": "Cor"
+          },
+          "multiplicador": {
+            "type": "number",
+            "title": "Multiplicador"
+          },
+          "folga_pct": {
+            "type": "number",
+            "title": "Folga Pct"
+          },
+          "motivo": {
+            "type": "string",
+            "title": "Motivo"
+          },
+          "calculada_em": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Calculada Em"
+          },
+          "desatualizada": {
+            "type": "boolean",
+            "title": "Desatualizada"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cor",
+          "multiplicador",
+          "folga_pct",
+          "motivo",
+          "calculada_em",
+          "desatualizada"
+        ],
+        "title": "BandeiraOut",
+        "description": "Bandeira do site: a folga de potencia traduzida em preco."
+      },
       "CampanhaIn": {
         "properties": {
           "nome": {
@@ -8071,6 +8181,32 @@
         ],
         "title": "PhaseType"
       },
+      "PicoSimuladoRequest": {
+        "properties": {
+          "duracao_min": {
+            "type": "integer",
+            "maximum": 15.0,
+            "minimum": 1.0,
+            "title": "Duracao Min",
+            "default": 5
+          },
+          "acrescimo_kw": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 5000.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acrescimo Kw"
+          }
+        },
+        "type": "object",
+        "title": "PicoSimuladoRequest"
+      },
       "PowerBudgetOut": {
         "properties": {
           "grid_limit_kw": {
@@ -8251,6 +8387,33 @@
             },
             "type": "array",
             "title": "Charge Points"
+          },
+          "bandeira": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BandeiraOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "demo_disponivel": {
+            "type": "boolean",
+            "title": "Demo Disponivel",
+            "default": false
+          },
+          "pico_simulado_ate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pico Simulado Ate"
           }
         },
         "type": "object",
@@ -8969,6 +9132,27 @@
           "available": {
             "type": "boolean",
             "title": "Available"
+          },
+          "preco_kwh_final": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preco Kwh Final"
+          },
+          "bandeira": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BandeiraOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "site_id": {
             "type": "string",
@@ -9978,6 +10162,27 @@
           "available": {
             "type": "boolean",
             "title": "Available"
+          },
+          "preco_kwh_final": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preco Kwh Final"
+          },
+          "bandeira": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BandeiraOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",

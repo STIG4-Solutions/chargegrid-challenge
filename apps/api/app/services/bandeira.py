@@ -119,13 +119,36 @@ async def registrar(db, site, plan, *, agora: datetime | None = None) -> dict:
     site.bandeira_motivo = b.motivo
     site.bandeira_calculada_em = agora or datetime.now(UTC)
     await db.commit()
+    return _como_dict(site, site.bandeira_calculada_em)
+
+
+def _velha(site, agora: datetime) -> bool:
+    validade = timedelta(seconds=get_settings().bandeira_validade_s)
+    return site.bandeira_calculada_em is None or agora - site.bandeira_calculada_em > validade
+
+
+def _como_dict(site, agora: datetime) -> dict:
     return {
-        "cor": b.cor,
-        "multiplicador": float(b.multiplicador),
-        "folga_pct": float(b.folga_pct),
-        "motivo": b.motivo,
+        "cor": site.bandeira_cor,
+        "multiplicador": float(site.bandeira_multiplicador),
+        "folga_pct": float(site.bandeira_folga_pct),
+        "motivo": site.bandeira_motivo,
         "calculada_em": site.bandeira_calculada_em.isoformat(),
+        "desatualizada": _velha(site, agora),
     }
+
+
+def do_site(site, *, agora: datetime | None = None) -> dict | None:
+    """A bandeira como tela e WebSocket a mostram, ou None.
+
+    None com a flag desligada - mesmo que haja uma bandeira gravada de quando ela
+    estava ligada - e quando o rebalanceador nunca calculou uma para este site.
+    Velha ela ainda aparece, marcada: a tela diz "desatualizada" em vez de
+    esconder, porque sumir faria parecer que a feature nao existe.
+    """
+    if not get_settings().precificacao_dinamica or site.bandeira_cor is None:
+        return None
+    return _como_dict(site, agora or datetime.now(UTC))
 
 
 def para_travar(site, *, agora: datetime | None = None) -> tuple[Decimal, str | None]:
@@ -136,12 +159,6 @@ def para_travar(site, *, agora: datetime | None = None) -> tuple[Decimal, str | 
     de um pico de horas atras. Cobrar 1,30 de alguem com base nela seria cobrar
     por uma escassez que ninguem mediu.
     """
-    agora = agora or datetime.now(UTC)
-    validade = timedelta(seconds=get_settings().bandeira_validade_s)
-    if (
-        site.bandeira_multiplicador is None
-        or site.bandeira_calculada_em is None
-        or agora - site.bandeira_calculada_em > validade
-    ):
+    if site.bandeira_multiplicador is None or _velha(site, agora or datetime.now(UTC)):
         return Decimal("1.00"), None
     return Decimal(str(site.bandeira_multiplicador)), site.bandeira_cor

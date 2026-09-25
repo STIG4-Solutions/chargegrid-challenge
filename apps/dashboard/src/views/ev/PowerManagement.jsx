@@ -10,7 +10,9 @@ import {
   useApi,
   useSiteStream
 } from '@chargegrid/sdk'
+import { useAuth } from '../../auth/AuthContext.jsx'
 import { Async, ErrorState, Spinner } from '../../components/Async.jsx'
+import { BandeiraDoSite, comBandeiraDoPlano } from './Bandeira.jsx'
 import { idadeEmPalavras, problemaNaResolucao, rotuloDaCategoria } from './manutencao.js'
 import { alteracoesDoOrcamento, mudouPorBaixo } from './orcamento.js'
 
@@ -35,6 +37,14 @@ export default function PowerManagement() {
     }
   })
   const stream = useSiteStream()
+  const { isAdmin } = useAuth()
+
+  // A bandeira muda a cada ciclo do rebalanceador (15 s): o evento `power_plan`
+  // a traz antes do proximo poll do overview.
+  useEffect(() => {
+    if (stream.powerPlan)
+      overview.setData((current) => comBandeiraDoPlano(current, stream.powerPlan))
+  }, [stream.powerPlan]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // O evento do WebSocket chega antes do próximo poll: aplica na hora.
   useEffect(() => {
@@ -93,6 +103,7 @@ export default function PowerManagement() {
     recent.refetch({ silent: true })
   }
   const rebalance = useAction(() => power.rebalance(false), { onSuccess: reload })
+  const simularPico = useAction(() => power.simulatePeak(5), { onSuccess: reload })
 
   const activeByPoint = useMemo(() => {
     const map = new Map()
@@ -122,6 +133,14 @@ export default function PowerManagement() {
       >
         {data && (
           <>
+            <BandeiraDoSite
+              bandeira={data.bandeira}
+              isAdmin={isAdmin}
+              demoDisponivel={data.demo_disponivel}
+              picoAte={data.pico_simulado_ate}
+              onSimular={() => simularPico.run()}
+              simulando={simularPico.pending}
+            />
             <PowerStats data={data} budget={budget} />
             <BudgetEditor settings={data.settings} onSaved={reload} />
             <BalancePanel data={data} budget={budget} rebalance={rebalance} />

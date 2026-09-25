@@ -68,6 +68,7 @@ export type ResumoDeReceita = S['RevenueSummary']
 // App do motorista
 export type Estacao = S['StationOut']
 export type PontoDaEstacao = S['StationPointOut']
+export type Bandeira = S['BandeiraOut']
 export type PontoLido = S['ScannedChargePointOut']
 export type Agendamento = S['ReservationOut']
 export type StatusAgendamento = S['ReservationStatus']

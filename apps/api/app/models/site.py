@@ -70,6 +70,11 @@ class Site(UUIDMixin, TimestampMixin, Base):
     bandeira_motivo: Mapped[str | None] = mapped_column(String(160))
     bandeira_calculada_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    # Gatilho de demo: consumo extra do predio que o medidor VIRTUAL soma ate'
+    # `pico_simulado_ate`. Nulos fora de um pico. Nunca tocado com medidor real.
+    pico_simulado_kw: Mapped[float | None] = mapped_column(Numeric(8, 2))
+    pico_simulado_ate: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
     users = relationship("User", back_populates="site")
     charge_points = relationship("ChargePoint", back_populates="site", cascade="all, delete-orphan")
     tariffs = relationship(

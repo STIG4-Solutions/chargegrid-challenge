@@ -148,6 +148,9 @@ export const power = {
     api.get<Record<string, unknown>>('/power/demand/avoided-cost', { dias }),
   rebalance: (dryRun = false) =>
     api.post<Record<string, unknown>>('/power/rebalance', undefined, { dry_run: dryRun }),
+  /** Demo: pico simulado de consumo do predio. So' admin, so' com site simulado. */
+  simulatePeak: (duracaoMin = 5) =>
+    api.post<Record<string, unknown>>('/power/demo/pico-predio', { duracao_min: duracaoMin }),
   setLimit: (id: string, limitKw: number) =>
     api.post<T.PontoDeRecarga>(`/power/charge-points/${id}/limit`, { limit_kw: limitKw }),
   throttle: (id: string, enabled: boolean) =>
