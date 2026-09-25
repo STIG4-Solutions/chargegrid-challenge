@@ -460,7 +460,17 @@ check('faixa que cobre o prometido e confiavel', bandaConfiavel(80, 80) === true
 
 // 21. Backtest de três meses tem ruído; acusar por um ponto só geraria alarme.
 check('diferenca dentro da tolerancia nao acusa', bandaConfiavel(77, 80) === true)
-check('sem medicao nao ha o que acusar', bandaConfiavel(null, 80) === true)
+
+// 21b. Cobertura NÃO MEDIDA não é cobertura aprovada. Esta checagem dizia
+//      `bandaConfiavel(null, 80) === true`, com a justificativa "sem medição não há
+//      o que acusar" — e foi ela que deixou a faixa sair verde em staging, onde os
+//      fatores vêm de 54 resíduos e a cobertura foi medida em nenhum (a calibração
+//      rolante de 6 meses junta 18 com 3 praças, abaixo do mínimo de 30).
+//
+//      Três estados: `true` medida e dentro, `false` medida e abaixo, `null` não
+//      medida. A tela pinta âmbar nos dois últimos.
+check('cobertura nao medida nao e aprovada', bandaConfiavel(null, 80) === null)
+check('declarada ausente tambem nao aprova', bandaConfiavel(80, null) === null)
 
 // 22. A régua é uma média móvel de 28 dias — três linhas de código.
 //
@@ -1283,13 +1293,34 @@ check(
 
 // 2. Só `modelo` é modelo. Régua rotulada como modelo é exatamente o que a
 //    coluna `fonte` existe para impedir.
+// As fontes que o CHECK `fonte_conhecida` do banco aceita (migração 0029). A
+// lista está aqui inteira de propósito: uma fonte nova ausente daqui não faria
+// nenhuma verificação falhar — ela só deixaria de ser conferida, e a tela
+// passaria a mostrar o valor cru do banco sem ninguém notar.
+const FONTES_DO_BANCO = [
+  'modelo',
+  'media_movel',
+  'media_dow',
+  'perfil_hora',
+  'tendencia',
+  'ano_a_ano'
+]
+
 check(
   'so a fonte modelo conta como modelo',
   rotuloDaFonte('modelo').eModelo === true &&
-    ['media_movel', 'media_dow', 'perfil_hora', 'tendencia'].every(
-      (f) => rotuloDaFonte(f).eModelo === false
-    ),
-  JSON.stringify(['media_dow', 'perfil_hora'].map((f) => rotuloDaFonte(f)))
+    FONTES_DO_BANCO.filter((f) => f !== 'modelo').every((f) => rotuloDaFonte(f).eModelo === false),
+  JSON.stringify(['media_dow', 'ano_a_ano'].map((f) => rotuloDaFonte(f)))
+)
+
+// 2b. Toda fonte que o banco aceita tem texto PRÓPRIO na tela. Sem isto,
+//     `ano_a_ano` cairia no `?? String(fonte)` e o operador leria o nome da
+//     coluna do banco — e a régua de ano-a-ano erra 8,67% contra 13,95% da
+//     média móvel, então chamar as duas pelo mesmo nome esconde 3,6 pontos.
+check(
+  'toda fonte do banco tem texto proprio',
+  FONTES_DO_BANCO.every((f) => rotuloDaFonte(f).texto !== f),
+  JSON.stringify(FONTES_DO_BANCO.filter((f) => rotuloDaFonte(f).texto === f))
 )
 
 // 3. Fonte desconhecida NÃO é promovida a modelo por omissão. Um valor novo no

@@ -160,6 +160,23 @@ _SESSOES = text(
     WHERE cs.started_at IS NOT NULL
       AND cs.state = 'BILLED'
     GROUP BY 1, 2
+    -- ORDER BY nao e' cosmetico aqui, e' REPRODUTIBILIDADE. Sem ele a ordem das
+    -- linhas sai do plano, e o plano muda com estatistica de tabela, `work_mem` e
+    -- paralelismo. Medido nesta base, resumindo so' a ordem devolvida:
+    --
+    --   enable_hashagg = on                        c6dbaf56dc88e17e
+    --   enable_hashagg = off                       6da352e7d2d396ee
+    --   enable_hashagg = on + 4 workers            c6f3d7d7651f5141
+    --   com ORDER BY (qualquer plano)              6da352e7d2d396ee
+    --
+    -- E ordem de linha muda o MODELO: o LightGBM soma em ponto flutuante para montar
+    -- histograma, e soma de ponto flutuante nao e' associativa.
+    --
+    -- E' a explicacao do mistero que `treinar.py` registrava como irresolvido - o
+    -- WAPE mensal saindo 8,31 de manha e 9,94 a tarde com as mesmas linhas. A
+    -- impressao digital ordena antes de hashear, entao ela provava que o CONJUNTO
+    -- era o mesmo e escondia que a ORDEM nao era.
+    ORDER BY 1, 2
     """
 )
 
@@ -175,6 +192,8 @@ _ESTACOES = text(
     FROM sites s
     LEFT JOIN charge_points cp ON cp.site_id = s.id
     GROUP BY s.slug, s.name, s.created_at, s.timezone
+    -- Ordena pela mesma razao do `_SESSOES`: sem isto a ordem sai do plano.
+    ORDER BY s.slug
     """
 )
 
@@ -282,7 +301,7 @@ def _grade_completa(estacoes: pd.DataFrame, medido: pd.DataFrame, ate: date) -> 
             f"em {mais_antiga.date()}, {(mais_antiga - fim).days} dia(s) DEPOIS "
             "do corte. O corte padrao de `treinar.py` e' o ultimo dia do mes "
             "anterior; use `--ate` para alcancar a operacao que existe, ou espere "
-            "haver historico. O modelo pede 150 dias de energia por praca, e a "
+            "haver historico. O modelo pede 180 dias de energia por praca, e a "
             "media movel pede 28."
         )
 

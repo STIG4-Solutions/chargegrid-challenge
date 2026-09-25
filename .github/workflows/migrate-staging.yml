@@ -7,6 +7,34 @@ on:
       - "apps/api/**"
       - ".github/workflows/migrate-staging.yml"
   workflow_dispatch:
+    inputs:
+      # Gerar historico exige a string de conexao, que e' secret - entao nao ha
+      # como rodar da maquina de ninguem. Espelha o `seed_demo` de
+      # `migrate-production.yml`, que ja' resolve o mesmo problema por dispatch.
+      #
+      # Em branco, o workflow so' migra. E' o caminho do push, e nao deve gerar
+      # dado nenhum sem alguem pedir.
+      historico_praca:
+        description: "Slug da praca que recebe historico (vazio = so' migrar)"
+        required: false
+        default: ""
+        type: string
+      historico_carater:
+        description: "Carater do dado gerado"
+        required: false
+        default: shopping
+        type: choice
+        options: [rodovia, shopping, corporativo, condominio]
+      historico_dias:
+        description: "Dias de historico"
+        required: false
+        default: "1460"
+        type: string
+      historico_forcar:
+        description: "Gerar mesmo que a praca ja' tenha operacao"
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: staging-database-migrations
@@ -19,7 +47,10 @@ jobs:
   migrate:
     name: Migrate staging database
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Migrar leva segundos. Gerar historico leva minutos: quatro anos de uma praca
+    # de rodovia sao ~9.600 sessoes com fatura e linha de fatura, e a primeira
+    # execucao real levou 9m56s contra um teto de 10 - passou por quatro segundos.
+    timeout-minutes: 30
 
     defaults:
       run:
@@ -60,3 +91,22 @@ jobs:
         run: |
           alembic upgrade head
           alembic current
+
+      # DEPOIS da migracao, e so' por dispatch com a praca preenchida. O job
+      # precisa do pacote inteiro (`app.seed` e os modelos), e nao das quatro
+      # dependencias que a migracao usa - por isso o install proprio.
+      - name: Install the whole package
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.historico_praca != '' }}
+        run: python -m pip install .
+
+      # Recusa sozinho quando falta ponto, falta tarifa, ou quando a praca ja' tem
+      # operacao - e diz a razao. Nao e' destrutivo: nao toca praca, tarifa, conta,
+      # ponto nem sessao existente.
+      - name: Generate history for one site
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.historico_praca != '' }}
+        run: >-
+          python -m app.historico
+          --praca "${{ inputs.historico_praca }}"
+          --carater "${{ inputs.historico_carater }}"
+          --dias "${{ inputs.historico_dias }}"
+          ${{ inputs.historico_forcar && '--forcar' || '' }}

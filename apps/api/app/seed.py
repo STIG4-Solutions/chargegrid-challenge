@@ -8,7 +8,7 @@ ponto, tarifas e perfis), para trocar o mock pela API sem reescrever as telas.
 HISTORICO. O seed nao cria apenas o estado de hoje: ele gera dois anos de sessoes
 encerradas e faturadas. Isso nao e' enfeite. Tres partes do produto so' existem
 quando ha passado: o modelo de previsao de demanda descarta qualquer local com
-menos de 150 dias de energia, os relatorios de ocupacao e retorno medem janelas
+menos de 180 dias de energia, os relatorios de ocupacao e retorno medem janelas
 de 30 dias, e qualquer missao com prazo ("recarregue 5 vezes este mes", "tres
 semanas seguidas") e' indemonstravel com uma semana de dados. Com poucos dias no
 banco as tres entregam tela vazia e parecem quebradas.
@@ -228,7 +228,7 @@ SEMENTE_DO_HISTORICO = 42
 
 # Quatro anos, e o numero vem de uma conta sobre SAZONALIDADE, nao de folga.
 #
-# Eram dois anos, que bastam para o piso de 150 dias do modelo e para aquecer a
+# Eram dois anos, que bastam para o piso de historico do modelo e para aquecer a
 # media de 182. Mas o backtest treina so' com meses estritamente anteriores ao
 # mes de teste: para prever julho de 2026 com dois anos de historico, o modelo
 # viu julho UMA vez. Sao 12 parametros sazonais com uma observacao cada - nao e'
@@ -573,7 +573,7 @@ SITES = [
         DIAS_DE_HISTORICO,
         3,
     ),
-    # Aberto ha quatro meses, de proposito: fica ABAIXO dos 150 dias que o modelo
+    # Aberto ha quatro meses, de proposito: ~120 dias, ABAIXO dos 180 que o modelo
     # de previsao exige. E' o caso que faz a tela dizer "sem historico suficiente"
     # em vez de exibir uma previsao inventada - e sem um local assim no banco,
     # essa guarda nunca seria exercitada antes de chegar a um cliente real.
@@ -631,15 +631,46 @@ def _fracao_solar(hora: int) -> float:
     return 0.58 * math.sin(math.pi * (hora - 6) / 12) ** 2
 
 
-async def _reservar_codigos(db, sequencia: str, quantidade: int) -> int:
+async def _alcancar_o_maximo_gravado(db, sequencia: str, tabela: str) -> None:
+    """Empurra a sequencia para depois do maior codigo que a tabela JA tem.
+
+    A sequencia sozinha nao basta, e isto nao e' teoria: gerando historico no
+    staging, `nextval('invoice_code_seq')` devolveu 2001 e `INV-2001` ja' existia
+    - o UNIQUE `ix_invoices_code` derrubou a execucao depois de cinco minutos
+    montando linhas.
+
+    A causa e' historica. Os codigos do seed saiam de um intervalo escolhido a mao
+    (INV-2001 em diante) antes de passarem a vir da sequencia, e a sequencia de
+    faturas comeca em 1001. Um banco povoado naquela epoca ficou com codigos ACIMA
+    da sequencia, e nada nunca a reconciliou.
+
+    O numero sai do proprio codigo (`INV-2001` -> 2001), porque e' ele que o UNIQUE
+    guarda - confiar na sequencia e' justamente o que falhou.
+    """
+    await db.execute(
+        text(
+            rf"""
+            SELECT setval(
+                '{sequencia}',
+                GREATEST(
+                    (SELECT COALESCE(
+                        MAX(NULLIF(regexp_replace(code, '\D', '', 'g'), '')::bigint), 0)
+                     FROM {tabela}),
+                    (SELECT last_value FROM {sequencia})
+                )
+            )
+            """
+        )
+    )
+
+
+async def _reservar_codigos(db, sequencia: str, quantidade: int, tabela: str) -> int:
     """Reserva um bloco continuo de codigos e devolve o primeiro.
 
-    Os codigos do seed saiam de um intervalo escolhido a mao (INV-2001 em
-    diante), e a sequencia de faturas comeca em 1001: bastavam mil faturas reais
-    para o banco tentar emitir um codigo que o seed ja havia gravado, e o UNIQUE
-    derrubaria o faturamento. Puxar da propria sequencia elimina a colisao em vez
-    de adiar.
+    Puxa da sequencia em vez de um intervalo fixo, e antes disso a reconcilia com
+    o que a tabela tem - ver `_alcancar_o_maximo_gravado`.
     """
+    await _alcancar_o_maximo_gravado(db, sequencia, tabela)
     primeiro = (await db.execute(text(f"SELECT nextval('{sequencia}')"))).scalar_one()
     if quantidade > 1:
         await db.execute(
@@ -983,8 +1014,10 @@ async def _gravar_historico(db, sessoes: list[dict], agora: datetime) -> int:
     if not sessoes:
         return 0
 
-    primeiro_ses = await _reservar_codigos(db, "session_code_seq", len(sessoes))
-    primeira_inv = await _reservar_codigos(db, "invoice_code_seq", len(sessoes))
+    primeiro_ses = await _reservar_codigos(
+        db, "session_code_seq", len(sessoes), "charging_sessions"
+    )
+    primeira_inv = await _reservar_codigos(db, "invoice_code_seq", len(sessoes), "invoices")
 
     linhas_sessao: list[dict] = []
     linhas_fatura: list[dict] = []

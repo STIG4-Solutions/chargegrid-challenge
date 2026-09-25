@@ -188,6 +188,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/power/demo/pico-predio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Simular Pico Do Predio
+         * @description Demo: soma consumo ao predio por alguns minutos e roda o ciclo na hora.
+         *
+         *     So' com carregador E medidor simulados. Num site com hardware real isto
+         *     falsificaria a medicao que decide o preco de quem esta' carregando, entao a
+         *     rota recusa - nao existe modo "so' desta vez".
+         *
+         *     O pico expira sozinho: o medidor virtual o limpa na primeira leitura depois
+         *     do prazo, e o ciclo seguinte devolve a cor. Nao ha rota de cancelar.
+         */
+        post: operations["simular_pico_do_predio_api_v1_power_demo_pico_predio_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/power/budget": {
         parameters: {
             query?: never;
@@ -2124,6 +2151,27 @@ export interface components {
          * @enum {string}
          */
         AuthMethod: "rfid" | "app" | "plug_and_charge" | "reservation" | "operator";
+        /**
+         * BandeiraOut
+         * @description Bandeira do site: a folga de potencia traduzida em preco.
+         */
+        BandeiraOut: {
+            /** Cor */
+            cor: string;
+            /** Multiplicador */
+            multiplicador: number;
+            /** Folga Pct */
+            folga_pct: number;
+            /** Motivo */
+            motivo: string;
+            /**
+             * Calculada Em
+             * Format: date-time
+             */
+            calculada_em: string;
+            /** Desatualizada */
+            desatualizada: boolean;
+        };
         /** CampanhaIn */
         CampanhaIn: {
             /** Nome */
@@ -2847,6 +2895,16 @@ export interface components {
          * @enum {string}
          */
         PhaseType: "single_phase" | "three_phase";
+        /** PicoSimuladoRequest */
+        PicoSimuladoRequest: {
+            /**
+             * Duracao Min
+             * @default 5
+             */
+            duracao_min: number;
+            /** Acrescimo Kw */
+            acrescimo_kw?: number | null;
+        };
         /** PowerBudgetOut */
         PowerBudgetOut: {
             /** Grid Limit Kw */
@@ -2914,6 +2972,14 @@ export interface components {
             total_count: number;
             /** Charge Points */
             charge_points: components["schemas"]["ChargePointOut"][];
+            bandeira?: components["schemas"]["BandeiraOut"] | null;
+            /**
+             * Demo Disponivel
+             * @default false
+             */
+            demo_disponivel: boolean;
+            /** Pico Simulado Ate */
+            pico_simulado_ate?: string | null;
         };
         /** PowerPlanOut */
         PowerPlanOut: {
@@ -3241,6 +3307,9 @@ export interface components {
             status: string;
             /** Available */
             available: boolean;
+            /** Preco Kwh Final */
+            preco_kwh_final?: number | null;
+            bandeira?: components["schemas"]["BandeiraOut"] | null;
             /**
              * Site Id
              * Format: uuid
@@ -3600,6 +3669,9 @@ export interface components {
             status: string;
             /** Available */
             available: boolean;
+            /** Preco Kwh Final */
+            preco_kwh_final?: number | null;
+            bandeira?: components["schemas"]["BandeiraOut"] | null;
         };
         /**
          * StopReason
@@ -4210,6 +4282,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PowerOverview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    simular_pico_do_predio_api_v1_power_demo_pico_predio_post: {
+        parameters: {
+            query?: {
+                /** @description admin: escolhe o site da rede */
+                site_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PicoSimuladoRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */

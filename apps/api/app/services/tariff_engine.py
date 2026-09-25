@@ -172,6 +172,34 @@ def _split_minutes_by_window(
     return {label: (minutes, price) for label, (minutes, price) in buckets.items()}
 
 
+def multiplicador_efetivo(session: ChargingSession, tariff: Tariff) -> tuple[Decimal, str]:
+    """O multiplicador que vale para esta sessao, e de onde ele veio.
+
+    O travado na sessao (a bandeira do site no inicio da recarga) vence sempre,
+    mesmo em tarifa com o dinamico desligado: a bandeira vale para a praca toda.
+    Sem ele - sessao anterior a feature, ou flag desligada - vale a regra antiga,
+    o multiplicador digitado na tarifa, e so' quando ela o habilita.
+    """
+    return multiplicador_para(session.multiplicador_travado, tariff)
+
+
+def multiplicador_para(travado, tariff: Tariff) -> tuple[Decimal, str]:
+    """A mesma regra, a partir do valor travado (ou None). Usada tambem por quem
+    precifica antes de a sessao existir - o simulador e a tela do app."""
+    if travado is not None:
+        return Decimal(str(travado)), "bandeira"
+    if tariff.dynamic_enabled:
+        return Decimal(str(tariff.dynamic_multiplier or 1)), "tarifa"
+    return Decimal("1"), "tarifa"
+
+
+def rotulo_do_ajuste(multiplier: Decimal, origem: str, cor: str | None) -> str:
+    """A descricao da linha de ajuste, igual na fatura e no simulador."""
+    if origem == "bandeira":
+        return f"Bandeira {cor} (x{multiplier:.2f})".replace(".", ",")
+    return f"Ajuste dinâmico de demanda (x{multiplier})"
+
+
 def rate_session(
     session: ChargingSession,
     tariff: Tariff,
@@ -330,15 +358,16 @@ def rate_session(
         sum((line.amount for line in result.lines if line.amount > 0), Decimal("0"))
     )
 
-    # Precificacao dinamica: o multiplicador vem do modulo de IA (previsao de pico).
-    multiplier = Decimal(str(tariff.dynamic_multiplier or 1))
-    if tariff.dynamic_enabled and multiplier != 1:
+    # Precificacao dinamica: o multiplicador vem da bandeira do site, travado na
+    # sessao no inicio da recarga (`multiplicador_efetivo`).
+    multiplier, origem = multiplicador_efetivo(session, tariff)
+    if multiplier != 1:
         adjustment = money(result.subtotal * (multiplier - 1))
         if adjustment != 0:
             result.lines.append(
                 RatedLine(
                     kind="dynamic",
-                    description=f"Ajuste dinâmico de demanda (x{multiplier})",
+                    description=rotulo_do_ajuste(multiplier, origem, session.cor_travada),
                     quantity=Decimal("1"),
                     unit="un",
                     unit_price=adjustment,
@@ -409,6 +438,8 @@ def rate_session(
         "free_minutes": tariff.free_minutes,
         "dynamic_multiplier": float(tariff.dynamic_multiplier),
         "dynamic_enabled": tariff.dynamic_enabled,
+        "multiplicador_aplicado": float(multiplier),
+        "origem_do_multiplicador": origem,
         "idle_grace_minutes": idle_grace_minutes,
         "windows": [
             {
@@ -434,8 +465,15 @@ def simulate(
     idle_minutes: int = 0,
     at: datetime | None = None,
     timezone: str = "America/Sao_Paulo",
+    multiplicador: Decimal | None = None,
+    cor: str | None = None,
 ) -> RatingResult:
-    """Simulador do dashboard: precifica um cenario hipotetico sem criar sessao."""
+    """Simulador do dashboard: precifica um cenario hipotetico sem criar sessao.
+
+    `multiplicador` e' o da bandeira do site, quando a precificacao dinamica esta'
+    ligada - o mesmo que uma sessao iniciada agora travaria. Sem ele, vale a regra
+    da tarifa, como em `rate_session`.
+    """
     tz = ZoneInfo(timezone)
     moment = (at or datetime.now(UTC)).astimezone(tz)
     rates = resolve_rates(tariff, moment)
@@ -489,9 +527,44 @@ def simulate(
     result.idle_minutes = idle_minutes
     result.subtotal = money(sum((line.amount for line in result.lines), Decimal("0")))
 
-    multiplier = Decimal(str(tariff.dynamic_multiplier or 1))
-    if tariff.dynamic_enabled and multiplier != 1:
-        result.subtotal = money(result.subtotal * multiplier)
+    # A MESMA ordem de `rate_session`: ajuste positivo soma ao subtotal, abaixo
+    # de 1 vira abatimento, e o minimo e' comparado ao bruto. Multiplicar o
+    # subtotal antes do minimo fazia o simulador divergir da fatura sempre que
+    # houvesse minimo e multiplicador < 1.
+    multiplier, origem = multiplicador_para(multiplicador, tariff)
+    if multiplier != 1:
+        adjustment = money(result.subtotal * (multiplier - 1))
+        if adjustment != 0:
+            result.lines.append(
+                RatedLine(
+                    "dynamic",
+                    rotulo_do_ajuste(multiplier, origem, cor),
+                    Decimal("1"),
+                    "un",
+                    adjustment,
+                    adjustment,
+                )
+            )
+            if adjustment > 0:
+                result.subtotal = money(result.subtotal + adjustment)
+
     min_charge = Decimal(str(tariff.min_charge or 0))
-    result.total = money(max(result.subtotal, min_charge) if energy_kwh > 0 else result.subtotal)
+    if min_charge > 0 and result.subtotal < min_charge and energy_kwh > 0:
+        complement = money(min_charge - result.subtotal)
+        result.lines.append(
+            RatedLine(
+                "min_charge",
+                "Complemento até o valor mínimo",
+                Decimal("1"),
+                "un",
+                complement,
+                complement,
+            )
+        )
+        result.subtotal = money(min_charge)
+
+    result.desconto = money(
+        sum((-line.amount for line in result.lines if line.amount < 0), Decimal("0"))
+    )
+    result.total = money(result.subtotal - result.desconto)
     return result

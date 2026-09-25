@@ -39,6 +39,7 @@ export function rotuloDaFonte(fonte) {
   const conhecidas = {
     modelo: { texto: 'modelo de previsão', eModelo: true },
     media_movel: { texto: 'média móvel de 28 dias', eModelo: false },
+    ano_a_ano: { texto: 'mesmo mês do ano anterior, com crescimento', eModelo: false },
     media_dow: { texto: 'média por dia da semana', eModelo: false },
     perfil_hora: { texto: 'perfil de hora e dia da semana', eModelo: false },
     tendencia: { texto: 'extrapolação de tendência', eModelo: false }

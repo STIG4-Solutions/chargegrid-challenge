@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
 from app.core.deps import (
     AdminUser,
     Auditor,
@@ -80,6 +81,29 @@ async def create_tariff(
     for window in payload.windows:
         tariff.windows.append(TariffWindow(**window.model_dump()))
     db.add(tariff)
+    await db.flush()
+
+    # A PRIMEIRA tarifa da praca vira a PADRAO dela.
+    #
+    # `default_tariff_id` so' era definido dentro do `seed()`. Enquanto apenas o
+    # seed criava praca, isso bastava - mas desde que o painel ganhou "Nova
+    # praca", toda praca nascida pelo produto ficava sem tarifa padrao e sem jeito
+    # de ganhar uma: nao ha rota que a defina.
+    #
+    # As consequencias eram tres, e nenhuma dava erro:
+    #   - `session_service` precifica por cartao > ponto > PADRAO DO SITE. Sem
+    #     nenhum dos tres, a sessao fica sem tarifa e sem fatura.
+    #   - o app do motorista so' mostra preco quando ha padrao.
+    #   - `forecast/banco._TARIFAS` junta por `default_tariff_id`, entao a
+    #     previsao daquela praca saia sem faturamento.
+    #
+    # A regra e' a que nao surpreende ninguem: a primeira tarifa de uma praca e'
+    # obviamente a dela. Nao sobrepoe uma escolha existente - se ja' ha padrao,
+    # trocar exige acao explicita, e nao um efeito colateral de cadastrar tarifa.
+    site = (await db.execute(select(Site).where(Site.id == site_id))).scalar_one()
+    if site.default_tariff_id is None:
+        site.default_tariff_id = tariff.id
+
     await db.commit()
     await db.refresh(tariff, attribute_names=["windows"])
     return tariff
@@ -183,12 +207,23 @@ async def simulate_cost(
 ) -> dict:
     """Simulador de custo da tela de tarifacao."""
     tariff = await _get_tariff(db, site_id, payload.tariff_id)
+    # Com a precificacao dinamica ligada, simula com o multiplicador que uma
+    # sessao iniciada agora travaria - senao o simulador mostra um preco que
+    # ninguem paga.
+    multiplicador = cor = None
+    if settings.precificacao_dinamica:
+        from app.services import bandeira
+
+        site = await db.get(Site, site_id)
+        multiplicador, cor = bandeira.para_travar(site)
     return simulate(
         tariff,
         energy_kwh=payload.energy_kwh,
         minutes=payload.minutes,
         idle_minutes=payload.idle_minutes,
         at=payload.at,
+        multiplicador=multiplicador,
+        cor=cor,
     ).as_dict()
 
 

@@ -94,23 +94,32 @@ A separação não é estética. O processo do FastAPI também roda os workers d
 `import lightgbm` que falhe derrubaria junto o rebalanceamento — que é o que impede o disjuntor
 de abrir. Previsão de faturamento não pode compartilhar processo com controle de carga.
 
-**O modelo ganha no diário e perde no mensal**, que é a granularidade que a tela mostra:
+**O modelo ganha das réguas nos dois eixos, e por pouco no mensal** — que é a granularidade
+que a tela mostra. WAPE, de `apps/forecast/modelos/metricas_atual.json`:
 
-| granularidade | modelo | régua (média móvel de 28 dias) |
-|---|---|---|
-| diário | **29,4%** | 34,3% |
-| mensal | 12,0% | **9,6%** |
+| granularidade | modelo | média móvel de 28 dias | por dia da semana | ano-a-ano |
+|---|---|---|---|---|
+| diário | **27,50%** | 36,31% | 29,85% | 34,67% |
+| mensal | **8,06%** | 13,95% | 14,20% | 8,67% |
 
-Medido sobre 36 estação-meses fora da amostra. Ele aprende o dia a dia — no ponto corporativo,
-onde o fim de semana é 4× mais fraco, erra 33,6% contra 52,8% da régua. Mas somando 30 dias
-esse padrão quase se cancela, e sobra a variância que o modelo adiciona.
+Medido em doze meses fora da amostra, 84 estação-meses e 2.555 dias. A faixa p10–p90 cobre
+79,6% dos dias, contra os 80% que declara — dentro da tolerância, e o número medido vai para a
+tela ao lado do declarado. O arquivo traz o comando que o refaz; se esta tabela divergir dele,
+o arquivo manda.
 
-Combinar os dois foi testado e não resolve: a correlação entre os erros mensais é **0,944** —
-eles erram junto, porque no agregado ambos são essencialmente "nível × dias".
+Três coisas a dizer junto com esses números:
 
-Então o job grava **o preditor que mede melhor**, e a coluna `fonte` diz qual foi. Não é
-desistir do modelo: quando ele passar a ganhar — com operação real, com mais estações —, o
-próprio backtest inverte a escolha sem ninguém mexer em código.
+- **No mês a vantagem é de 0,61 ponto** sobre a régua de ano-a-ano. A dispersão da grade de
+  hiperparâmetros do modelo mensal vai de 7,51% a 8,72% — maior que a vantagem. O próximo
+  retreino pode perdê-la.
+- **Nenhuma régua ganha nos dois eixos**: no mês a de ano-a-ano, no dia a de dia da semana. É
+  por isso que as três ficam medidas nos dois.
+- **Todo o histórico é sintético.** O gerador repete a sazonalidade mensal ano a ano por
+  construção, então o eixo de ano-a-ano acerta aqui de um jeito que não se repete em rede real.
+  O mecanismo é real; a magnitude é circular.
+
+O job grava **o preditor que mede melhor**, e a coluna `fonte` diz qual foi — hoje o modelo,
+e a régua de volta sozinha no dia em que ele perder, sem ninguém mexer em código.
 `apps/forecast/README.md` detalha.
 
 ## Assistente do operador
@@ -175,7 +184,7 @@ custa tokens e não é determinístico. Rode ao trocar de deployment, de modelo 
 O seed gera **dois anos de histórico**: 4 sites, ~17.800 sessões faturadas, campanhas com
 missões já em progresso — uma delas dirigida a uma frota, com dois dos cinco motoristas
 dentro dela —, planos de assinatura e um contrato de plataforma. Não é enfeite —
-o modelo de previsão descarta local com menos de 150 dias de energia, os relatórios de ocupação
+o modelo de previsão descarta local com menos de 180 dias de energia, os relatórios de ocupação
 medem janelas de 30 dias, e uma missão de "recarregue 5 vezes este mês" é indemonstrável com
 uma semana de dados. Com poucos dias no banco, as três entregam tela vazia e parecem quebradas.
 

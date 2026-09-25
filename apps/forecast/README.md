@@ -159,8 +159,29 @@ reatualizado sem conflito. **Não** vieram:
 - `src/ingest/modbus.py` — os endereços de registrador ali são inventados; os
   dados vêm do banco, não do medidor.
 
-`banco.py`, `treinar.py` e `exportar.py` são deste projeto: leem Postgres em vez
-de CSV e escrevem na tabela em vez de um arquivo.
+`banco.py`, `treinar.py`, `exportar.py`, `janelas/` e `modelo/` são deste projeto:
+leem Postgres em vez de CSV e escrevem na tabela em vez de um arquivo.
+
+**`modelo/` existe porque a premissa de cópia fiel tinha se rompido.** `train.py`
+havia divergido em 35 linhas em dois commits deste repositório, e nada dizia isso —
+o diretório continuava excluído do lint com a justificativa de ser reatualizável.
+Os cinco arquivos de `pipeline/` voltaram a ser **byte a byte** iguais à origem, e
+tudo que é do ChargeGrid mudou de casa:
+
+| arquivo | o que faz |
+|---|---|
+| `modelo/perda.py` | os parâmetros e a perda, num lugar só |
+| `modelo/ano_a_ano.py` | o eixo ano-a-ano, que o pipeline não tinha |
+| `modelo/forma.py` | o modelo diário, preso ao nível |
+| `modelo/nivel.py` | o modelo mensal, sobre a régua de ano-a-ano |
+| `modelo/faixa.py` | a faixa p10–p90 por calibração conforme |
+| `modelo/aferir.py` | o backtest, com as três réguas nos dois eixos |
+| `modelo/prever.py` | a previsão que `exportar.py` consome |
+| `modelo/limiares.py` | um limiar de histórico mínimo, e não dois |
+
+Conferir a divergência é um comando:
+
+    diff -r apps/forecast/pipeline <caminho-do-repo-de-modelagem>/src
 
 Essa divisão é a mesma que o `ruff.toml` daqui usa: **`pipeline/` fica fora do
 lint**. Reformatar a cópia produziria exatamente o conflito que ela existe para
@@ -183,20 +204,74 @@ em `requirements.txt`, duas máquinas cobram a mesma coisa.
 Todos os números saem de **`modelos/metricas_atual.json`**, que é versionado e traz
 dentro o comando que o refaz. Se a tabela divergir do arquivo, **o arquivo manda**.
 
-| métrica | valor |
+Walk-forward de 12 meses, 7 praças, n=84 registros mensais e 2.555 dias:
+
+| previsor | mês | dia |
+|---|---|---|
+| régua de média móvel de 28 dias | 13,95% | 36,31% |
+| régua por dia da semana (`hist_dow`) | 14,20% | 29,85% |
+| régua de ano-a-ano | 8,67% | 34,67% |
+| **o modelo** | **8,06%** | **27,50%** |
+
+| faixa p10–p90 | valor |
 |---|---|
-| WAPE mensal do modelo | 16,45% |
-| WAPE mensal da média móvel de 28 dias | 16,04% |
-| WAPE mensal da média por dia da semana | **14,08%** |
-| WAPE diário do modelo | 29,42% |
-| WAPE diário da melhor régua | **28,79%** |
-| Cobertura da faixa p10–p90 | **61,5%** (deveria ser ~80%) |
+| cobertura declarada | 80,0% |
+| cobertura medida, diária | **79,6%** |
+| cobertura medida, mensal | 76,2% |
 
-**O modelo perde das réguas por 2,37 pontos no mensal.** `exportar.py` grava a
-régua e `fonte` diz isso. O portão está funcionando: nenhum número pior chega à
-tela.
+**O modelo passou a ganhar, e por pouco.** 0,61 ponto sobre a melhor régua no mês,
+2,34 no dia. `exportar.py` grava o modelo e `fonte` diz isso; quando ele perder, a
+régua volta sozinha.
 
-### A vantagem existiu, e era frágil — vale registrar como se perdeu
+Três coisas a dizer junto, e nenhuma delas é detalhe:
+
+- **0,61 ponto não é folga.** O critério que o plano pedia era ≥1 ponto. A dispersão
+  da grade de hiperparâmetros do modelo mensal vai de 7,51% a 8,72% — **maior** que
+  a vantagem sobre a régua. O próximo retreino pode perdê-la.
+- **A régua a bater mudou.** Antes o portão comparava só com a média móvel, que faz
+  13,95%. A régua de ano-a-ano faz 8,67%: bater a média móvel era uma barra 5,3
+  pontos abaixo da melhor disponível, e um modelo com 13% "passava".
+- **Nenhuma régua ganha nos dois eixos.** No mês ganha a de ano-a-ano, no dia a de
+  dia da semana. É por isso que as três ficam medidas nos dois.
+
+### O que mudou para o modelo passar a ganhar
+
+Três achados, e o primeiro é o que abriu os outros dois. `modelo/__init__.py` traz
+a tabela completa.
+
+**1. `hist_ano_atras` apontava para o mês errado.** `hist.tail(395).head(31)` com a
+origem no último dia do mês M cobre origem−394..origem−364 — o mês **anterior** ao
+alvo, um ano antes. Com origem 2026-01-31 e alvo fevereiro, ela cobria janeiro de
+2025. E era **nível**, não razão: `tend_28_91` e `tend_7_28` são razões, o padrão
+existia no pipeline, e essa ficou de fora. Para usá-la a árvore teria de formar o
+quociente `hist_ano_atras / hist_m28`, e corte axial representa quociente mal.
+
+Os dois defeitos se isolam bem: dar a razão com a **janela errada** vale zero
+(14,01% contra 13,96%); alinhada ao mês alvo vale 2 pontos.
+
+**2. A soma vazava.** O total do mês é a soma de trinta razões previstas: se a média
+delas desvia de 1,0, o nível do mês inteiro anda, e erro de forma vira erro de nível.
+Não é teoria — normalizado pela régua de ano-a-ano, que sozinha faz 8,67%, o modelo
+por cima dela fazia **12,20%**. Ele piorava em 3,5 pontos o nível que recebia pronto,
+enquanto melhorava o eixo diário, o que tornava o problema invisível em qualquer
+métrica isolada. Prender a razão à própria média no mês alvo melhora **os dois**
+eixos: no dia, 29,24% → 27,50%.
+
+**3. Nível e forma têm vencedores diferentes.** Um modelo só para os dois eixos fazia
+cada um estragar o outro. São dois: um mensal, que corrige a régua de ano-a-ano, e um
+diário, preso ao nível.
+
+E um defeito que não era de acurácia. **O artefato declarava uma perda e continha
+outra**: o backtest media tweedie (`PARAMS` sobreposto) e o treino final chamava
+`treinar_um(ds, "l1")`, objetivo explícito que vencia a sobreposição. A métrica
+publicada descrevia um modelo que não era o servido. Custava pouco em WAPE — l1 dá
+13,99% e tweedie 13,96% — e isso não é o ponto: `treinar_um` deixou de ter objetivo
+com valor implícito, então esse caminho não existe mais.
+
+### A vantagem existiu antes, e era frágil — vale registrar como se perdeu
+
+**Esta seção é histórico**, medido antes do eixo de ano-a-ano existir. Os números
+dela não são o veredito atual; a tabela no início da seção é.
 
 Por um momento o modelo ganhou: **11,98% contra 13,63%**, a primeira vez na
 história do projeto que o portão promoveu o modelo. Aquele número é real e está
@@ -219,8 +294,11 @@ coisa que o ruído come.
 **A leitura honesta não é "o modelo piorou".** É que a vantagem dele era
 específica de um recorte do gerador, e uma mudança plausível de hardware a
 removeu. Num dado sintético, "o modelo ganha" é propriedade do gerador antes de
-ser propriedade do modelo — e essa frase vale para os 11,98% tanto quanto para
-os 16,45%.
+ser propriedade do modelo — e essa frase vale para os 11,98% de então, para os
+16,45% que vieram depois, e para os **8,06% de agora**. O eixo de ano-a-ano é o caso
+mais claro disso em todo o projeto: o seed repete `PESOS_MENSAIS` ano a ano por
+construção, então comparar com o mesmo mês do ano anterior acerta de um jeito que
+não se repete em rede real. O mecanismo é real; a magnitude é circular.
 
 Não houve ajuste do gerador para recuperar o número. Perseguir acurácia contra
 dado inventado é exatamente o que produz um resultado que não se reproduz em
@@ -294,18 +372,27 @@ abaixo dela é variação de contagem, não erro de modelo:
 | **mês (rede)** | dia da semana | 7,64% | **+3,38** |
 | ano | — | — | n=2, não mensurável |
 
-É por isso que **quatro das cinco janelas são servidas por régua**, e `fonte` diz
-qual em cada linha gravada. Onde a folga é zero, nenhum modelo pode ganhar —
-insistir ali seria gastar complexidade para piorar a tela.
+Esta tabela foi medida ANTES do eixo de ano-a-ano existir, e a linha do mês é a que
+ela deixou desatualizada: a melhor régua mensal não é mais a de dia da semana, e é a
+janela em que o modelo passou a ganhar. As outras quatro continuam servidas por
+régua, e `fonte` diz qual em cada linha gravada. Onde a folga é zero, nenhum modelo
+pode ganhar — insistir ali seria gastar complexidade para piorar a tela.
+
+`npm run forecast:folga` refaz a medição.
 
 Na janela de **hora** o número honesto não é um ponto: é a faixa p10–p90, e o
 critério de aceite dela é **cobertura**, não WAPE.
 
 ### O que continua aberto
 
-- **A faixa cobre 71,3% e anuncia 80%.** Melhorou de 65,2%, mas os modelos de
-  quantil continuam sub-dispersos: tratar o extremo inferior como pior caso é
-  otimismo. A tela mostra o número medido ao operador em vez de escondê-lo.
+- **A cobertura fica abaixo do declarado nos dois grãos**: 79,6% no diário e 76,2% no
+  mensal, contra 80%. O diário é praticamente o alvo; o mensal fica 3,8 pontos abaixo
+  porque tem um resíduo por praça-mês, e 6 meses de calibração dão 42 deles contra
+  ~600 no grão diário. Os dois estão na faixa de aceite (75–85%), o mensal no limite
+  de baixo, e o número medido vai para a tela ao lado do declarado.
+- **A vantagem do modelo é de 0,61 ponto.** Ver a tabela acima: menor que a
+  dispersão da grade de hiperparâmetros. É a pendência de modelo mais concreta, e a
+  saída honesta não é ajustar mais — é mais dado.
 - **A janela de ano tem n=2.** Quatro anos de histórico dão duas observações anuais
   completas. Ela é servida por extrapolação de tendência e rotulada como tal.
 - **Todo o histórico é sintético**, nos dois projetos. O README do repositório de
@@ -327,3 +414,16 @@ Se os slugs do banco divergirem de `estacoes_treinadas` do artefato, o modelo ca
 no fallback de média móvel **em silêncio** — sem erro, com a tela continuando a
 parecer correta. Por isso `exportar.py` compara os dois conjuntos e imprime os
 locais que ficaram de fora.
+
+Uma segunda armadilha da mesma família, encontrada lendo a saída do export: a régua
+que ganha o backtest é escolhida na **rede inteira**, mas uma praça sem ano anterior
+não tem régua de ano-a-ano. Gravar a régua global como `fonte` fez
+`residencial-vila-mariana` aparecer como `ano_a_ano` sobre um número que era a média
+de 28 dias. Valor e `fonte` saem da **mesma função**, num par — enquanto forem duas
+expressões separadas, sempre há um caminho em que uma muda e a outra não.
+
+E uma terceira, que só aparece em ambiente novo: quando nenhuma praça tem histórico
+suficiente, `construir_treino` termina em `_tipar`, que faz `df["archetype"]` num
+quadro vazio e levanta `KeyError: 'archetype'` — em vez da mensagem que explica o que
+fazer. `modelo/limiares.py::recusar_se_nenhuma_praca_elegivel` confere antes e recusa
+dizendo a razão, porque `pipeline/` não se edita aqui.

@@ -121,6 +121,33 @@ docker run --rm --network backend_default   -e POSTGRES_HOST=db -e POSTGRES_USER
 docker run --rm --network backend_default   -e POSTGRES_HOST=db -e POSTGRES_USER=... -e POSTGRES_PASSWORD=...   -e POSTGRES_DB=... chargegrid-forecast python exportar_janelas.py
 ```
 
+### Praca criada pelo produto: como dar historico a ela
+
+O `seed()` desiste inteiro na primeira praca que encontra - e' tudo ou nada, e o
+"nada" e' o caso de todo ambiente que ja' rodou uma vez. Uma praca nascida pelo
+painel ("Nova praca") fica sem historico para sempre: nao ha rota que recue sessoes,
+e a simulacao so' anda para frente em tempo real.
+
+```bash
+# dentro do container da API, ou com as variaveis de conexao no ambiente
+python -m app.historico --praca estabelecimento-a --carater shopping --dias 1460
+```
+
+Exige que a praca tenha PONTO e TARIFA - sem ponto nao existe sessao
+(`charge_point_id` e' NOT NULL), e sem preco nao existe fatura, o que faria a receita
+da tela sair zero com a energia aparecendo. O job recusa com a razao em vez de
+estourar.
+
+Nao e' destrutivo: nao toca identidade da praca, tarifas, contas, pontos nem sessoes
+existentes. Recua o `created_at` da praca, porque `dias_operacao` e' feature do
+modelo e uma praca nascida hoje com dois anos de sessoes e' contradicao que o
+proprio pipeline detecta.
+
+O `--carater` e' obrigatorio e define o perfil do dado gerado (sazonalidade, energia
+por sessao, curva do dia). Ele NAO precisa combinar com o arquetipo que o modelo
+infere do equipamento - mas se nao combinar, o modelo aprende a curva de outro tipo
+de local.
+
 Da raiz, os mesmos passos sao `npm run forecast` (que encadeia os tres),
 `npm run forecast:janelas` sozinho, e `npm run forecast:folga` para ver quanta
 folga cada janela tem sem escrever nada.
