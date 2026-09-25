@@ -1,0 +1,441 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+
+/* Tokens do painel (apps/dashboard/src/assets/styles.css). Escopados em .lp:
+   a pagina /download tem a identidade dela e nao herda nada daqui. */
+.lp {
+  --sems-bg: #1f2123;
+  --sems-deep: #0d0d0f;
+  --sems-card: #26282a;
+  --sems-card-2: #2d2f31;
+  --sems-header-row: #3a3a3c;
+  --sems-red: #ff323a;
+  --sems-red-hover: #ff4d54;
+  --sems-text: #f5f6f8;
+  --sems-muted: rgba(245, 246, 248, 0.6);
+  --sems-muted-2: rgba(245, 246, 248, 0.4);
+  --sems-border: rgba(255, 255, 255, 0.08);
+  --sems-green: #34c759;
+  --sems-green-bg: rgba(52, 199, 89, 0.15);
+  --sems-yellow: #ffcc00;
+  --sems-yellow-bg: rgba(255, 204, 0, 0.15);
+  --sems-red-bg: rgba(255, 50, 58, 0.15);
+  --radius: 10px;
+  --font:
+    'Poppins', PingFangSC, 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+
+  --lp-gutter: clamp(20px, 5vw, 72px);
+  --lp-max: 1240px;
+
+  min-height: 100vh;
+  background: var(--sems-deep);
+  color: var(--sems-text);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
+}
+
+.lp *,
+.lp *::before,
+.lp *::after {
+  box-sizing: border-box;
+}
+
+.lp h1,
+.lp h2,
+.lp h3,
+.lp p {
+  margin: 0;
+}
+
+.lp a {
+  color: inherit;
+}
+
+.lp :focus-visible {
+  outline: 2px solid var(--sems-text);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+.lp section[id] {
+  scroll-margin-top: 96px;
+}
+
+.lp-lead {
+  font-size: clamp(16px, 1.35vw, 19px);
+  line-height: 1.55;
+  color: var(--sems-muted);
+  max-width: 34em;
+}
+
+/* ------------------------------------------------------------ botoes */
+
+.lp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 46px;
+  padding: 0 22px;
+  border-radius: 10px;
+  border: 1px solid var(--sems-border);
+  font-family: var(--font);
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
+}
+
+.lp-btn-primario {
+  background: var(--sems-red);
+  border-color: var(--sems-red);
+  color: #fff;
+}
+
+.lp-btn-primario:hover {
+  background: var(--sems-red-hover);
+  border-color: var(--sems-red-hover);
+}
+
+.lp-btn-secundario {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--sems-text);
+}
+
+.lp-btn-secundario:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.lp-btn-pilula {
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-size: 14px;
+}
+
+.lp-botoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* ------------------------------------------------------------ marcas */
+
+.lp-marca {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+}
+
+.lp-marca img {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+}
+
+.lp-goodwe {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--sems-muted);
+}
+
+.lp-goodwe img {
+  width: 92px;
+  height: auto;
+  display: block;
+}
+
+/* ------------------------------------------------------------ cabecalho */
+
+.lp-cabecalho {
+  position: fixed;
+  inset: 16px 0 auto;
+  z-index: 50;
+  padding: 0 var(--lp-gutter);
+  pointer-events: none;
+}
+
+.lp-cabecalho-barra {
+  pointer-events: auto;
+  max-width: var(--lp-max);
+  margin: 0 auto;
+  height: 60px;
+  padding: 0 10px 0 18px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  border-radius: 999px;
+  background: rgba(38, 40, 42, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+}
+
+.lp-cabecalho-marca {
+  text-decoration: none;
+}
+
+.lp-ancoras {
+  display: flex;
+  gap: 6px;
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+}
+
+.lp-ancoras a {
+  display: inline-block;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 14px;
+  color: var(--sems-muted);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.lp-ancoras a:hover {
+  color: var(--sems-text);
+}
+
+/* ------------------------------------------------------------ hero */
+
+.lp-hero {
+  position: relative;
+  height: 300vh;
+}
+
+.lp-hero-palco {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  max-width: var(--lp-max);
+  margin: 0 auto;
+  padding: 96px var(--lp-gutter) 40px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  align-items: center;
+  gap: clamp(24px, 4vw, 64px);
+}
+
+.lp-hero-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  will-change: opacity, transform;
+}
+
+.lp-hero-texto h1 {
+  font-size: clamp(34px, 3.8vw, 54px);
+  line-height: 1.07;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  max-width: 14em;
+}
+
+.lp-rolagem {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--sems-muted-2);
+}
+
+.lp-rolagem-linha {
+  width: 1px;
+  height: 28px;
+  background: linear-gradient(var(--sems-muted-2), transparent);
+}
+
+.lp-hero-midia {
+  position: relative;
+  justify-self: end;
+  width: min(100%, 620px, calc(100vh - 150px));
+  --lp-desloca: 0;
+  transform: translate3d(calc(var(--lp-desloca) * (-50% - 2vw)), 0, 0)
+    scale(calc(1 + var(--lp-desloca) * 0.1));
+  will-change: transform;
+}
+
+.lp-hero-quadro {
+  position: relative;
+  aspect-ratio: 1;
+  /* As bordas se dissolvem no fundo: sem moldura. */
+  -webkit-mask-image: radial-gradient(
+    closest-side,
+    #000 48%,
+    rgba(0, 0, 0, 0.55) 74%,
+    transparent 98%
+  );
+  mask-image: radial-gradient(closest-side, #000 48%, rgba(0, 0, 0, 0.55) 74%, transparent 98%);
+}
+
+.lp-hero-imagem,
+.lp-hero-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Desfoque leve so' nas extremidades, sobre o que ja' esta' desenhado. */
+.lp-hero-borda {
+  position: absolute;
+  inset: 0;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  -webkit-mask-image: radial-gradient(closest-side, transparent 52%, #000 88%);
+  mask-image: radial-gradient(closest-side, transparent 52%, #000 88%);
+  pointer-events: none;
+}
+
+.lp-hero-selo {
+  position: absolute;
+  right: 4%;
+  bottom: 3%;
+  opacity: 0.5;
+  font-size: 11px;
+}
+
+.lp-hero-selo img {
+  width: 76px;
+}
+
+.lp-hero-card {
+  position: absolute;
+  /* O carregador fica entre 24% e 47% do quadro; o card flutua no ceu escuro
+     a direita dele, na altura da cabeca do equipamento. */
+  left: 52%;
+  top: 16%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: rgba(38, 40, 42, 0.86);
+  border: 1px solid var(--sems-border);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  font-size: 13px;
+  will-change: opacity, transform;
+}
+
+.lp-hero-card strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.lp-bandeira-linha {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.lp-bolinha {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.lp-bolinha-verde {
+  background: var(--sems-green);
+  box-shadow: 0 0 0 4px var(--sems-green-bg);
+}
+
+.lp-bolinha-amarela {
+  background: var(--sems-yellow);
+  box-shadow: 0 0 0 4px var(--sems-yellow-bg);
+}
+
+.lp-bolinha-vermelha {
+  background: var(--sems-red);
+  box-shadow: 0 0 0 4px var(--sems-red-bg);
+}
+
+/* Movimento reduzido: sem secao fixa, estado final. */
+.lp-hero.lp-estatico {
+  height: auto;
+}
+
+.lp-hero.lp-estatico .lp-hero-palco {
+  position: relative;
+  height: auto;
+  min-height: 100vh;
+}
+
+/* ------------------------------------------------------------ celular */
+
+@media (max-width: 860px) {
+  .lp-ancoras {
+    display: none;
+  }
+
+  .lp-cabecalho-barra {
+    justify-content: space-between;
+    height: 56px;
+  }
+
+  .lp-hero-palco {
+    grid-template-columns: 1fr;
+    align-content: center;
+    padding-top: 88px;
+    gap: 8px;
+  }
+
+  .lp-hero-midia {
+    order: -1;
+    justify-self: center;
+    width: min(100%, 440px, calc(100vh - 470px));
+    min-width: 260px;
+    /* No celular o texto fica embaixo: o quadro desce para o meio. */
+    transform: translate3d(0, calc(var(--lp-desloca) * 18vh), 0)
+      scale(calc(1 + var(--lp-desloca) * 0.12));
+  }
+
+  .lp-hero-texto {
+    gap: 16px;
+  }
+
+  .lp-hero-card {
+    left: 50%;
+    top: 12%;
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+
+  .lp-hero-card strong {
+    font-size: 13px;
+  }
+
+  .lp-rolagem {
+    display: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .lp-btn {
+    height: 44px;
+    padding: 0 18px;
+  }
+
+  .lp-cabecalho-barra .lp-btn-pilula {
+    height: 38px;
+    padding: 0 14px;
+    font-size: 13px;
+  }
+}
