@@ -1299,9 +1299,7 @@ const FONTES_DO_BANCO = [
 check(
   'so a fonte modelo conta como modelo',
   rotuloDaFonte('modelo').eModelo === true &&
-    FONTES_DO_BANCO.filter((f) => f !== 'modelo').every(
-      (f) => rotuloDaFonte(f).eModelo === false
-    ),
+    FONTES_DO_BANCO.filter((f) => f !== 'modelo').every((f) => rotuloDaFonte(f).eModelo === false),
   JSON.stringify(['media_dow', 'ano_a_ano'].map((f) => rotuloDaFonte(f)))
 )
 
