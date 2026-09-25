@@ -98,6 +98,44 @@ describe('a barra de incerteza', () => {
     render(<PrevisaoDeEnergia d={comModelo({ kwh_p90: null })} />)
     expect(screen.queryByText(/faixa/)).not.toBeInTheDocument()
   })
+
+  // A COR da barra, que é o único sinal de que a cobertura foi conferida.
+  //
+  // `verify-dashboard.mjs` cobre `bandaConfiavel` como função pura, e os três
+  // estados dela estão presos lá. O que faltava era a ligação com o JSX: a mutação
+  // que troca `confiavel === true` por `confiavel !== false` sobrevivia a toda a
+  // suíte — e é exatamente a que devolve o verde à faixa não medida.
+  const fundoDaBarra = (container) =>
+    [...container.querySelectorAll('div[style*="border-radius: 999px"]')]
+      .map((el) => el.style.background)
+      .find((bg) => bg && bg.includes('rgba'))
+
+  const VERDE = '52, 199, 89'
+  const AMBAR = '255, 204, 0'
+
+  it('é verde quando a cobertura foi medida e ficou dentro do declarado', () => {
+    const { container } = render(
+      <PrevisaoDeEnergia d={comModelo({ cobertura_medida_pct: 79.6 })} />
+    )
+    expect(fundoDaBarra(container)).toContain(VERDE)
+  })
+
+  it('é âmbar quando a cobertura medida ficou abaixo do declarado', () => {
+    const { container } = render(
+      <PrevisaoDeEnergia d={comModelo({ cobertura_medida_pct: 60.5 })} />
+    )
+    expect(fundoDaBarra(container)).toContain(AMBAR)
+  })
+
+  it('é âmbar quando a cobertura NÃO foi medida', () => {
+    // O caso de staging: os fatores da faixa vêm de 54 resíduos e a cobertura foi
+    // medida em nenhum, porque a calibração rolante junta 18 com 3 praças. A faixa é
+    // legítima; a aferição dela não existe, e ausência de medição não é aprovação.
+    const { container } = render(
+      <PrevisaoDeEnergia d={comModelo({ cobertura_medida_pct: null })} />
+    )
+    expect(fundoDaBarra(container)).toContain(AMBAR)
+  })
 })
 
 describe('a base de cálculo distingue os dois fallbacks', () => {

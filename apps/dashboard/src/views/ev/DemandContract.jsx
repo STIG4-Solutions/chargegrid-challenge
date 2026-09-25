@@ -601,7 +601,11 @@ export function PrevisaoDeEnergia({ d }) {
                 top: 0,
                 bottom: 0,
                 borderRadius: 999,
-                background: confiavel ? 'rgba(52, 199, 89, 0.35)' : 'rgba(255, 204, 0, 0.30)'
+                // Verde SO' quando a cobertura foi medida e ficou dentro do declarado.
+                // `confiavel === null` e' faixa sem medicao, e vai de ambar:
+                // ausencia de medicao nao e' aprovacao.
+                background:
+                  confiavel === true ? 'rgba(52, 199, 89, 0.35)' : 'rgba(255, 204, 0, 0.30)'
               }}
             />
             <div
