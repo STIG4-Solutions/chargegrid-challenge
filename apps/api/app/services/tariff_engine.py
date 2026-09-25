@@ -456,8 +456,14 @@ def simulate(
     idle_minutes: int = 0,
     at: datetime | None = None,
     timezone: str = "America/Sao_Paulo",
+    multiplicador: Decimal | None = None,
 ) -> RatingResult:
-    """Simulador do dashboard: precifica um cenario hipotetico sem criar sessao."""
+    """Simulador do dashboard: precifica um cenario hipotetico sem criar sessao.
+
+    `multiplicador` e' o da bandeira do site, quando a precificacao dinamica esta'
+    ligada - o mesmo que uma sessao iniciada agora travaria. Sem ele, vale a regra
+    da tarifa, como em `rate_session`.
+    """
     tz = ZoneInfo(timezone)
     moment = (at or datetime.now(UTC)).astimezone(tz)
     rates = resolve_rates(tariff, moment)
@@ -511,9 +517,49 @@ def simulate(
     result.idle_minutes = idle_minutes
     result.subtotal = money(sum((line.amount for line in result.lines), Decimal("0")))
 
-    multiplier = Decimal(str(tariff.dynamic_multiplier or 1))
-    if tariff.dynamic_enabled and multiplier != 1:
-        result.subtotal = money(result.subtotal * multiplier)
+    # A MESMA ordem de `rate_session`: ajuste positivo soma ao subtotal, abaixo
+    # de 1 vira abatimento, e o minimo e' comparado ao bruto. Multiplicar o
+    # subtotal antes do minimo fazia o simulador divergir da fatura sempre que
+    # houvesse minimo e multiplicador < 1.
+    if multiplicador is not None:
+        multiplier = Decimal(str(multiplicador))
+    elif tariff.dynamic_enabled:
+        multiplier = Decimal(str(tariff.dynamic_multiplier or 1))
+    else:
+        multiplier = Decimal("1")
+    if multiplier != 1:
+        adjustment = money(result.subtotal * (multiplier - 1))
+        if adjustment != 0:
+            result.lines.append(
+                RatedLine(
+                    "dynamic",
+                    f"Ajuste dinâmico de demanda (x{multiplier})",
+                    Decimal("1"),
+                    "un",
+                    adjustment,
+                    adjustment,
+                )
+            )
+            if adjustment > 0:
+                result.subtotal = money(result.subtotal + adjustment)
+
     min_charge = Decimal(str(tariff.min_charge or 0))
-    result.total = money(max(result.subtotal, min_charge) if energy_kwh > 0 else result.subtotal)
+    if min_charge > 0 and result.subtotal < min_charge and energy_kwh > 0:
+        complement = money(min_charge - result.subtotal)
+        result.lines.append(
+            RatedLine(
+                "min_charge",
+                "Complemento até o valor mínimo",
+                Decimal("1"),
+                "un",
+                complement,
+                complement,
+            )
+        )
+        result.subtotal = money(min_charge)
+
+    result.desconto = money(
+        sum((-line.amount for line in result.lines if line.amount < 0), Decimal("0"))
+    )
+    result.total = money(result.subtotal - result.desconto)
     return result

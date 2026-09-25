@@ -6,8 +6,13 @@ QUEM SERVE CADA JANELA, e a razao e' medida - `medir_janelas.py` produz a tabela
   hora     regua dow x hora, com FAIXA   -0,05 ponto  (regua no piso)
   dia      regua por dia da semana       +0,30
   semana   media movel                   +0,84
-  mes      o MODELO                      +3,38  <- o unico com espaco
+  mes      regua por dia da semana       +3,38  <- o unico com espaco para modelo
   ano      extrapolacao de tendencia     n=2, nao mensuravel
+
+O mes+1 de cada praca NAO sai daqui: e' de `exportar.py`, que usa o modelo so'
+quando ele passa no portao contra a regua - e hoje ele nao passa, entao o mes+1
+tambem e' media movel. Os meses seguintes sao sempre regua, porque o modelo so'
+preve um mes a frente.
 
 Folga e' a distancia entre a melhor regua e uma referencia que usa o futuro de
 proposito. Onde ela e' perto de zero, nenhum modelo pode ganhar: o erro que sobra

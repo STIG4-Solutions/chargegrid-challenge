@@ -94,19 +94,17 @@ A separação não é estética. O processo do FastAPI também roda os workers d
 `import lightgbm` que falhe derrubaria junto o rebalanceamento — que é o que impede o disjuntor
 de abrir. Previsão de faturamento não pode compartilhar processo com controle de carga.
 
-**O modelo ganha no diário e perde no mensal**, que é a granularidade que a tela mostra:
+**Hoje o modelo perde das réguas**, no diário e no mensal — e o mensal é a granularidade que a
+tela mostra. WAPE, de `apps/forecast/modelos/metricas_atual.json`:
 
-| granularidade | modelo | régua (média móvel de 28 dias) |
-|---|---|---|
-| diário | **29,4%** | 34,3% |
-| mensal | 12,0% | **9,6%** |
+| granularidade | modelo | média móvel de 28 dias | média por dia da semana |
+|---|---|---|---|
+| diário | 29,42% | 36,26% | **28,79%** |
+| mensal | 16,45% | 16,04% | **14,08%** |
 
-Medido sobre 36 estação-meses fora da amostra. Ele aprende o dia a dia — no ponto corporativo,
-onde o fim de semana é 4× mais fraco, erra 33,6% contra 52,8% da régua. Mas somando 30 dias
-esse padrão quase se cancela, e sobra a variância que o modelo adiciona.
-
-Combinar os dois foi testado e não resolve: a correlação entre os erros mensais é **0,944** —
-eles erram junto, porque no agregado ambos são essencialmente "nível × dias".
+Medido em três meses fora da amostra (jun–ago/2026, 21 estação-meses). A faixa p10–p90 cobre
+61,5% dos dias, contra os 80% que anuncia. O arquivo traz o comando que o refaz; se esta tabela
+divergir dele, o arquivo manda.
 
 Então o job grava **o preditor que mede melhor**, e a coluna `fonte` diz qual foi. Não é
 desistir do modelo: quando ele passar a ganhar — com operação real, com mais estações —, o

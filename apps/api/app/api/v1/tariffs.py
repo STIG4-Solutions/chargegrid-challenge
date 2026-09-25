@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
 from app.core.deps import (
     AdminUser,
     Auditor,
@@ -206,12 +207,22 @@ async def simulate_cost(
 ) -> dict:
     """Simulador de custo da tela de tarifacao."""
     tariff = await _get_tariff(db, site_id, payload.tariff_id)
+    # Com a precificacao dinamica ligada, simula com o multiplicador que uma
+    # sessao iniciada agora travaria - senao o simulador mostra um preco que
+    # ninguem paga.
+    multiplicador = None
+    if settings.precificacao_dinamica:
+        from app.services import bandeira
+
+        site = await db.get(Site, site_id)
+        multiplicador, _cor = bandeira.para_travar(site)
     return simulate(
         tariff,
         energy_kwh=payload.energy_kwh,
         minutes=payload.minutes,
         idle_minutes=payload.idle_minutes,
         at=payload.at,
+        multiplicador=multiplicador,
     ).as_dict()
 
 

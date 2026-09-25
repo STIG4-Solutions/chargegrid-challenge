@@ -1121,19 +1121,22 @@ O backend já produz o dado estruturado que os modelos precisam e expõe os pont
 | Pilar | Insumo já gravado | Gancho de atuação |
 |---|---|---|
 | Previsão de pico | `site_meter_readings` + `telemetry_samples` | `Site.grid_limit_kw`, prioridade dos pontos |
-| Precificação dinâmica | Histórico de sessões, ocupação, janelas | `Tariff.dynamic_multiplier` |
+| Precificação dinâmica | Folga de potência do rebalanceador (regra, **não** modelo) | `Site.bandeira_*` → `ChargingSession.multiplicador_travado` |
 | Alocação inteligente | Curva real de cada ponto e sessão | `ChargePoint.priority` (o alocador respeita) |
 | Detecção de anomalia | `command_logs` + falhas decodificadas | `ChargePointStatus.MAINTENANCE` |
 | Previsão de energia | `charging_sessions` agregadas por dia e local | `site_forecasts` (leitura da API) |
 
-O multiplicador dinâmico é aplicado pelo motor de tarifação e registrado no snapshot da fatura —
-o preço cobrado continua explicável, que é o requisito para cobrança dinâmica em varejo.
+O multiplicador dinâmico vem da **bandeira do site**: a cada ciclo o rebalanceador divide a
+potência disponível pela capacidade (rede + solar + bateria) e grava verde (x1,00), amarela
+(x1,15) ou vermelha (x1,30). A sessão trava o multiplicador ao iniciar, o motor de tarifação o
+aplica e o snapshot da fatura registra a origem — o preço cobrado continua explicável, que é o
+requisito para cobrança dinâmica em varejo. Liga por `PRECIFICACAO_DINAMICA=true`; desligada,
+vale o `Tariff.dynamic_multiplier` digitado pelo operador, como antes.
 
 A previsão de energia é o único pilar com **modelo treinado de verdade** hoje, e o resultado
-honesto é que ele ganha no diário (29,4% contra 34,3%) e perde no mensal (12,0% contra 9,6%) —
-que é a granularidade que a tela mostra. Somando 30 dias, o padrão semanal que ele aprende
-quase se cancela e sobra a variância que ele adiciona; combinar os dois não resolve, porque os
-erros mensais têm correlação de 0,944.
+honesto é que ele perde das réguas: 16,45% de WAPE mensal contra 16,04% da média móvel de 28
+dias e 14,08% da média por dia da semana; no diário, 29,42% contra 28,79% da melhor régua
+(`apps/forecast/modelos/metricas_atual.json`).
 
 Por isso `site_forecasts.fonte` existe: o job grava o preditor que **mede melhor**, e a coluna
 diz qual foi. Quando o modelo passar a ganhar, o backtest inverte a escolha sozinho.
