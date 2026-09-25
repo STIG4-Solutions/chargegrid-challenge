@@ -42,6 +42,19 @@ describe('a bandeira do site', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
+  it('sem bandeira calculada, o admin ainda tem o botão de pico (plano B da demo)', () => {
+    const onSimular = vi.fn()
+    render(<BandeiraDoSite bandeira={null} isAdmin demoDisponivel onSimular={onSimular} />)
+    fireEvent.click(screen.getByRole('button', { name: /simular pico/i }))
+    expect(onSimular).toHaveBeenCalledOnce()
+    expect(screen.queryByText(/Bandeira/)).toBeNull()
+  })
+
+  it('sem bandeira e sem ser admin, continua não aparecendo', () => {
+    const { container } = render(<BandeiraDoSite bandeira={null} demoDisponivel />)
+    expect(container).toBeEmptyDOMElement()
+  })
+
   it('o botão de pico só aparece para admin com o site simulado', () => {
     const { rerender } = render(
       <BandeiraDoSite bandeira={AMARELA} isAdmin={false} demoDisponivel />

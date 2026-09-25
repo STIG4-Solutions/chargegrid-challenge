@@ -66,23 +66,29 @@ async def test_o_preco_fica_o_do_inicio_mesmo_se_a_bandeira_muda(
 
 
 async def test_quem_espera_na_fila_paga_o_multiplicador_do_pedido(
-    db, site, ponto, motorista, ligada
+    db, site, ponto, segundo_ponto, motorista, segundo_motorista, ligada
 ):
-    # Reserva de 72 kW: sobram 3 de 75 (4%), abaixo do piso de 4,2 kW do ponto.
-    # A sessao entra na fila com o site vermelho.
-    await _pintar(db, site, 72)
-    sessao = await _iniciar(db, ponto, motorista)
-    assert sessao.state == SessionState.QUEUED
-    assert Decimal(str(sessao.multiplicador_travado)) == Decimal("1.30")
+    # Reserva de 53 kW: 22 livres de 75 (29,3%) -> amarela. O primeiro ponto
+    # (prioridade 100) leva os 22 kW inteiros, e o segundo (prioridade 50) fica
+    # abaixo do piso de 4,2 kW: entra na fila com o site amarelo.
+    await _pintar(db, site, 53)
+    primeira = await _iniciar(db, ponto, motorista)
+    assert primeira.state == SessionState.CHARGING
+    na_fila = await _iniciar(db, segundo_ponto, segundo_motorista)
+    assert na_fila.state == SessionState.QUEUED
+    assert Decimal(str(na_fila.multiplicador_travado)) == Decimal("1.15")
 
-    # A potencia volta, o site fica verde e a fila anda.
-    await _pintar(db, site, 20)
+    # A primeira encerra e o site fica VERMELHO (10 livres de 75): ha' potencia
+    # para o piso do segundo ponto, e a fila anda com a bandeira mais cara.
+    await session_service.stop(db, primeira, ponto)
+    await _pintar(db, site, 65)
     await session_service.promote_queue(db, site.id)
-    await db.refresh(sessao)
+    await db.refresh(na_fila)
+    assert na_fila.state == SessionState.CHARGING
 
-    assert sessao.state == SessionState.CHARGING
-    assert Decimal(str(sessao.multiplicador_travado)) == Decimal("1.30")
-    assert sessao.cor_travada == "vermelha"
+    fatura = await _carregar_e_faturar(db, na_fila, segundo_ponto)
+    # 20 kWh x R$ 2,00 = R$ 40,00; x1,15 do pedido = R$ 46,00, nao os R$ 52,00.
+    assert fatura.total == Decimal("46.00")
 
 
 async def test_bandeira_velha_nao_trava_preco(db, site, ponto, motorista, ligada):

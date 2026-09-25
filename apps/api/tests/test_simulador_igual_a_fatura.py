@@ -129,3 +129,19 @@ async def test_com_a_flag_desligada_a_rota_ignora_a_bandeira(
     )
     assert r.status_code == 200, r.text
     assert r.json()["total"] == 40.0
+
+
+def test_o_simulador_nomeia_a_bandeira_como_a_fatura():
+    tarifa = _tarifa()
+    fatura = _fatura(tarifa, kwh=20, minutos=40, ociosos=0, travado=Decimal("1.15"))
+    simulado = simulate(
+        tarifa,
+        energy_kwh=20,
+        minutes=40,
+        at=INICIO,
+        multiplicador=Decimal("1.15"),
+        cor="amarela",
+    )
+    linha = next(li for li in simulado.lines if li.kind == "dynamic")
+    assert linha.description == next(li for li in fatura.lines if li.kind == "dynamic").description
+    assert linha.description == "Bandeira amarela (x1,15)"

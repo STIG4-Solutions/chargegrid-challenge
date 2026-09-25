@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from decimal import Decimal
 from math import asin, cos, radians, sin, sqrt
 from zoneinfo import ZoneInfo
 
@@ -72,7 +71,7 @@ from app.services import (
     subscription_service,
     wallet_service,
 )
-from app.services.tariff_engine import money, resolve_rates
+from app.services.tariff_engine import money, multiplicador_para, resolve_rates
 
 # Teto de agendamentos simultaneos por motorista. Nao e' regra de negocio
 # fechada - e' um limite de sanidade para uma conta nao drenar o orcamento do
@@ -179,11 +178,11 @@ async def station_points(site_id: uuid.UUID, db: DbSession, _: DriverUser) -> li
     )
     site = await db.get(Site, site_id)
     agora = datetime.now(UTC)
-    # O multiplicador que uma recarga iniciada agora travaria - o preco da tela
-    # tem de ser o da fatura. Desligada a flag, ou velha a bandeira, vale 1.
-    multiplicador = Decimal("1")
+    # O que uma recarga iniciada agora travaria - o preco da tela tem de ser o
+    # da fatura. Desligada a flag, nada trava, e vale a regra da tarifa.
+    travado = None
     if site is not None and settings.precificacao_dinamica:
-        multiplicador, _cor = bandeira.para_travar(site, agora=agora)
+        travado, _cor = bandeira.para_travar(site, agora=agora)
     painel = bandeira.do_site(site, agora=agora) if site is not None else None
 
     saida = []
@@ -193,6 +192,7 @@ async def station_points(site_id: uuid.UUID, db: DbSession, _: DriverUser) -> li
         if tarifa is not None:
             fuso = ZoneInfo(site.timezone if site is not None else "America/Sao_Paulo")
             base = resolve_rates(tarifa, agora.astimezone(fuso)).per_kwh
+            multiplicador, _origem = multiplicador_para(travado, tarifa)
             preco = float(money(base * multiplicador))
         saida.append(
             StationPointOut(

@@ -27,8 +27,12 @@ export function BandeiraDoSite({
   onSimular,
   simulando = false
 }) {
-  if (!bandeira) return null
-  const velha = bandeira.desatualizada
+  const podeSimular = isAdmin && demoDisponivel
+  // Sem bandeira (flag desligada ou antes do primeiro ciclo) o card so' existe
+  // para o admin disparar o pico: e' o plano B da demo, que mostra a potencia
+  // caindo mesmo sem preco dinamico.
+  if (!bandeira && !podeSimular) return null
+  const velha = bandeira?.desatualizada
 
   return (
     <div
@@ -36,21 +40,25 @@ export function BandeiraDoSite({
       role="status"
       style={{ marginBottom: 16, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}
     >
-      <span className={`badge ${velha ? 'badge-gray' : CLASSE[bandeira.cor] || 'badge-gray'}`}>
-        {velha ? 'Bandeira desatualizada' : `Bandeira ${bandeira.cor}`}
-      </span>
-      {!velha && (
+      {bandeira && (
         <>
-          <strong>x{num(bandeira.multiplicador, 2)}</strong>
-          <span>{num(bandeira.folga_pct, 1)}% de folga</span>
+          <span className={`badge ${velha ? 'badge-gray' : CLASSE[bandeira.cor] || 'badge-gray'}`}>
+            {velha ? 'Bandeira desatualizada' : `Bandeira ${bandeira.cor}`}
+          </span>
+          {!velha && (
+            <>
+              <strong>x{num(bandeira.multiplicador, 2)}</strong>
+              <span>{num(bandeira.folga_pct, 1)}% de folga</span>
+            </>
+          )}
+          <span style={{ color: 'var(--text-muted, #666)' }}>
+            {velha
+              ? 'O rebalanceador parou de atualizar. Recargas iniciadas agora pagam o preço sem bandeira.'
+              : bandeira.motivo}
+          </span>
         </>
       )}
-      <span style={{ color: 'var(--text-muted, #666)' }}>
-        {velha
-          ? 'O rebalanceador parou de atualizar. Recargas iniciadas agora pagam o preço sem bandeira.'
-          : bandeira.motivo}
-      </span>
-      {isAdmin && demoDisponivel && (
+      {podeSimular && (
         <span style={{ marginLeft: 'auto' }}>
           {picoAte ? (
             <span>Pico simulado até {hora(picoAte, fuso)}</span>

@@ -113,3 +113,15 @@ async def test_com_a_flag_desligada_o_app_ve_o_preco_da_tarifa(
     p = r.json()[0]
     assert p["bandeira"] is None
     assert p["preco_kwh_final"] == 2.00
+
+
+async def test_com_a_flag_desligada_o_app_segue_o_multiplicador_da_tarifa(
+    api, db, site, ponto, tarifa, como_motorista
+):
+    # A fatura de hoje aplica o multiplicador digitado na tarifa quando ela o
+    # habilita. A tela do app tem de mostrar o mesmo: R$ 2,00 x 1,5 = R$ 3,00.
+    tarifa.dynamic_enabled = True
+    tarifa.dynamic_multiplier = Decimal("1.5")
+    await db.flush()
+    r = await api.get(f"/api/v1/app/stations/{site.id}/charge-points", headers=como_motorista)
+    assert r.json()[0]["preco_kwh_final"] == 3.00

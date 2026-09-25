@@ -180,11 +180,24 @@ def multiplicador_efetivo(session: ChargingSession, tariff: Tariff) -> tuple[Dec
     Sem ele - sessao anterior a feature, ou flag desligada - vale a regra antiga,
     o multiplicador digitado na tarifa, e so' quando ela o habilita.
     """
-    if session.multiplicador_travado is not None:
-        return Decimal(str(session.multiplicador_travado)), "bandeira"
+    return multiplicador_para(session.multiplicador_travado, tariff)
+
+
+def multiplicador_para(travado, tariff: Tariff) -> tuple[Decimal, str]:
+    """A mesma regra, a partir do valor travado (ou None). Usada tambem por quem
+    precifica antes de a sessao existir - o simulador e a tela do app."""
+    if travado is not None:
+        return Decimal(str(travado)), "bandeira"
     if tariff.dynamic_enabled:
         return Decimal(str(tariff.dynamic_multiplier or 1)), "tarifa"
     return Decimal("1"), "tarifa"
+
+
+def rotulo_do_ajuste(multiplier: Decimal, origem: str, cor: str | None) -> str:
+    """A descricao da linha de ajuste, igual na fatura e no simulador."""
+    if origem == "bandeira":
+        return f"Bandeira {cor} (x{multiplier:.2f})".replace(".", ",")
+    return f"Ajuste dinâmico de demanda (x{multiplier})"
 
 
 def rate_session(
@@ -354,11 +367,7 @@ def rate_session(
             result.lines.append(
                 RatedLine(
                     kind="dynamic",
-                    description=(
-                        f"Bandeira {session.cor_travada} (x{multiplier:.2f})".replace(".", ",")
-                        if origem == "bandeira"
-                        else f"Ajuste dinâmico de demanda (x{multiplier})"
-                    ),
+                    description=rotulo_do_ajuste(multiplier, origem, session.cor_travada),
                     quantity=Decimal("1"),
                     unit="un",
                     unit_price=adjustment,
@@ -457,6 +466,7 @@ def simulate(
     at: datetime | None = None,
     timezone: str = "America/Sao_Paulo",
     multiplicador: Decimal | None = None,
+    cor: str | None = None,
 ) -> RatingResult:
     """Simulador do dashboard: precifica um cenario hipotetico sem criar sessao.
 
@@ -521,19 +531,14 @@ def simulate(
     # de 1 vira abatimento, e o minimo e' comparado ao bruto. Multiplicar o
     # subtotal antes do minimo fazia o simulador divergir da fatura sempre que
     # houvesse minimo e multiplicador < 1.
-    if multiplicador is not None:
-        multiplier = Decimal(str(multiplicador))
-    elif tariff.dynamic_enabled:
-        multiplier = Decimal(str(tariff.dynamic_multiplier or 1))
-    else:
-        multiplier = Decimal("1")
+    multiplier, origem = multiplicador_para(multiplicador, tariff)
     if multiplier != 1:
         adjustment = money(result.subtotal * (multiplier - 1))
         if adjustment != 0:
             result.lines.append(
                 RatedLine(
                     "dynamic",
-                    f"Ajuste dinâmico de demanda (x{multiplier})",
+                    rotulo_do_ajuste(multiplier, origem, cor),
                     Decimal("1"),
                     "un",
                     adjustment,
