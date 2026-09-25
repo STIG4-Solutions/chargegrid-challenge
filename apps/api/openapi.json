@@ -6770,6 +6770,35 @@
           }
         }
       }
+    },
+    "/api/v1/infra/versao": {
+      "get": {
+        "tags": [
+          "infra"
+        ],
+        "summary": "Versao",
+        "description": "Que commit responde, e o quanto o relogio do banco difere do da API.\n\n`desvio_s` e' POSITIVO quando o banco esta' ATRASADO em relacao ao processo.\nAlguns segundos sao latencia da propria consulta; horas sao o defeito que\nesta rota existe para tornar visivel.",
+        "operationId": "versao_api_v1_infra_versao_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Versao Api V1 Infra Versao Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
     }
   },
   "components": {

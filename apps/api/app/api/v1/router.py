@@ -6,6 +6,7 @@ from app.api.v1 import (
     assistant,
     auth,
     campaigns,
+    infra,
     mobile,
     platform,
     power,
@@ -26,3 +27,4 @@ api_router.include_router(tariffs.router)
 api_router.include_router(mobile.router)
 api_router.include_router(ws.router)
 api_router.include_router(assistant.router)
+api_router.include_router(infra.router)
