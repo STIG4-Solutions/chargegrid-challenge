@@ -1237,3 +1237,136 @@
     animation: none;
   }
 }
+
+/* ------------------------------------------------------------ tecnologia */
+
+.lp-fluxo-caixa {
+  margin: clamp(48px, 8vh, 80px) 0 clamp(40px, 7vh, 72px);
+}
+
+.lp-fluxo {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.lp-fluxo-v {
+  display: none;
+  max-width: 320px;
+}
+
+.lp-fluxo-trilho {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-width: 2;
+}
+
+/* A energia percorre o caminho uma vez, quando o diagrama entra na tela. */
+.lp-fluxo-energia {
+  fill: none;
+  stroke: var(--sems-red);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 2.6s cubic-bezier(0.45, 0, 0.2, 1) 0.2s;
+}
+
+.lp-entrou .lp-fluxo-energia {
+  stroke-dashoffset: 0;
+}
+
+.lp-fluxo-no {
+  fill: var(--sems-deep);
+  stroke: rgba(255, 255, 255, 0.22);
+  stroke-width: 1.5;
+}
+
+.lp-fluxo-miolo {
+  fill: var(--sems-muted-2);
+  transition: fill 0.4s;
+}
+
+.lp-entrou .lp-fluxo-miolo {
+  fill: var(--sems-text);
+}
+
+.lp-fluxo-nome {
+  fill: var(--sems-text);
+  font-family: var(--font);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.lp-fluxo-sub {
+  fill: var(--sems-muted);
+  font-family: var(--font);
+  font-size: 14px;
+}
+
+.lp-pontos {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 48px;
+}
+
+.lp-pontos li {
+  padding: 24px 0;
+  border-top: 1px solid var(--sems-border);
+}
+
+.lp-pontos h3 {
+  font-size: 17px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.lp-pontos p {
+  color: var(--sems-muted);
+  max-width: 30em;
+}
+
+.lp-pontos-goodwe {
+  display: inline-block;
+  width: 74px;
+  height: auto;
+  vertical-align: -1px;
+}
+
+.lp-numeros {
+  margin-top: 40px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 32px;
+  font-size: 13px;
+  color: var(--sems-muted-2);
+}
+
+@media (max-width: 860px) {
+  .lp-fluxo-h {
+    display: none;
+  }
+
+  .lp-fluxo-v {
+    display: block;
+  }
+
+  .lp-pontos {
+    grid-template-columns: 1fr;
+  }
+
+  .lp-numeros {
+    flex-direction: column;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-fluxo-energia {
+    transition: none;
+    stroke-dashoffset: 0;
+  }
+}

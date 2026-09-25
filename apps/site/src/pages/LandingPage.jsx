@@ -3,6 +3,7 @@ import Cabecalho from '../components/landing/Cabecalho.jsx'
 import ComoFunciona from '../components/landing/ComoFunciona.jsx'
 import Hero from '../components/landing/Hero.jsx'
 import Problema from '../components/landing/Problema.jsx'
+import Tecnologia from '../components/landing/Tecnologia.jsx'
 import '../styles/landing.css'
 
 export default function LandingPage() {
@@ -25,6 +26,7 @@ export default function LandingPage() {
         <Hero />
         <Problema />
         <ComoFunciona />
+        <Tecnologia />
       </main>
     </div>
   )
