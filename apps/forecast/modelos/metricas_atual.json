@@ -1,6 +1,6 @@
 {
-  "gerado_por": "python treinar.py --ate 2026-08-31 --meses-backtest 3",
-  "versao_pipeline": "1.0.0",
+  "gerado_por": "python treinar.py --ate 2026-08-31 --meses-backtest 12",
+  "versao_pipeline": "2.0.0",
   "versoes": {
     "lightgbm": "4.7.0",
     "numpy": "2.5.3",
@@ -8,11 +8,13 @@
     "scikit_learn": "1.9.0"
   },
   "periodo_treino": [
-    "2023-03-01",
+    "2023-04-01",
     "2026-08-31"
   ],
-  "n_linhas_treino": 8960,
-  "impressao_do_treino": "15efb3f815e8ba7df09000c5f91df36c",
+  "n_linhas_treino": 8743,
+  "n_registros_mensais": 287,
+  "min_hist_dias": 180,
+  "impressao_do_treino": "43d8a238cad4fb926d2919cb6ef9e2a8",
   "estacoes_treinadas": [
     "centro-empresarial-berrini",
     "lab-fiap-eco-station",
@@ -29,19 +31,52 @@
   },
   "metricas": {
     "meses_testados": [
+      "2025-09-01",
+      "2025-10-01",
+      "2025-11-01",
+      "2025-12-01",
+      "2026-01-01",
+      "2026-02-01",
+      "2026-03-01",
+      "2026-04-01",
+      "2026-05-01",
       "2026-06-01",
       "2026-07-01",
       "2026-08-01"
     ],
-    "n_obs_teste": 644,
-    "n_obs_mensal": 21,
-    "wape_diario": 29.42,
-    "wape_mensal": 16.45,
-    "wape_mensal_baseline_m28": 16.04,
-    "wape_mensal_baseline_dow": 14.08,
-    "wape_diario_baseline_m28": 36.26,
-    "wape_diario_baseline_dow": 28.79,
-    "vies_medio_pct": 0.83,
-    "cobertura_p10_p90_diaria": 61.5
+    "n_obs_teste": 2555,
+    "n_obs_mensal": 84,
+    "wape_mensal": 8.06,
+    "wape_mensal_baseline_m28": 13.95,
+    "wape_mensal_baseline_ano": 8.67,
+    "wape_mensal_baseline_dow": 14.2,
+    "wape_mensal_forma_somada": 8.67,
+    "vies_medio_pct": 2.1,
+    "wape_diario": 27.51,
+    "wape_diario_baseline_m28": 36.31,
+    "wape_diario_baseline_ano": 34.67,
+    "wape_diario_baseline_dow": 29.85,
+    "n_com_faixa_diaria": 2555,
+    "n_com_faixa_mensal": 84,
+    "cobertura_p10_p90_diaria": 80.0,
+    "cobertura_p10_p90_mensal": 76.2,
+    "quantis_da_faixa": [
+      0.1,
+      0.9
+    ],
+    "fatores_da_faixa": {
+      "dia": [
+        0.446744808310202,
+        1.6327889118326209
+      ],
+      "mes": [
+        0.8654014304102027,
+        1.1873798688920514
+      ]
+    },
+    "meses_de_calibracao": {
+      "dia": 3,
+      "mes": 6
+    }
   }
 }

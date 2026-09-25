@@ -42,6 +42,16 @@ COBERTURA_ESPERADA = Decimal("80")
 
 # Folga antes de acusar sub-calibracao. Backtest de tres meses tem ruido de
 # amostragem; acusar por um ponto de diferenca so' geraria alarme.
+# As reguas que podem servir a janela MENSAL, e como cada uma se chama na tela. O
+# numero gravado e' o mesmo tipo de coisa nas duas - um total de mes vindo de conta
+# simples -, mas elas erram de formas muito diferentes: medido no banco local, a
+# media movel erra 13,95% e a de ano-a-ano 8,67%. Chamar as duas de "media dos
+# ultimos 28 dias" diria ao operador algo falso sobre metade dos casos.
+REGUAS_MENSAIS = {
+    "media_movel": "média dos últimos 28 dias",
+    "ano_a_ano": "comparação com o mesmo mês do ano anterior, corrigida pelo crescimento",
+}
+
 TOLERANCIA_DE_COBERTURA = Decimal("5")
 
 # As janelas que o job grava. A ordem e' do mais fino para o mais grosso.
@@ -130,7 +140,11 @@ def _avisos(linha: SiteForecast) -> list[dict]:
                 ),
             }
         )
-    elif linha.fonte == "media_movel":
+    elif linha.fonte in REGUAS_MENSAIS:
+        # As DUAS reguas mensais entram aqui. Antes so' `media_movel` casava, e uma
+        # linha servida pela regua de ano-a-ano saia SEM aviso nenhum - a tela
+        # deixava de dizer que o numero nao veio do modelo, e silencio parece
+        # confirmacao.
         modelo, regua = linha.wape_modelo_pct, linha.wape_baseline_pct
         detalhe = ""
         if modelo is not None and regua is not None:
@@ -139,9 +153,9 @@ def _avisos(linha: SiteForecast) -> list[dict]:
             {
                 "nivel": "medio",
                 "texto": (
-                    "Este número é a média dos últimos 28 dias. O modelo existe e "
-                    f"conhece este ponto, mas não supera essa régua no teste{detalhe}. "
-                    "Ele volta sozinho quando passar a acertar mais."
+                    f"Este número vem da {REGUAS_MENSAIS[linha.fonte]}. O modelo "
+                    f"existe e conhece este ponto, mas não supera essa régua no "
+                    f"teste{detalhe}. Ele volta sozinho quando passar a acertar mais."
                 ),
             }
         )
