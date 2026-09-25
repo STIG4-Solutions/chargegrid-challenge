@@ -8,7 +8,7 @@ ponto, tarifas e perfis), para trocar o mock pela API sem reescrever as telas.
 HISTORICO. O seed nao cria apenas o estado de hoje: ele gera dois anos de sessoes
 encerradas e faturadas. Isso nao e' enfeite. Tres partes do produto so' existem
 quando ha passado: o modelo de previsao de demanda descarta qualquer local com
-menos de 150 dias de energia, os relatorios de ocupacao e retorno medem janelas
+menos de 180 dias de energia, os relatorios de ocupacao e retorno medem janelas
 de 30 dias, e qualquer missao com prazo ("recarregue 5 vezes este mes", "tres
 semanas seguidas") e' indemonstravel com uma semana de dados. Com poucos dias no
 banco as tres entregam tela vazia e parecem quebradas.
@@ -228,7 +228,7 @@ SEMENTE_DO_HISTORICO = 42
 
 # Quatro anos, e o numero vem de uma conta sobre SAZONALIDADE, nao de folga.
 #
-# Eram dois anos, que bastam para o piso de 150 dias do modelo e para aquecer a
+# Eram dois anos, que bastam para o piso de historico do modelo e para aquecer a
 # media de 182. Mas o backtest treina so' com meses estritamente anteriores ao
 # mes de teste: para prever julho de 2026 com dois anos de historico, o modelo
 # viu julho UMA vez. Sao 12 parametros sazonais com uma observacao cada - nao e'
@@ -573,7 +573,7 @@ SITES = [
         DIAS_DE_HISTORICO,
         3,
     ),
-    # Aberto ha quatro meses, de proposito: fica ABAIXO dos 150 dias que o modelo
+    # Aberto ha quatro meses, de proposito: ~120 dias, ABAIXO dos 180 que o modelo
     # de previsao exige. E' o caso que faz a tela dizer "sem historico suficiente"
     # em vez de exibir uma previsao inventada - e sem um local assim no banco,
     # essa guarda nunca seria exercitada antes de chegar a um cliente real.

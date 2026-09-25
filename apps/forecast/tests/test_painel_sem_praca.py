@@ -26,6 +26,7 @@ import pandas as pd  # noqa: E402
 import pytest  # noqa: E402
 
 from banco import _grade_completa  # noqa: E402
+from modelo.limiares import MIN_HIST_DIAS  # noqa: E402
 
 
 def _estacoes(abertas_em: list[str]) -> pd.DataFrame:
@@ -65,7 +66,14 @@ def test_praca_nascida_depois_do_corte_explica_o_que_aconteceu():
     assert "3 dia(s) DEPOIS" in texto
     # E o que fazer.
     assert "--ate" in texto
-    assert "150" in texto
+    # O piso vem da CONSTANTE, e nao digitado. O assert anterior era `"150" in
+    # texto`, e foi ele que deixou a mensagem envelhecer: quando o limiar passou de
+    # 150 para 180 a constante mudou, a mensagem nao, e o teste seguiu verde porque
+    # cobrava o numero antigo dos dois lados. Um assert que repete o literal nao
+    # prende consistencia - prende o literal.
+    assert str(MIN_HIST_DIAS) in texto, (
+        f"a mensagem nao cita o piso em vigor ({MIN_HIST_DIAS}): {texto}"
+    )
 
 
 def test_a_praca_mais_antiga_e_a_citada():

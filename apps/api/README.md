@@ -1133,13 +1133,17 @@ aplica e o snapshot da fatura registra a origem — o preço cobrado continua ex
 requisito para cobrança dinâmica em varejo. Liga por `PRECIFICACAO_DINAMICA=true`; desligada,
 vale o `Tariff.dynamic_multiplier` digitado pelo operador, como antes.
 
-A previsão de energia é o único pilar com **modelo treinado de verdade** hoje, e o resultado
-honesto é que ele perde das réguas: 16,45% de WAPE mensal contra 16,04% da média móvel de 28
-dias e 14,08% da média por dia da semana; no diário, 29,42% contra 28,79% da melhor régua
-(`apps/forecast/modelos/metricas_atual.json`).
+A previsão de energia é o único pilar com **modelo treinado de verdade** hoje, e ele passou a
+ganhar das réguas nos dois eixos: 8,06% de WAPE mensal contra 13,95% da média móvel de 28 dias,
+14,20% da média por dia da semana e 8,67% da comparação ano-a-ano; no diário, 27,50% contra
+29,85% da melhor régua (`apps/forecast/modelos/metricas_atual.json`).
 
-Por isso `site_forecasts.fonte` existe: o job grava o preditor que **mede melhor**, e a coluna
-diz qual foi. Quando o modelo passar a ganhar, o backtest inverte a escolha sozinho.
+No mês a vantagem é de **0,61 ponto** sobre a régua de ano-a-ano, e vale dizer junto: a
+dispersão da grade de hiperparâmetros do modelo mensal vai de 7,51% a 8,72%, maior que a
+vantagem. O próximo retreino pode perdê-la.
+
+`site_forecasts.fonte` existe por isso: o job grava o preditor que **mede melhor**, e a coluna
+diz qual foi — hoje o modelo, e a régua de volta sozinha no dia em que ele perder.
 `apps/forecast/README.md` detalha.
 
 ---
