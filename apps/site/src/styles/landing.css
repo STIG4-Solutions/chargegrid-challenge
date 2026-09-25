@@ -574,43 +574,223 @@
   }
 }
 
-/* ------------------------------------------------------------ como funciona */
+/* ------------------------------------------------------------ como funciona
+   Animacao com linha do tempo propria (ComoFunciona.jsx), nao controlada pela
+   rolagem. Uma tela inteira, sem borda; o conteudo flutua no escuro. */
 
-.lp-como {
+.lp-cf {
   position: relative;
 }
 
-.lp-como-palco {
-  position: sticky;
-  top: 0;
+.lp-cf-palco {
+  position: relative;
   height: 100vh;
+  min-height: 620px;
   overflow: hidden;
-  /* Brilhos radiais muito suaves nas bordas, parados. */
-  background:
-    radial-gradient(60% 50% at 100% 0%, rgba(255, 50, 58, 0.07), transparent 70%),
-    radial-gradient(55% 45% at 0% 100%, rgba(245, 246, 248, 0.045), transparent 70%),
-    var(--sems-deep);
+  background: var(--sems-deep);
 }
 
-.lp-como-cena {
+/* Brilhos radiais muito suaves, que se movem devagar. */
+.lp-cf-brilho {
   position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 96px var(--lp-gutter) 150px;
-  will-change: opacity;
-}
-
-.lp-como-tela {
-  max-width: 100%;
+  width: 70vmax;
+  height: 70vmax;
+  border-radius: 50%;
+  pointer-events: none;
   will-change: transform;
 }
 
-/* Sombra nas proprias telas, e nao filter no conteiner: filter rasteriza o
-   conteudo e, somado ao zoom, borra o texto. */
-.lp-como-tela > .lp-ui {
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+.lp-cf-brilho-a {
+  top: -35vmax;
+  right: -30vmax;
+  background: radial-gradient(closest-side, rgba(255, 50, 58, 0.085), transparent);
+  animation: lp-deriva-a 22s ease-in-out infinite alternate;
+}
+
+.lp-cf-brilho-b {
+  bottom: -40vmax;
+  left: -30vmax;
+  background: radial-gradient(closest-side, rgba(245, 246, 248, 0.05), transparent);
+  animation: lp-deriva-b 26s ease-in-out infinite alternate;
+}
+
+@keyframes lp-deriva-a {
+  to {
+    transform: translate3d(-8vmax, 6vmax, 0);
+  }
+}
+
+@keyframes lp-deriva-b {
+  to {
+    transform: translate3d(9vmax, -5vmax, 0);
+  }
+}
+
+.lp-cf-camera {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+
+/* Origem do sistema de coordenadas: o centro do palco (um pouco acima, para a
+   legenda caber embaixo). Tudo dentro se posiciona a partir daqui. */
+.lp-cf-grupo {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  will-change: transform;
+}
+
+.lp-cf-abertura {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 90vw;
+  transform: translate(-50%, -50%);
+}
+
+.lp-cf-abertura span {
+  display: block;
+  will-change: opacity, transform;
+}
+
+.lp-cf-card {
+  position: absolute;
+  left: 0;
+  top: 0;
+  background: var(--sems-card);
+  border: 1px solid var(--sems-border);
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  /* translate(-50%,-50%) + scale: a escala sai do centro do card. */
+  transform-origin: 50% 50%;
+  will-change: transform, opacity;
+}
+
+.lp-cf-conteudo {
+  position: absolute;
+  inset: 0;
+  will-change: opacity;
+}
+
+/* As telas viram conteudo do card: sem fundo, borda nem sombra proprios. */
+.lp-cf-conteudo > .lp-ui,
+.lp-cf-card-estatico > .lp-ui {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.lp-cf-chip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--sems-card-2);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  will-change: transform, opacity;
+}
+
+.lp-cf-chip-verde {
+  color: var(--sems-green);
+  border-color: rgba(52, 199, 89, 0.4);
+}
+
+.lp-cf-chip-amarela {
+  color: var(--sems-yellow);
+  border-color: rgba(255, 204, 0, 0.4);
+}
+
+.lp-cf-chip-vermelha {
+  color: var(--sems-red);
+  border-color: rgba(255, 50, 58, 0.45);
+}
+
+.lp-cf-cursor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 26px;
+  height: 26px;
+  pointer-events: none;
+  will-change: transform, opacity;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
+}
+
+.lp-cf-pulso {
+  position: absolute;
+  left: -14px;
+  top: -14px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid var(--sems-text);
+  will-change: transform, opacity;
+}
+
+.lp-cf-final {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  white-space: nowrap;
+  will-change: opacity, transform;
+}
+
+.lp-cf-final img {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+}
+
+.lp-cf-final p {
+  font-size: clamp(24px, 3vw, 40px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.lp-cf-denovo {
+  position: absolute;
+  right: var(--lp-gutter);
+  bottom: clamp(32px, 7vh, 64px);
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--sems-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--sems-muted);
+  font-family: var(--font);
+  font-size: 13px;
+  cursor: pointer;
+  animation: lp-aparece 0.6s ease-out both;
+}
+
+.lp-cf-denovo:hover {
+  color: var(--sems-text);
+}
+
+@keyframes lp-aparece {
+  from {
+    opacity: 0;
+  }
 }
 
 .lp-abertura {
@@ -626,7 +806,6 @@
 
 .lp-abertura-segunda {
   color: var(--sems-muted);
-  will-change: opacity, transform;
 }
 
 .lp-legenda {
@@ -645,12 +824,14 @@
   color: var(--sems-red);
 }
 
-/* Movimento reduzido: cenas empilhadas, paradas, com a legenda embaixo. */
-.lp-como.lp-estatico {
+/* Movimento reduzido: os estados finais, parados, em sequencia. */
+.lp-cf.lp-estatico {
   padding: clamp(80px, 12vh, 140px) var(--lp-gutter);
 }
 
-.lp-como-estatico {
+.lp-cf-estatico {
+  max-width: var(--lp-max);
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -659,6 +840,7 @@
 
 .lp-como-figura {
   margin: 0;
+  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -669,6 +851,47 @@
   position: static;
   text-align: center;
   align-items: center;
+}
+
+.lp-cf-card-estatico {
+  position: relative;
+  width: min(980px, 100%);
+  border-radius: 16px;
+  background: var(--sems-card);
+  border: 1px solid var(--sems-border);
+  overflow: hidden;
+}
+
+.lp-cf-card-app {
+  width: min(380px, 100%);
+}
+
+.lp-cf-card-fatura {
+  width: min(720px, 100%);
+}
+
+.lp-cf-card-assist {
+  width: min(440px, 100%);
+  height: 560px;
+}
+
+.lp-cf-chips-estaticos {
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  top: 60px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.lp-cf-chips-estaticos .lp-cf-chip {
+  position: static;
+}
+
+.lp-cf-final-estatico {
+  position: static;
 }
 
 /* ------------------------------------------------------------ telas recriadas
@@ -860,31 +1083,6 @@
 }
 
 /* App do motorista: cores de apps/mobile/src/theme.ts. */
-.lp-ui-app {
-  width: min(380px, 100%);
-  padding: 20px 16px;
-  border-radius: 20px;
-  background: #0d0d0f;
-  border: 1px solid #2a2c2f;
-}
-
-.lp-ui-app-titulo {
-  font-size: 17px;
-  font-weight: 600;
-  margin: 0 4px 14px;
-}
-
-.lp-ui-app-card {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 16px;
-  border-radius: 12px;
-  background: #1f2123;
-  border: 1px solid #3a3a3c;
-}
-
 .lp-ui-app-nome {
   font-size: 16px;
   font-weight: 600;
@@ -1497,5 +1695,160 @@
 
   .lp-rodape-ano {
     margin-left: 0;
+  }
+}
+
+/* ------------------------------------------------------------ estados do card */
+
+.lp-ui-chips-espaco {
+  height: 34px;
+  flex: none;
+}
+
+.lp-ui-predio {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr) 110px;
+  align-items: center;
+  gap: 16px;
+  padding: 2px 0 14px;
+}
+
+.lp-ui-predio .lp-ui-card-title {
+  margin: 0;
+}
+
+.lp-ui-app {
+  padding: 22px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.lp-ui-app-botao {
+  transition:
+    transform 0.15s ease-out,
+    filter 0.15s ease-out;
+}
+
+.lp-pressionado {
+  transform: scale(0.96);
+  filter: brightness(1.18);
+}
+
+.lp-ui-travando {
+  padding: 24px 26px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+}
+
+.lp-ui-travando-linha {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+}
+
+.lp-ui-progresso {
+  display: block;
+  height: 6px;
+  margin-top: 4px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.lp-ui-progresso span {
+  display: block;
+  height: 100%;
+  background: var(--sems-red);
+  transform-origin: left center;
+}
+
+.lp-ui-linha-bandeira td {
+  background: rgba(255, 50, 58, calc(0.13 * var(--lp-destaque, 0)));
+}
+
+.lp-assist-barra {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px 0 16px;
+}
+
+.lp-assist-barra-marca img {
+  display: block;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+}
+
+.lp-assist-barra-texto {
+  flex: 1;
+  min-width: 0;
+  font-size: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lp-assist-barra-enviar {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--sems-red);
+  color: #fff;
+  transition:
+    transform 0.15s ease-out,
+    filter 0.15s ease-out;
+}
+
+.lp-assist-parte {
+  will-change: opacity;
+}
+
+@media (max-width: 860px) {
+  .lp-ui-chips-espaco {
+    height: 74px;
+  }
+
+  .lp-ui-predio {
+    grid-template-columns: minmax(0, 1fr) 90px;
+    gap: 6px 10px;
+  }
+
+  .lp-ui-predio .lp-ui-card-title {
+    grid-column: 1 / -1;
+  }
+
+  .lp-assist-barra-texto {
+    font-size: 14px;
+  }
+
+  .lp-assist-barra-enviar {
+    width: 36px;
+    height: 36px;
+  }
+
+  .lp-cf-final p {
+    white-space: normal;
+    text-align: center;
+  }
+
+  .lp-cf-denovo {
+    bottom: auto;
+    top: 88px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-cf-brilho {
+    animation: none;
   }
 }

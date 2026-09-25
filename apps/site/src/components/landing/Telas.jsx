@@ -2,9 +2,12 @@
  * Telas da plataforma recriadas em HTML/CSS, com os tokens, a tipografia e a
  * hierarquia reais do painel (apps/dashboard) e do app (apps/mobile). Nada e'
  * print: sao componentes, e os numeros vem das props para a conta fechar.
+ *
+ * Aqui elas sao o CONTEUDO do card unico do "Como funciona": nao desenham
+ * fundo proprio - o fundo e' o card, que muda de tamanho entre os estados.
  */
 
-const kw = (v, casas = 1) =>
+export const kw = (v, casas = 1) =>
   new Intl.NumberFormat('pt-BR', {
     minimumFractionDigits: casas,
     maximumFractionDigits: casas
@@ -17,38 +20,24 @@ export function bandeiraDaFolga(folga) {
   return { cor: 'vermelha', mult: '1,30' }
 }
 
-const BADGE = {
-  verde: 'lp-badge-verde',
-  amarela: 'lp-badge-amarela',
-  vermelha: 'lp-badge-vermelha'
-}
+export const CONTRATO_KW = 80
 
-function Bandeira({ cor, mult, folgaPct, motivo }) {
-  return (
-    <div className="lp-ui-bandeira" data-cor={cor}>
-      <span className={`lp-badge ${BADGE[cor]}`}>Bandeira {cor}</span>
-      <strong>x{mult}</strong>
-      <span>{folgaPct}% de folga</span>
-      <span className="lp-ui-muted">{motivo}</span>
-    </div>
-  )
+/** Tudo o que a aba Potencia mostra sai do consumo do predio, como no rateio. */
+export function estadoDaPraca(predio) {
+  const livre = Math.max(0, CONTRATO_KW - predio)
+  const porPonto = Math.min(11, livre / 4)
+  const folga = livre / CONTRATO_KW
+  return { livre, porPonto, folga, ...bandeiraDaFolga(folga) }
 }
 
 /**
  * Aba Potencia da "Praca Centro". Contrato 80 kW, 4 carregadores de 11 kW.
- * `predio` vai de 30 a 72 kW; tudo o mais sai dele, como no rateio real.
+ * A linha logo abaixo do titulo fica vazia: e' onde os chips da bandeira e do
+ * motivo pousam, vindos de fora do card.
  */
 export function TelaPotencia({ predio }) {
-  const contrato = 80
-  const livre = Math.max(0, contrato - predio)
-  const porPonto = Math.min(11, livre / 4)
-  const folga = livre / contrato
-  const { cor, mult } = bandeiraDaFolga(folga)
-  const pctContrato = Math.round((predio / contrato) * 100)
-  const motivo =
-    cor === 'verde'
-      ? 'Folga confortável de potência no estabelecimento'
-      : `Prédio em ${pctContrato}% do contrato`
+  const { livre, porPonto } = estadoDaPraca(predio)
+  const pctContrato = Math.round((predio / CONTRATO_KW) * 100)
 
   return (
     <div className="lp-ui lp-ui-painel">
@@ -56,7 +45,7 @@ export function TelaPotencia({ predio }) {
         <span className="lp-ui-praca">Praça Centro</span>
         <span className="lp-ui-muted">Recarga EV · Gerenciamento de Potência</span>
       </div>
-      <Bandeira cor={cor} mult={mult} folgaPct={Math.floor(folga * 100)} motivo={motivo} />
+      <div className="lp-ui-chips-espaco" aria-hidden="true" />
       <div className="lp-ui-stats">
         <div className="lp-ui-stat">
           <div className="lp-ui-label">Potência disponível no site</div>
@@ -65,7 +54,7 @@ export function TelaPotencia({ predio }) {
             <small>kW</small>
           </div>
           <div className="lp-ui-trend lp-ui-muted">
-            Contrato {contrato} − Prédio {kw(predio, 0)}
+            Contrato {CONTRATO_KW} − Prédio {kw(predio, 0)}
           </div>
         </div>
         <div className="lp-ui-stat">
@@ -93,7 +82,15 @@ export function TelaPotencia({ predio }) {
         </div>
       </div>
       <div className="lp-ui-panel">
-        <div className="lp-ui-card-title">Pontos de recarga</div>
+        <div className="lp-ui-predio">
+          <span className="lp-ui-card-title">Consumo do prédio</span>
+          <span className="lp-ui-meter lp-ui-meter-predio" aria-hidden="true">
+            <span style={{ transform: `scaleX(${predio / CONTRATO_KW})` }} />
+          </span>
+          <span className="lp-ui-kw">
+            {kw(predio, 0)} de {CONTRATO_KW} kW
+          </span>
+        </div>
         <ul className="lp-ui-pontos">
           {['01', '02', '03', '04'].map((n) => (
             <li key={n}>
@@ -115,28 +112,39 @@ export function TelaPotencia({ predio }) {
 }
 
 /** Card de um ponto no app do motorista (StationScreen + BandeiraDoPonto). */
-export function TelaApp() {
+export function TelaApp({ pressionado = false }) {
   return (
     <div className="lp-ui lp-ui-app">
-      <div className="lp-ui-app-titulo">Praça Centro</div>
-      <div className="lp-ui-app-card">
-        <div className="lp-ui-app-topo">
-          <div>
-            <div className="lp-ui-app-nome">Ponto de Recarga 02</div>
-            <div className="lp-ui-app-meta">CP-02 · Type 2 · 11 kW</div>
-          </div>
-        </div>
-        <span className="lp-ui-etiqueta lp-ui-etiqueta-vermelha">Bandeira vermelha · x1,30</span>
-        <div className="lp-ui-app-preco">R$ 2,34/kWh se iniciar agora</div>
-        <div className="lp-ui-app-motivo">Prédio em 90% do contrato</div>
-        <div className="lp-ui-app-botao">Iniciar recarga</div>
+      <div className="lp-ui-app-nome">Ponto de Recarga 02</div>
+      <div className="lp-ui-app-meta">Praça Centro · CP-02 · Type 2 · 11 kW</div>
+      <span className="lp-ui-etiqueta lp-ui-etiqueta-vermelha">Bandeira vermelha · x1,30</span>
+      <div className="lp-ui-app-preco">R$ 2,34/kWh se iniciar agora</div>
+      <div className="lp-ui-app-motivo">Prédio em 90% do contrato</div>
+      <div className={`lp-ui-app-botao ${pressionado ? 'lp-pressionado' : ''}`}>
+        Iniciar recarga
       </div>
     </div>
   )
 }
 
+/** A sessao comecando: o preco da bandeira fica gravado nela. */
+export function TelaTravando({ progresso }) {
+  return (
+    <div className="lp-ui lp-ui-travando">
+      <div className="lp-ui-travando-linha">
+        <span className="lp-assist-spinner" aria-hidden="true" />
+        <strong>Travando o preço…</strong>
+      </div>
+      <div className="lp-ui-muted">Bandeira vermelha · x1,30 · R$ 2,34/kWh</div>
+      <span className="lp-ui-progresso" aria-hidden="true">
+        <span style={{ transform: `scaleX(${progresso})` }} />
+      </span>
+    </div>
+  )
+}
+
 /** Fatura de uma sessao, como o Ciclo da Sessao e o recibo mostram. */
-export function TelaFatura() {
+export function TelaFatura({ destaque = 0 }) {
   return (
     <div className="lp-ui lp-ui-fatura">
       <div className="lp-ui-topo">
@@ -160,7 +168,7 @@ export function TelaFatura() {
             <td>R$ 1,80</td>
             <td>R$ 33,12</td>
           </tr>
-          <tr className="lp-ui-linha-bandeira">
+          <tr className="lp-ui-linha-bandeira" style={{ '--lp-destaque': destaque.toFixed(3) }}>
             <td>Bandeira vermelha (x1,30)</td>
             <td>1 un</td>
             <td>R$ 9,94</td>

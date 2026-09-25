@@ -1,14 +1,16 @@
-import { useEffect, useState } from 'react'
+import { janela } from './linhaDoTempo.js'
 
 /**
- * Cena 5 do "Como funciona": o assistente do painel respondendo com os dados
- * da praca. ISOLADA de proposito - o assistente depende de outro PR. Para tirar
- * a cena, remova a entrada `assistente` de CENAS em ComoFunciona.jsx e apague
- * este arquivo; nada mais depende dele.
+ * Os dois estados do assistente no "Como funciona": a barra de chat, onde a
+ * pergunta e' digitada, e o painel, em que a barra se transforma com a resposta.
  *
- * Recria o widget descrito em .scratch/landing/assistente-front.md: painel de
- * 400 px, cabecalho "Assistente", baloes, indicador de consulta e tabela.
- * Os numeros sao os que a rota de ocupacao devolveu para a praca do seed.
+ * ISOLADO de proposito - o assistente depende de outro PR. Para tirar a cena,
+ * remova `...ESTADOS_ASSISTENTE` e o import em ComoFunciona.jsx e apague este
+ * arquivo: a linha do tempo encolhe sozinha, porque os inicios sao calculados
+ * pela soma das duracoes.
+ *
+ * Visual do widget descrito em .scratch/landing/assistente-front.md. Os numeros
+ * sao os que a rota de ocupacao devolveu para a praca do seed.
  */
 
 export const LEGENDA_ASSISTENTE = ['Pergunte em português.', 'Resposta com os dados da praça.']
@@ -22,64 +24,71 @@ const LINHAS = [
   ['CP-02', '9,8%', 'R$ 2,40', 'ocioso']
 ]
 
-// Linha do tempo da cena, em ms depois de ela ficar ativa.
-const PAUSA_ANTES = 500
-const CONSULTA_MS = 1300
-const RESPOSTA_MS = 1400
-
-/** Tempo de cada tecla: ritmo humano, mais lento depois de espaco e pontuacao. */
-function atrasoDaTecla(anterior) {
-  const base = 45 + Math.random() * 55
-  return anterior === ' ' ? base + 40 : anterior === ',' || anterior === '?' ? base + 120 : base
-}
+// Instante (s, a partir do inicio da barra) em que cada tecla aparece. Ritmo
+// humano e deterministico: mais lento depois de espaco e de virgula, e sempre
+// igual - o video gravado e o ao vivo mostram a mesma digitacao.
+const INICIO_DIGITACAO = 0.9
+const TECLAS = (() => {
+  const tempos = []
+  let t = INICIO_DIGITACAO
+  for (let i = 0; i < PERGUNTA.length; i++) {
+    const ruido = (Math.sin(i * 12.9898) * 43758.5453) % 1
+    const anterior = PERGUNTA[i - 1]
+    t += 0.035 + Math.abs(ruido) * 0.035 + (anterior === ' ' ? 0.03 : 0)
+    tempos.push(t)
+  }
+  return tempos
+})()
+const FIM_DIGITACAO = TECLAS[TECLAS.length - 1]
 
 function Spinner() {
   return <span className="lp-assist-spinner" aria-hidden="true" />
 }
 
-export function CenaAssistente({ ativa, estatica = false }) {
-  const [digitado, setDigitado] = useState(estatica ? PERGUNTA.length : 0)
-  const [fase, setFase] = useState(estatica ? 'pronta' : 'digitando')
-  const [revelado, setRevelado] = useState(estatica ? 1 : 0)
+function IconeEnviar() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+      <path
+        d="M12 19V5m0 0-6 6m6-6 6 6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
 
-  useEffect(() => {
-    if (estatica) return undefined
-    if (!ativa) {
-      // Saiu da tela: reinicia, para a cena tocar de novo ao voltar.
-      setDigitado(0)
-      setFase('digitando')
-      setRevelado(0)
-      return undefined
-    }
-    let cancelado = false
-    const timers = []
-    const depois = (ms, fn) => timers.push(setTimeout(() => !cancelado && fn(), ms))
+/** A barra: o operador digita e envia. */
+function BarraDoAssistente({ tl }) {
+  const digitado = TECLAS.filter((x) => x <= tl).length
+  const enviando = tl > FIM_DIGITACAO + 0.35
+  return (
+    <div className="lp-ui lp-assist-barra">
+      <span className="lp-assist-barra-marca" aria-hidden="true">
+        <img src="/chargegrid-app-icon.png" alt="" width="22" height="22" />
+      </span>
+      <span className="lp-assist-barra-texto">
+        {digitado === 0 ? (
+          <span className="lp-assist-placeholder">Pergunte sobre a operação da praça…</span>
+        ) : (
+          PERGUNTA.slice(0, digitado)
+        )}
+        {!enviando && <span className="lp-assist-cursor" aria-hidden="true" />}
+      </span>
+      <span className={`lp-assist-barra-enviar ${enviando ? 'lp-pressionado' : ''}`}>
+        <IconeEnviar />
+      </span>
+    </div>
+  )
+}
 
-    let t = PAUSA_ANTES
-    for (let i = 1; i <= PERGUNTA.length; i++) {
-      t += atrasoDaTecla(PERGUNTA[i - 2])
-      const n = i
-      depois(t, () => setDigitado(n))
-    }
-    t += 450
-    depois(t, () => setFase('consultando'))
-    t += CONSULTA_MS
-    depois(t, () => setFase('respondendo'))
-    // A resposta chega em pedacos, como o fluxo SSE do widget.
-    const passos = 14
-    for (let k = 1; k <= passos; k++) {
-      depois(t + (RESPOSTA_MS * k) / passos, () => setRevelado(k / passos))
-    }
-    depois(t + RESPOSTA_MS + 50, () => setFase('pronta'))
-    return () => {
-      cancelado = true
-      timers.forEach(clearTimeout)
-    }
-  }, [ativa, estatica])
-
-  const enviada = fase !== 'digitando'
-  const mostra = (limite) => revelado >= limite
-
+/** O painel: a pergunta enviada, a consulta e a resposta chegando em partes. */
+export function PainelDoAssistente({ tl, estatico = false }) {
+  const t = estatico ? 99 : tl
+  const consultando = t >= 0.7 && t < 1.9
+  const parte = (instante) => t >= instante
   return (
     <div className="lp-ui lp-assist">
       <div className="lp-assist-topo">
@@ -91,79 +100,100 @@ export function CenaAssistente({ ativa, estatica = false }) {
       </div>
 
       <div className="lp-assist-msgs">
-        {enviada && <div className="lp-assist-msg lp-assist-usuario">{PERGUNTA}</div>}
-        {enviada && (
-          <div className="lp-assist-msg lp-assist-resposta">
-            {fase === 'consultando' && (
-              <span className="lp-assist-status">
-                <Spinner />
-                Consultando a ocupação
-              </span>
-            )}
-            {mostra(0.15) && (
-              <p>
-                Nos últimos 30 dias, o <strong>CP-04</strong> é o que se paga: 23% de ocupação e R$
-                3,00 por hora disponível. Os outros três ficam ociosos.
-              </p>
-            )}
-            {mostra(0.45) && (
-              <div className="lp-assist-tabela">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Ponto</th>
-                      <th>Ocupação</th>
-                      <th>R$/h</th>
-                      <th>Situação</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {LINHAS.map((l, i) =>
-                      mostra(0.5 + i * 0.1) ? (
-                        <tr key={l[0]}>
-                          {l.map((c) => (
-                            <td key={c}>{c}</td>
-                          ))}
-                        </tr>
-                      ) : null
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            {mostra(0.95) && (
-              <p>
-                A ociosidade custou <strong>R$ 959,61</strong> no mês. Fonte: aba Ocupação &amp;
-                Retorno.
-              </p>
-            )}
-            {fase === 'respondendo' && (
-              <span className="lp-assist-status">
-                <Spinner />
-              </span>
-            )}
-          </div>
-        )}
+        <div className="lp-assist-msg lp-assist-usuario">{PERGUNTA}</div>
+        <div className="lp-assist-msg lp-assist-resposta">
+          {consultando && (
+            <span className="lp-assist-status">
+              <Spinner />
+              Consultando a ocupação
+            </span>
+          )}
+          {!consultando && !parte(1.9) && (
+            <span className="lp-assist-status">
+              <Spinner />
+              Pensando…
+            </span>
+          )}
+          {parte(1.9) && (
+            <p className="lp-assist-parte" style={{ opacity: estatico ? 1 : janela(t, 1.9, 2.2) }}>
+              Nos últimos 30 dias, o <strong>CP-04</strong> é o que se paga: 23% de ocupação e R$
+              3,00 por hora disponível. Os outros três ficam ociosos.
+            </p>
+          )}
+          {parte(2.3) && (
+            <div
+              className="lp-assist-tabela lp-assist-parte"
+              style={{ opacity: estatico ? 1 : janela(t, 2.3, 2.6) }}
+            >
+              <table>
+                <thead>
+                  <tr>
+                    <th>Ponto</th>
+                    <th>Ocupação</th>
+                    <th>R$/h</th>
+                    <th>Situação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {LINHAS.map((l, i) =>
+                    parte(2.5 + i * 0.2) ? (
+                      <tr
+                        key={l[0]}
+                        style={{ opacity: estatico ? 1 : janela(t, 2.5 + i * 0.2, 2.8 + i * 0.2) }}
+                      >
+                        {l.map((c) => (
+                          <td key={c}>{c}</td>
+                        ))}
+                      </tr>
+                    ) : null
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {parte(3.5) && (
+            <p className="lp-assist-parte" style={{ opacity: estatico ? 1 : janela(t, 3.5, 3.8) }}>
+              A ociosidade custou <strong>R$ 959,61</strong> no mês. Fonte: aba Ocupação &amp;
+              Retorno.
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="lp-assist-entrada">
         <div className="lp-assist-campo">
-          {enviada ? (
-            <span className="lp-assist-placeholder">Pergunte sobre a operação da praça…</span>
-          ) : (
-            <span>
-              {PERGUNTA.slice(0, digitado)}
-              <span className="lp-assist-cursor" aria-hidden="true" />
-            </span>
-          )}
+          <span className="lp-assist-placeholder">Pergunte sobre a operação da praça…</span>
         </div>
         <div className="lp-assist-rodape">
-          <span>{enviada ? 0 : digitado}/2000</span>
-          <span className="lp-assist-enviar">
-            {fase === 'pronta' || !enviada ? 'Enviar' : 'Parar'}
-          </span>
+          <span>0/2000</span>
+          <span className="lp-assist-enviar">Enviar</span>
         </div>
       </div>
     </div>
   )
 }
+
+/**
+ * Os estados, no formato da linha do tempo de ComoFunciona: duracao em
+ * segundos, tamanho do card (desktop e celular) e o conteudo em funcao do
+ * tempo local.
+ */
+export const ESTADOS_ASSISTENTE = [
+  {
+    id: 'assistente-barra',
+    dur: 4.0,
+    legenda: LEGENDA_ASSISTENTE,
+    tamanho: (movel, vw) => (movel ? { w: vw - 32, h: 64 } : { w: 760, h: 72 }),
+    raio: 999,
+    conteudo: (tl) => <BarraDoAssistente tl={tl} />
+  },
+  {
+    id: 'assistente-painel',
+    dur: 4.8,
+    legenda: LEGENDA_ASSISTENTE,
+    tamanho: (movel, vw, vh) =>
+      movel ? { w: vw - 32, h: Math.min(560, vh - 230) } : { w: 440, h: 560 },
+    foco: { z: 0.035, x: 0, y: 40, de: 1.9, ate: 3.8 },
+    conteudo: (tl) => <PainelDoAssistente tl={tl} />
+  }
+]
