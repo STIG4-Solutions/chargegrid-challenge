@@ -94,21 +94,32 @@ A separação não é estética. O processo do FastAPI também roda os workers d
 `import lightgbm` que falhe derrubaria junto o rebalanceamento — que é o que impede o disjuntor
 de abrir. Previsão de faturamento não pode compartilhar processo com controle de carga.
 
-**Hoje o modelo perde das réguas**, no diário e no mensal — e o mensal é a granularidade que a
-tela mostra. WAPE, de `apps/forecast/modelos/metricas_atual.json`:
+**O modelo ganha das réguas nos dois eixos, e por pouco no mensal** — que é a granularidade
+que a tela mostra. WAPE, de `apps/forecast/modelos/metricas_atual.json`:
 
-| granularidade | modelo | média móvel de 28 dias | média por dia da semana |
-|---|---|---|---|
-| diário | 29,42% | 36,26% | **28,79%** |
-| mensal | 16,45% | 16,04% | **14,08%** |
+| granularidade | modelo | média móvel de 28 dias | por dia da semana | ano-a-ano |
+|---|---|---|---|---|
+| diário | **27,50%** | 36,31% | 29,85% | 34,67% |
+| mensal | **8,06%** | 13,95% | 14,20% | 8,67% |
 
-Medido em três meses fora da amostra (jun–ago/2026, 21 estação-meses). A faixa p10–p90 cobre
-61,5% dos dias, contra os 80% que anuncia. O arquivo traz o comando que o refaz; se esta tabela
-divergir dele, o arquivo manda.
+Medido em doze meses fora da amostra, 84 estação-meses e 2.555 dias. A faixa p10–p90 cobre
+79,6% dos dias, contra os 80% que declara — dentro da tolerância, e o número medido vai para a
+tela ao lado do declarado. O arquivo traz o comando que o refaz; se esta tabela divergir dele,
+o arquivo manda.
 
-Então o job grava **o preditor que mede melhor**, e a coluna `fonte` diz qual foi. Não é
-desistir do modelo: quando ele passar a ganhar — com operação real, com mais estações —, o
-próprio backtest inverte a escolha sem ninguém mexer em código.
+Três coisas a dizer junto com esses números:
+
+- **No mês a vantagem é de 0,61 ponto** sobre a régua de ano-a-ano. A dispersão da grade de
+  hiperparâmetros do modelo mensal vai de 7,51% a 8,72% — maior que a vantagem. O próximo
+  retreino pode perdê-la.
+- **Nenhuma régua ganha nos dois eixos**: no mês a de ano-a-ano, no dia a de dia da semana. É
+  por isso que as três ficam medidas nos dois.
+- **Todo o histórico é sintético.** O gerador repete a sazonalidade mensal ano a ano por
+  construção, então o eixo de ano-a-ano acerta aqui de um jeito que não se repete em rede real.
+  O mecanismo é real; a magnitude é circular.
+
+O job grava **o preditor que mede melhor**, e a coluna `fonte` diz qual foi — hoje o modelo,
+e a régua de volta sozinha no dia em que ele perder, sem ninguém mexer em código.
 `apps/forecast/README.md` detalha.
 
 ## Assistente do operador

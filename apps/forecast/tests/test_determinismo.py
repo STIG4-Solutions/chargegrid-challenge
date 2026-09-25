@@ -105,15 +105,74 @@ def dados() -> pd.DataFrame:
     return _dados()
 
 
-def test_treinar_importa_o_determinismo_no_pipeline():
-    """`treinar.py` reescreve `train.PARAMS`, e `backtest` le essa global.
+def test_o_determinismo_esta_nos_parametros_do_modelo():
+    """A mesma garantia, agora num lugar que nao depende de monkey-patch.
 
-    Se a reescrita deixar de acontecer, o backtest passa a medir uma
-    configuracao e o treino final a publicar outra - e as duas metades do
-    numero publicado deixam de falar da mesma coisa.
+    Antes `treinar.py` reescrevia `pipeline.train.PARAMS`, e o backtest lia essa
+    global. Se a reescrita deixasse de acontecer, o backtest mediria uma
+    configuracao e o treino final publicaria outra.
+
+    Agora `modelo/perda.py::PARAMS` e' a unica origem, e as duas pontas - backtest e
+    treino final - passam por `treinar_um`, que nao tem default de objetivo. O
+    monkey-patch de `PARAMS` saiu, e `pipeline/train.py` voltou a ser byte a byte
+    igual a origem.
     """
+    from modelo.perda import PARAMS, PARAMS_NIVEL
+
     for chave, valor in DETERMINISMO.items():
-        assert _train.PARAMS.get(chave) == valor, f"{chave} nao chegou em train.PARAMS"
+        assert PARAMS.get(chave) == valor, f"{chave} nao esta' em modelo.perda.PARAMS"
+        assert PARAMS_NIVEL.get(chave) == valor, f"{chave} nao esta' em PARAMS_NIVEL"
+
+
+def test_o_pipeline_vendorizado_nao_e_mais_patchado():
+    """A premissa de `pipeline/` ser copia fiel, presa por um assert.
+
+    `pipeline/train.py` tem `objective` NENHUM em `PARAMS` na origem. Se alguem
+    voltar a reescrever essa global, o arquivo deixa de poder ser reatualizado a
+    partir do repositorio de modelagem sem conflito - que e' a unica razao de ele
+    estar excluido do lint.
+    """
+    assert "deterministic" not in _train.PARAMS
+    assert "tweedie_variance_power" not in _train.PARAMS
+
+
+def test_treinar_um_sem_objetivo_usa_a_perda_de_PARAMS():
+    """O DEFEITO CENTRAL que este trabalho conserta, num assert.
+
+    `treinar.py` media o backtest com tweedie e treinava o modelo final com
+    `treinar_um(ds, "l1")` - objetivo explicito, que vencia a perda escolhida. O
+    artefato declarava tweedie em `params` e guardava modelos l1: a metrica
+    publicada descrevia um modelo que nao era o servido.
+
+    Sem default de objetivo, esse caminho nao existe mais.
+    """
+    import numpy as np
+    import pandas as pd
+
+    from modelo.perda import PARAMS, treinar_um
+
+    X = pd.DataFrame({"a": np.arange(120.0)})
+    y = pd.Series(np.arange(120.0) * 2 + 1)
+    assert treinar_um(X, y, [], n_estimators=10).objective_ == PARAMS["objective"]
+    assert treinar_um(X, y, [], n_estimators=10, objective="l1").objective_ == "l1"
+
+
+def test_alpha_sem_quantil_e_erro_e_nao_silencio():
+    """O LightGBM aceita `alpha` calado em qualquer perda, e ali ele nao faz nada.
+
+    Passar os dois juntos por engano produziria um modelo que parece de quantil e
+    nao e' - e a faixa sairia do lugar errado sem nenhum sinal.
+    """
+    import numpy as np
+    import pandas as pd
+    import pytest
+
+    from modelo.perda import treinar_um
+
+    X = pd.DataFrame({"a": np.arange(60.0)})
+    y = pd.Series(np.arange(60.0))
+    with pytest.raises(ValueError, match="quantile"):
+        treinar_um(X, y, [], alpha=0.9)
 
 
 def test_mesmo_numero_de_threads_da_o_mesmo_modelo(dados):

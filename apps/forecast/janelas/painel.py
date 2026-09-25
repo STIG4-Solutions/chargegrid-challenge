@@ -35,6 +35,9 @@ _SESSOES_POR_HORA = text(
     WHERE cs.started_at IS NOT NULL
       AND cs.state = 'BILLED'
     GROUP BY 1, 2
+    -- Ordena pela mesma razao do `banco._SESSOES`: ordem sem `ORDER BY` sai do
+    -- plano, e o plano muda com estatistica de tabela e paralelismo.
+    ORDER BY 1, 2
     """
 )
 

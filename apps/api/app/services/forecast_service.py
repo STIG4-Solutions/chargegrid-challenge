@@ -42,6 +42,38 @@ COBERTURA_ESPERADA = Decimal("80")
 
 # Folga antes de acusar sub-calibracao. Backtest de tres meses tem ruido de
 # amostragem; acusar por um ponto de diferenca so' geraria alarme.
+# O que cada `fonte` E', em uma frase. Serve os dois ramos do aviso, e existe porque
+# o texto estava SUPONDO a conta: o ramo de historico curto dizia "a media dos
+# ultimos 28 dias" para qualquer linha, e a janela de ANO grava
+# `modelo_aplicavel = False` com `fonte = 'tendencia'` - entao o aviso afirmava que
+# uma extrapolacao de reta era uma media movel. O operador que le isso e ve um salto
+# de 54% entre dois anos conclui que a media esta' subindo, nao que uma reta foi
+# esticada a partir de duas observacoes.
+O_QUE_E = {
+    "media_movel": "a média dos últimos 28 dias",
+    "ano_a_ano": ("a comparação com o mesmo mês do ano anterior, corrigida pelo crescimento"),
+    "media_dow": "a média daquele dia da semana no histórico recente",
+    "perfil_hora": "o perfil médio daquela hora e dia da semana",
+    "tendencia": "uma reta esticada a partir do histórico anual",
+}
+
+# As reguas que podem servir a janela MENSAL. O numero gravado e' o mesmo tipo de
+# coisa nas duas - um total de mes vindo de conta simples -, mas elas erram de
+# formas muito diferentes: medido no banco local, a media movel erra 13,95% e a de
+# ano-a-ano 8,67%. Chamar as duas pelo mesmo nome esconde 5,3 pontos.
+REGUAS_MENSAIS = ("media_movel", "ano_a_ano")
+
+# Fontes cujo numero vem de pouquissimas observacoes, e quantas. A janela de ano tem
+# DUAS comparacoes ano-a-ano em quatro anos de historico: uma reta por dois pontos
+# passa exata pelos dois e nao diz nada sobre o terceiro. Sem este aviso, o numero da
+# tela tem a mesma cara de um que foi aferido.
+POUCAS_OBSERVACOES = {
+    "tendencia": (
+        "São duas observações anuais completas no histórico: a reta passa exata por "
+        "elas e não há terceira para conferir. Use a ordem de grandeza, não o número."
+    ),
+}
+
 TOLERANCIA_DE_COBERTURA = Decimal("5")
 
 # As janelas que o job grava. A ordem e' do mais fino para o mais grosso.
@@ -117,20 +149,30 @@ def _avisos(linha: SiteForecast) -> list[dict]:
     """O que o operador precisa saber antes de usar este numero."""
     avisos: list[dict] = []
 
-    # Tres casos, tres textos. O numero pode ser o mesmo - a media movel - por
-    # dois motivos completamente diferentes, e juntar os dois faria o operador
-    # achar que falta dado quando na verdade o modelo e' que nao entrega.
+    # A conta que produziu o numero, DITA e nao suposta. `fonte` desconhecida cai
+    # numa frase generica em vez de ser chamada de media movel: um valor novo no
+    # banco tem de aparecer vago na tela, nao ganhar a descricao de outra conta.
+    o_que_e = O_QUE_E.get(linha.fonte, "uma conta simples sobre o histórico")
+
+    # Dois casos, dois textos. O numero pode nao vir do modelo por dois motivos
+    # completamente diferentes, e juntar os dois faria o operador achar que falta
+    # dado quando na verdade o modelo e' que nao entrega - ou o contrario, que e'
+    # pior: esperar o modelo melhorar numa praca que so' precisa de tempo.
     if not linha.modelo_aplicavel:
         avisos.append(
             {
                 "nivel": "alto",
                 "texto": (
-                    "Sem histórico suficiente para o modelo neste ponto. O valor "
-                    "abaixo é a média dos últimos 28 dias, não uma previsão."
+                    f"Sem histórico suficiente para o modelo neste ponto. O valor "
+                    f"abaixo é {o_que_e}, não uma previsão."
                 ),
             }
         )
-    elif linha.fonte == "media_movel":
+    elif linha.fonte in REGUAS_MENSAIS:
+        # As DUAS reguas mensais entram aqui. Antes so' `media_movel` casava, e uma
+        # linha servida pela regua de ano-a-ano saia SEM aviso nenhum - a tela
+        # deixava de dizer que o numero nao veio do modelo, e silencio parece
+        # confirmacao.
         modelo, regua = linha.wape_modelo_pct, linha.wape_baseline_pct
         detalhe = ""
         if modelo is not None and regua is not None:
@@ -139,12 +181,18 @@ def _avisos(linha: SiteForecast) -> list[dict]:
             {
                 "nivel": "medio",
                 "texto": (
-                    "Este número é a média dos últimos 28 dias. O modelo existe e "
-                    f"conhece este ponto, mas não supera essa régua no teste{detalhe}. "
-                    "Ele volta sozinho quando passar a acertar mais."
+                    f"Este número é {o_que_e}. O modelo existe e conhece este ponto, "
+                    f"mas não supera essa régua no teste{detalhe}. Ele volta sozinho "
+                    f"quando passar a acertar mais."
                 ),
             }
         )
+
+    # Quantas observacoes sustentam o numero, quando sao poucas. Vem DEPOIS do aviso
+    # da conta, porque a ordem importa: primeiro o que o numero e', depois quanta
+    # evidencia ele tem.
+    if linha.fonte in POUCAS_OBSERVACOES:
+        avisos.append({"nivel": "alto", "texto": POUCAS_OBSERVACOES[linha.fonte]})
 
     # So' quando ha faixa NA TELA. Com `fonte = media_movel` nao se desenha
     # banda nenhuma, e avisar sobre a calibracao de algo que o operador nao esta
