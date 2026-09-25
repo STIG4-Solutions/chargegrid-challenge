@@ -27,6 +27,10 @@ describe('rotas públicas do site', () => {
     for (const link of screen.getAllByRole('link', { name: 'Baixar o app' })) {
       expect(link).toHaveAttribute('href', '/download')
     }
+
+    for (const link of screen.getAllByRole('link', { name: 'Acessar o painel' })) {
+      expect(link).toHaveAttribute('href', 'http://localhost:5173')
+    }
   })
 
   test('apresenta o download Android e os três passos de instalação', () => {
