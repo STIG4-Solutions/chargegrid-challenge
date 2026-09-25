@@ -1,0 +1,166 @@
+# Treina o modelo de previsao e publica a previsao do mes em PRODUCAO.
+#
+# POR QUE ELE NAO EXISTIA, e por que passou a existir. Havia
+# `forecast-staging.yml` e nada equivalente para producao - e o efeito era visivel na
+# API: `/power/demand/energy-forecast` respondia `disponivel: false` com o motivo
+# "nenhuma previsao calculada ainda". O pilar com modelo treinado de verdade nao
+# aparecia no ambiente que representa o produto.
+#
+# Espelha o de staging, e as diferencas sao tres:
+#
+#   o segredo         `PRODUCTION_DATABASE_URL`, o mesmo que `migrate-production` usa
+#   a concorrencia    grupo proprio, para um treino de producao nao cancelar o de
+#                     staging nem esperar por ele
+#   o resumo          nomeia o ambiente, porque os dois aparecem na mesma aba
+#
+# ELE FALHA ALTO ENQUANTO PRODUCAO NAO TIVER HISTORICO, e isso e' de proposito.
+# `treinar.py` recusa quando nenhuma praca alcanca o minimo de dias, e a mensagem diz
+# qual comando gerar - `migrate-production` ganhou o dispatch de `app.historico` para
+# isso. Um job vermelho pedindo uma acao concreta e' melhor que um job verde que nao
+# escreveu nada, e muito melhor que um que inventa numero.
+name: Forecast production
+
+on:
+  schedule:
+    # 07:00 UTC = 04:00 em Sao Paulo, uma hora DEPOIS do de staging. Nao e'
+    # supersticao: os dois leem o mesmo repositorio e instalam as mesmas
+    # dependencias, e escalonar tira a chance de um pico de dois runners
+    # concorrentes na conta gratuita.
+    - cron: "0 7 1 * *"
+  workflow_dispatch:
+    inputs:
+      mes_alvo:
+        description: "Competencia a prever (AAAA-MM-01). Vazio = mes seguinte."
+        required: false
+        default: ""
+        type: string
+
+concurrency:
+  # Grupo proprio, e nao o de staging: dois treinos do MESMO ambiente gravariam a
+  # mesma competencia e o vencedor dependeria de quem terminou por ultimo, mas um
+  # treino de producao nao tem motivo para esperar pelo de staging.
+  group: production-forecast
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  prever:
+    name: Treinar e publicar a previsao de producao
+    runs-on: ubuntu-latest
+    # O treino e' LightGBM sobre alguns milhares de linhas: minutos, nao horas. O teto
+    # existe para que um banco inalcancavel falhe rapido em vez de segurar o runner.
+    timeout-minutes: 30
+
+    defaults:
+      run:
+        working-directory: apps/forecast
+
+    env:
+      # O MESMO segredo do workflow de migrations. `banco.py` troca o driver para
+      # psycopg; duplicar o segredo seria criar duas formas de dizer a mesma coisa, e
+      # elas saem de sincronia.
+      DATABASE_URL_OVERRIDE: ${{ secrets.PRODUCTION_DATABASE_URL }}
+      PGSSLROOTCERT: /etc/ssl/certs/ca-certificates.crt
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/forecast/requirements.txt
+
+      # `requirements.txt` tem versoes EXATAS, e e' o que faz o artefato ser
+      # reproduzivel: com pisos, dois runs de meses diferentes treinariam arvores
+      # diferentes e as metricas deixariam de ser conferiveis.
+      - name: Install pipeline dependencies
+        run: pip install -r requirements.txt
+
+      - name: Train
+        run: python treinar.py
+
+      # Le `modelos/modelo_atual.joblib`, escrito pelo passo acima. E' a unica razao de
+      # os dois passos viverem no mesmo job: o artefato nasce aqui, e' lido em seguida
+      # e morre com o runner - nunca atravessa o repositorio, porque nunca precisa
+      # sobreviver ao job.
+      - name: Publish the forecast
+        run: |
+          if [ -n "${{ inputs.mes_alvo }}" ]; then
+            python exportar.py --mes-alvo "${{ inputs.mes_alvo }}"
+          else
+            python exportar.py
+          fi
+
+      # As outras quatro janelas, mais a previsao da REDE. Depois do export mensal, e
+      # nao antes: os dois gravam na mesma tabela, e este confia que o bucket mensal
+      # mais proximo ja' foi escrito por aquele.
+      - name: Publish the other windows
+        run: python exportar_janelas.py
+
+      # O numero que decide se o modelo entra ou se a regua prevalece, para quem abrir
+      # a execucao sem baixar JSON.
+      #
+      # A DECISAO VEM DE `modelo/portao.py`, e nao de uma comparacao reescrita aqui. O
+      # resumo do job de staging tinha a regra em YAML comparando so' com a media
+      # movel, e desde que a regua de ano-a-ano entrou as duas divergiam: em dois de
+      # tres casos plausiveis ele anunciava promocao que nao houve.
+      - name: Report the metrics
+        if: always()
+        run: |
+          arquivo=modelos/metricas_atual.json
+          if [ ! -f "$arquivo" ]; then
+            echo "Sem metricas: o treino nao chegou ao fim." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          import pathlib
+
+          from modelo.portao import melhor_regua, modelo_vence, reguas_medidas
+
+          m = json.loads(pathlib.Path("modelos/metricas_atual.json").read_text())["metricas"]
+          nome, erro = melhor_regua(m)
+          print("## Previsao de PRODUCAO\n")
+          print(f"- Erro do modelo (WAPE mensal): **{m.get('wape_mensal')}%**")
+          for regua, valor in sorted(reguas_medidas(m).items()):
+              melhor = " <- a barra" if regua == nome else ""
+              print(f"- Erro da regua `{regua}`: **{valor}%**{melhor}")
+          declarada = m.get("cobertura_declarada_pct", 80)
+          medida = m.get("cobertura_p10_p90_mensal")
+          if medida is None:
+              print(
+                  f"- Cobertura p10-p90 no grao mensal: **nao medida** "
+                  f"(declara {declarada}%) - faltaram observacoes fora da amostra"
+              )
+          else:
+              print(f"- Cobertura p10-p90 no grao mensal: **{medida}%** (declara {declarada}%)")
+          print()
+          if modelo_vence(m):
+              print(
+                  f"O modelo supera a melhor regua (`{nome}`): `fonte = modelo`, com faixa "
+                  "de incerteza na tela."
+              )
+          else:
+              print(
+                  f"O modelo NAO supera a melhor regua (`{nome}`), entao o valor publicado "
+                  f"e' o dela e a tela declara isso em `fonte`. Nao e' falha do job - e' a "
+                  "guarda funcionando; o modelo volta sozinho quando passar a acertar mais."
+              )
+          PY
+
+      # As metricas ficam como artefato em vez de commit: o workflow tem
+      # `contents: read` de proposito, e dar escrita a um job agendado so' para
+      # versionar um JSON de medicao e' trocar um incomodo por um risco.
+      - name: Keep the metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: metricas-producao-${{ github.run_number }}
+          path: apps/forecast/modelos/metricas_atual.json
+          if-no-files-found: warn
+          retention-days: 90

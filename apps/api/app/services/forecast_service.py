@@ -324,6 +324,13 @@ async def serie_por_janela(
 
     A ordem e' CRESCENTE no tempo, ao contrario da rota mensal, que quer so' a
     linha mais recente. Uma serie desenhada de tras para frente nao e' grafico.
+
+    SO' O QUE AINDA NAO COMECOU. `gravar.py` escreve uma janela que comeca no ultimo
+    bucket do painel, e o painel fica atras de "agora" - entao a tabela tem bucket
+    passado, e guardar nao e' problema porque cada execucao os reescreve. Entregá-los
+    era: medido em staging, 40 dos 336 buckets horarios ja' haviam acontecido, e o
+    padrao da tela e' 48 - o operador via 40 horas passadas e 8 futuras, na unica
+    janela servida com faixa.
     """
     if janela not in JANELAS:
         raise ValueError(f"janela desconhecida: {janela}")
@@ -332,12 +339,17 @@ async def serie_por_janela(
     limite = max(1, min(int(limite), BUCKETS_MAXIMO[janela]))
 
     escopo = SiteForecast.site_id.is_(None) if site_id is None else SiteForecast.site_id == site_id
+    base = select(SiteForecast).where(escopo).where(SiteForecast.granularidade == janela)
+
+    # `>` e nao `>=`: o bucket que ESTA' correndo tambem sai. Uma previsao para a hora
+    # das 14h lida as 14h30 esta' metade vencida, e apresentá-la como previsao e' o
+    # mesmo defeito um grau mais fino. `now()` do BANCO, e nao do processo da API: sao
+    # relogios diferentes, e o bucket e' TIMESTAMPTZ gravado pelo job.
+    agora = func.now()
     linhas = (
         (
             await db.execute(
-                select(SiteForecast)
-                .where(escopo)
-                .where(SiteForecast.granularidade == janela)
+                base.where(SiteForecast.bucket_inicio > agora)
                 .order_by(SiteForecast.bucket_inicio.asc())
                 .limit(limite)
             )
@@ -349,15 +361,32 @@ async def serie_por_janela(
     fuso = await _fuso_dos_buckets(db, site_id)
 
     if not linhas:
+        # DOIS motivos para a tela vazia, e nao um. "Nunca calculado" pede espera;
+        # "tudo que foi calculado ja' passou" pede uma execucao nova - e juntar os
+        # dois faria o operador esperar por um calculo que ja' rodou e envelheceu.
+        existe_alguma = (
+            await db.execute(base.order_by(SiteForecast.bucket_inicio.desc()).limit(1))
+        ).scalar_one_or_none()
+        if existe_alguma is not None:
+            # `bucket_inicio` e TIMESTAMPTZ: o `isoformat` ja traz o deslocamento,
+            # entao nao ha conversao a fazer nem fuso a supor.
+            ultimo = existe_alguma.bucket_inicio.isoformat(timespec="minutes")
+            motivo = (
+                f"A previsão de janela '{janela}' existe, mas todos os períodos "
+                f"calculados já passaram - o último começava em {ultimo}. "
+                "O cálculo roda fora da API, e precisa rodar de novo."
+            )
+        else:
+            motivo = (
+                f"Nenhuma previsão de janela '{janela}' calculada ainda. "
+                "O cálculo roda fora da API."
+            )
         return {
             "disponivel": False,
             "janela": janela,
             "escopo": "rede" if site_id is None else "praca",
             "timezone": fuso,
-            "motivo": (
-                f"Nenhuma previsão de janela '{janela}' calculada ainda. "
-                "O cálculo roda fora da API."
-            ),
+            "motivo": motivo,
         }
 
     # `gerado_em`, `modelo_versao` e as metricas sao da EXECUCAO, nao do bucket:

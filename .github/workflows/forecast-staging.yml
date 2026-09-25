@@ -104,10 +104,19 @@ jobs:
       - name: Publish the other windows
         run: python exportar_janelas.py
 
-      # O numero que decide se o modelo entra ou se a media movel prevalece.
-      # Vai para o resumo do job porque e' a leitura que interessa a quem abrir
-      # a execucao - sem isso seria preciso baixar um JSON para saber se o
-      # retreino serviu para alguma coisa.
+      # O numero que decide se o modelo entra ou se a regua prevalece. Vai para o
+      # resumo do job porque e' a leitura que interessa a quem abrir a execucao - sem
+      # isso seria preciso baixar um JSON para saber se o retreino serviu.
+      #
+      # A DECISAO VEM DE `modelo/portao.py`. Ela estava reescrita AQUI, comparando so'
+      # com a media movel, e desde que a regua de ano-a-ano entrou as duas versoes
+      # divergiam - em dois de tres casos plausiveis este resumo anunciava uma
+      # promocao que o `exportar.py` nao fez:
+      #
+      #   modelo   m28    melhor   este resumo   o portao
+      #    12,25  15,72    14,41       venceu     venceu
+      #    15,00  15,72    14,41       venceu     PERDEU
+      #    13,00  15,72    11,00       venceu     PERDEU
       - name: Report the metrics
         if: always()
         run: |
@@ -117,23 +126,38 @@ jobs:
             exit 0
           fi
           python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
-          import json, pathlib
+          import json
+          import pathlib
+
+          from modelo.portao import melhor_regua, modelo_vence, reguas_medidas
 
           m = json.loads(pathlib.Path("modelos/metricas_atual.json").read_text())["metricas"]
-          modelo, regua = m.get("wape_mensal"), m.get("wape_mensal_baseline_m28")
-          venceu = modelo is not None and regua is not None and modelo < regua
+          nome, erro = melhor_regua(m)
           print("## Previsao do staging\n")
-          print(f"- Erro do modelo (WAPE mensal): **{modelo}%**")
-          print(f"- Erro da regua (media movel 28d): **{regua}%**")
-          print(f"- Cobertura p10-p90: {m.get('cobertura_p10_p90_diaria')}% (promete 80%)")
+          print(f"- Erro do modelo (WAPE mensal): **{m.get('wape_mensal')}%**")
+          for regua, valor in sorted(reguas_medidas(m).items()):
+              melhor = " <- a barra" if regua == nome else ""
+              print(f"- Erro da regua `{regua}`: **{valor}%**{melhor}")
+          declarada = m.get("cobertura_declarada_pct", 80)
+          medida = m.get("cobertura_p10_p90_mensal")
+          if medida is None:
+              print(
+                  f"- Cobertura p10-p90 no grao mensal: **nao medida** "
+                  f"(declara {declarada}%) - faltaram observacoes fora da amostra"
+              )
+          else:
+              print(f"- Cobertura p10-p90 no grao mensal: **{medida}%** (declara {declarada}%)")
           print()
-          if venceu:
-              print("O modelo supera a regua: `fonte = modelo`, com banda de incerteza na tela.")
+          if modelo_vence(m):
+              print(
+                  f"O modelo supera a melhor regua (`{nome}`): `fonte = modelo`, com faixa "
+                  "de incerteza na tela."
+              )
           else:
               print(
-                  "O modelo NAO supera a regua, entao o valor publicado e' a propria media "
-                  "movel e a tela declara isso. Nao e' falha do job - e' a guarda "
-                  "funcionando; ele volta sozinho quando passar a acertar mais."
+                  f"O modelo NAO supera a melhor regua (`{nome}`), entao o valor publicado "
+                  f"e' o dela e a tela declara isso em `fonte`. Nao e' falha do job - e' a "
+                  "guarda funcionando; o modelo volta sozinho quando passar a acertar mais."
               )
           PY
 
