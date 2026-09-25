@@ -177,10 +177,9 @@ def main() -> int:
     # Nao e' desistir dele: quando passar a ganhar - com operacao real, com mais
     # estacoes -, o proprio backtest inverte isto sem ninguem mexer em codigo.
     #
-    # Combinar os dois foi testado e nao resolve: a correlacao entre os erros
-    # mensais e' 0,944 - eles erram junto, porque no agregado os dois sao
-    # essencialmente "nivel x dias". Qualquer peso dado ao modelo piora o WAPE
-    # mensal monotonicamente.
+    # Combinar os dois ja' foi testado e nao resolveu: no agregado mensal os dois
+    # sao essencialmente "nivel x dias" e erram junto. A medicao era de um
+    # artefato anterior e nenhum artefato atual a reproduz.
     #
     # Sem metrica nenhuma no artefato, o modelo NAO e' usado: e' o valor
     # conservador, e um artefato sem backtest nao provou nada.

@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Query, Response
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
 from app.core.deps import (
     AdminUser,
     Auditor,
@@ -26,6 +27,7 @@ from app.schemas.ev import (
     ChargePointOut,
     ChargePointUpdate,
     MeterReadingIn,
+    PicoSimuladoRequest,
     PowerBudgetOut,
     PowerBudgetUpdate,
     PowerOverview,
@@ -38,7 +40,9 @@ from app.schemas.ev import (
     SiteSettingsOut,
 )
 from app.services import (
+    bandeira,
     demand_service,
+    events,
     maintenance_service,
     portfolio_service,
     power_manager,
@@ -47,6 +51,7 @@ from app.services import (
     utilization_service,
 )
 from app.services.command_service import send_command
+from app.workers import virtual_meter
 
 router = APIRouter(prefix="/power", tags=["recarga ev · potência"])
 
@@ -91,7 +96,59 @@ async def overview(db: DbSession, site_id: ScopedSiteId, _: OperatorUser) -> Pow
         active_count=sum(1 for cp in points if cp.status == ChargePointStatus.CHARGING),
         total_count=len(points),
         charge_points=[ChargePointOut.model_validate(cp) for cp in points],
+        bandeira=bandeira.do_site(site),
+        demo_disponivel=_demo_disponivel(),
+        pico_simulado_ate=(
+            site.pico_simulado_ate
+            if site.pico_simulado_ate and site.pico_simulado_ate > datetime.now(UTC)
+            else None
+        ),
     )
+
+
+def _demo_disponivel() -> bool:
+    return settings.charger_driver == "simulator" and settings.meter_source == "virtual"
+
+
+@router.post("/demo/pico-predio")
+async def simular_pico_do_predio(
+    payload: PicoSimuladoRequest, db: DbSession, site_id: ScopedSiteId, _: AdminUser
+) -> dict:
+    """Demo: soma consumo ao predio por alguns minutos e roda o ciclo na hora.
+
+    So' com carregador E medidor simulados. Num site com hardware real isto
+    falsificaria a medicao que decide o preco de quem esta' carregando, entao a
+    rota recusa - nao existe modo "so' desta vez".
+
+    O pico expira sozinho: o medidor virtual o limpa na primeira leitura depois
+    do prazo, e o ciclo seguinte devolve a cor. Nao ha rota de cancelar.
+    """
+    if settings.charger_driver != "simulator":
+        raise HTTPException(
+            status_code=409, detail="Pico simulado só com carregadores no simulador."
+        )
+    if settings.meter_source != "virtual":
+        raise HTTPException(
+            status_code=409, detail="Pico simulado só com o medidor virtual do site."
+        )
+
+    agora = datetime.now(UTC)
+    site = (await db.execute(select(Site).where(Site.id == site_id))).scalar_one()
+    site.pico_simulado_kw = payload.acrescimo_kw or virtual_meter.acrescimo_para_vermelha(
+        site, agora
+    )
+    site.pico_simulado_ate = agora + timedelta(minutes=payload.duracao_min)
+    # A leitura com o pico entra ja', sem esperar o proximo tique do medidor, e o
+    # ciclo roda aqui mesmo: a bandeira muda na resposta, nao em ate' 15 s.
+    await virtual_meter.leitura_do_site(db, site, agora)
+    await db.commit()
+    resultado = await power_manager.rebalance_site(db, site_id, triggered_by="demo")
+    await events.bus.publish(events.site_topic(site_id), "power_plan", resultado["plan"])
+    return {
+        "pico_simulado_kw": float(site.pico_simulado_kw),
+        "pico_simulado_ate": site.pico_simulado_ate.isoformat(),
+        "bandeira": resultado.get("bandeira"),
+    }
 
 
 @router.get("/budget", response_model=PowerBudgetOut)

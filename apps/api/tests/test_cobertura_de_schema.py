@@ -51,6 +51,8 @@ SESSAO_OMITE = {
     "meter_start_kwh": "leitura crua do medidor; `energy_kwh` e' a diferenca ja calculada",
     "meter_stop_kwh": "idem",
     "charging_stopped_at": "insumo do calculo de ociosidade, que sai pronto em `idle_minutes`",
+    "multiplicador_travado": "insumo do preco, que sai pronto em `estimated_cost` e na fatura",
+    "cor_travada": "idem; a fatura nomeia a bandeira na linha do ajuste",
     "created_at": AUDITORIA,
     "updated_at": AUDITORIA,
 }

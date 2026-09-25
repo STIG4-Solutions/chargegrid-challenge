@@ -88,12 +88,17 @@ DETERMINISMO = {"deterministic": True, "force_row_wise": True, "num_threads": 4}
 #
 # Medido em DOIS paineis independentes, com o mesmo walk-forward:
 #
-#   painel do ChargeGrid   l1 15,52%  ->  tweedie 12,69%   (passa a bater a regua)
+#   painel do ChargeGrid   l1 15,52%  ->  tweedie 11,98%   (bateu a regua, na epoca)
 #   painel do projeto de    l1  7,78%  ->  tweedie  7,24%   (ja' batia, e melhora)
 #   origem, intocado
 #
 # `l2` melhorou so' no primeiro (7,79% no segundo, contra 7,78% do l1): era
 # artefato do dado. Tweedie melhora nos dois, e e' o que justifica a troca.
+#
+# A vantagem sobre a regua NAO sobreviveu ao seed com hardware por arquetipo: o
+# artefato atual (`modelos/metricas_atual.json`) erra 16,45% no mensal contra
+# 14,08% da melhor regua, e o portao de `exportar.py` publica a regua. A troca de
+# perda continua valendo - ela melhora o modelo -, so' nao o faz vencer.
 PERDA = {"objective": "tweedie", "tweedie_variance_power": 1.2}
 
 # Reescrever a global do modulo, e nao passar parametro: `backtest` chama

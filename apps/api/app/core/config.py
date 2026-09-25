@@ -1,6 +1,7 @@
 """Configuração central da aplicação (12-factor: tudo vem do ambiente)."""
 
 import json
+from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -136,6 +137,22 @@ class Settings(BaseSettings):
     # Trocar por um coletor real e' implementar um worker novo e apontar aqui.
     meter_source: Literal["virtual", "push"] = "virtual"
     meter_interval_s: int = 30
+
+    # Precificacao dinamica pela folga de potencia (bandeira do site).
+    # Desligada (o padrao), tudo fica como era: o rebalanceador nao grava
+    # bandeira, a sessao nao trava multiplicador e o motor usa so' o
+    # multiplicador da tarifa. Liga-se por ambiente: PRECIFICACAO_DINAMICA=true.
+    precificacao_dinamica: bool = False
+    # Folga = potencia disponivel / (rede + solar + bateria). As bordas pertencem
+    # a faixa de cima: 50% ja' e' verde, 20% ja' e' amarela.
+    bandeira_folga_verde: Decimal = Decimal("0.50")
+    bandeira_folga_amarela: Decimal = Decimal("0.20")
+    bandeira_mult_verde: Decimal = Decimal("1.00")
+    bandeira_mult_amarela: Decimal = Decimal("1.15")
+    bandeira_mult_vermelha: Decimal = Decimal("1.30")
+    # Bandeira mais velha que isto nao trava preco: o rebalanceador parou (a
+    # instancia hibernou) e a cor na tela ja' nao descreve o site. Quatro ciclos.
+    bandeira_validade_s: int = 60
 
     # Notificacao push.
     #   log  - registra em vez de enviar; exercita todo o caminho ate a borda

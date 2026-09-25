@@ -79,6 +79,90 @@ def bateria_kw(
     return 0.0, 60.0
 
 
+# Onde o pico de demo deixa o site: consumo nao-EV em 90% da capacidade, ou seja
+# 10% de folga - metade do limite vermelho padrao. Folga zero cortaria todos os
+# pontos, e a demonstracao e' da bandeira, nao de um apagao.
+ALVO_DO_PICO = 0.90
+
+
+def _curva(site: Site, agora: datetime) -> tuple[float, float, float, float | None]:
+    """Solar, predio, bateria e SOC deste site neste instante, com ruido."""
+    # Cada site tem o seu meio-dia.
+    hora = _hora_local(agora, site.timezone)
+    # Escala as curvas pelo porte do site, para nao inventar um solar
+    # de 40 kW num condominio com um ponto de 7 kW.
+    teto = float(site.grid_limit_kw or 75)
+    solar = geracao_solar_kw(hora, pico_kw=teto * 0.5)
+    predio = carga_do_predio_kw(hora, base_kw=teto * 0.25)
+    bat_kw, soc = bateria_kw(hora, solar, predio, capacidade_kw=teto * 0.16)
+
+    # Ruido pequeno: um medidor real nunca repete o mesmo numero.
+    solar = max(0.0, round(solar * random.uniform(0.94, 1.04), 2))
+    predio = max(0.0, round(predio * random.uniform(0.95, 1.05), 2))
+    return solar, predio, bat_kw, soc
+
+
+def _pico_ativo(site: Site, agora: datetime) -> float:
+    """O consumo extra do pico de demo, ou zero. Limpa o pico vencido."""
+    if site.pico_simulado_ate is None:
+        return 0.0
+    if agora >= site.pico_simulado_ate:
+        # Expira sozinho: ninguem precisa cancelar para a curva voltar.
+        site.pico_simulado_kw = None
+        site.pico_simulado_ate = None
+        return 0.0
+    return float(site.pico_simulado_kw or 0)
+
+
+def acrescimo_para_vermelha(site: Site, agora: datetime) -> float:
+    """Quanto somar ao predio para a folga cair a `ALVO_DO_PICO`.
+
+    A capacidade segue a regra do orcamento (`power_manager.load_budget`):
+    solar e bateria so' contam se o site os permite, e a bateria so' acima do
+    SOC minimo. Calcular sobre a capacidade crua deixaria o pico curto num site
+    com muito solar - a bandeira ficaria amarela, e a demonstracao falharia.
+    """
+    solar, predio, bat_kw, soc = _curva(site, agora)
+    capacidade = float(site.grid_limit_kw)
+    if site.allow_pv_kw:
+        capacidade += solar
+    if site.allow_battery_kw and (soc is None or soc > float(site.battery_min_soc)):
+        capacidade += bat_kw
+    # Depois do pico o nao-EV e' o proprio predio somado ao acrescimo (ele passa
+    # da reserva predial), entao o alvo se mede contra o predio, nao contra a
+    # reserva.
+    return max(0.0, round(ALVO_DO_PICO * capacidade - predio, 2))
+
+
+async def leitura_do_site(db, site: Site, agora: datetime) -> SiteMeterReading:
+    """Uma leitura para este site neste instante, ja' adicionada a sessao."""
+    solar, predio, bat_kw, soc = _curva(site, agora)
+    predio = round(predio + _pico_ativo(site, agora), 2)
+
+    ev = (
+        (await db.execute(select(ChargePoint.current_kw).where(ChargePoint.site_id == site.id)))
+        .scalars()
+        .all()
+    )
+    ev_kw = round(sum(float(v or 0) for v in ev), 2)
+
+    # O que falta depois do sol e da bateria vem da rede.
+    rede = max(0.0, round(predio + ev_kw - solar - bat_kw, 2))
+
+    leitura = SiteMeterReading(
+        site_id=site.id,
+        recorded_at=agora,
+        grid_import_kw=rede,
+        pv_kw=solar,
+        battery_kw=bat_kw,
+        battery_soc=soc,
+        building_load_kw=predio,
+        ev_load_kw=ev_kw,
+    )
+    db.add(leitura)
+    return leitura
+
+
 async def gerar_leitura() -> dict:
     """Grava uma leitura para cada site. Uma execucao do laco."""
     agora = datetime.now(UTC)
@@ -87,49 +171,11 @@ async def gerar_leitura() -> dict:
     async with SessionLocal() as db:
         sites = (await db.execute(select(Site))).scalars().all()
         for site in sites:
-            # Cada site tem o seu meio-dia.
-            hora = _hora_local(agora, site.timezone)
-            # Escala as curvas pelo porte do site, para nao inventar um solar
-            # de 40 kW num condominio com um ponto de 7 kW.
-            teto = float(site.grid_limit_kw or 75)
-            solar = geracao_solar_kw(hora, pico_kw=teto * 0.5)
-            predio = carga_do_predio_kw(hora, base_kw=teto * 0.25)
-            bat_kw, soc = bateria_kw(hora, solar, predio, capacidade_kw=teto * 0.16)
-
-            # Ruido pequeno: um medidor real nunca repete o mesmo numero.
-            solar = max(0.0, round(solar * random.uniform(0.94, 1.04), 2))
-            predio = max(0.0, round(predio * random.uniform(0.95, 1.05), 2))
-
-            ev = (
-                (
-                    await db.execute(
-                        select(ChargePoint.current_kw).where(ChargePoint.site_id == site.id)
-                    )
-                )
-                .scalars()
-                .all()
-            )
-            ev_kw = round(sum(float(v or 0) for v in ev), 2)
-
-            # O que falta depois do sol e da bateria vem da rede.
-            rede = max(0.0, round(predio + ev_kw - solar - bat_kw, 2))
-
-            db.add(
-                SiteMeterReading(
-                    site_id=site.id,
-                    recorded_at=agora,
-                    grid_import_kw=rede,
-                    pv_kw=solar,
-                    battery_kw=bat_kw,
-                    battery_soc=soc,
-                    building_load_kw=predio,
-                    ev_load_kw=ev_kw,
-                )
-            )
+            await leitura_do_site(db, site, agora)
             registros += 1
         await db.commit()
 
-    log.debug("virtual_meter.tick", sites=registros, hora_local=round(hora, 2))
+    log.debug("virtual_meter.tick", sites=registros)
     return {"sites": registros}
 
 

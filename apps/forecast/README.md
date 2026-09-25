@@ -303,8 +303,8 @@ critério de aceite dela é **cobertura**, não WAPE.
 
 ### O que continua aberto
 
-- **A faixa cobre 71,3% e anuncia 80%.** Melhorou de 65,2%, mas os modelos de
-  quantil continuam sub-dispersos: tratar o extremo inferior como pior caso é
+- **A faixa cobre 61,5% e anuncia 80%** (`metricas_atual.json`). Já mediu 65,2%
+  num artefato anterior; os modelos de quantil continuam sub-dispersos: tratar o extremo inferior como pior caso é
   otimismo. A tela mostra o número medido ao operador em vez de escondê-lo.
 - **A janela de ano tem n=2.** Quatro anos de histórico dão duas observações anuais
   completas. Ela é servida por extrapolação de tendência e rotulada como tal.
