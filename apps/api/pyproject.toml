@@ -39,6 +39,11 @@ dependencies = [
     "pymodbus>=3.6.9",
     "httpx>=0.27.2",
     "structlog>=24.4.0",
+    # Assistente do operador. Importado so' quando o assistente e' usado: uma
+    # falha aqui nao pode derrubar o processo que roda o rebalanceamento.
+    # Teto na major: `client.py` depende do formato do chunk de streaming e das
+    # classes de erro, e a 3.x ja' trocou o cliente HTTP por baixo (httpx2).
+    "openai>=1.54.0,<4",
 ]
 
 [project.optional-dependencies]

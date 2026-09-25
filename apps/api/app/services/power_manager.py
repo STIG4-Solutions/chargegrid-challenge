@@ -88,6 +88,17 @@ class PowerBudget:
         non_ev = max(self.reserved_kw, self.building_load_kw)
         return max(0.0, round(supply - non_ev - self.booked_kw, 2))
 
+    @property
+    def grid_import_kw(self) -> float:
+        """O que sai da rede agora: predio + eletropostos - solar - bateria.
+
+        Mesma conta da previsao de demanda (`demand_service`). Nunca negativo:
+        injecao na rede nao reduz demanda. Sem este campo, "quanto puxo da rede"
+        so' tinha `ev_load_kw` como candidato - e ele e' so' a carga dos pontos.
+        """
+        demanda = self.building_load_kw + self.ev_load_kw - self.pv_kw - self.battery_kw
+        return max(0.0, round(demanda, 2))
+
     def as_dict(self) -> dict:
         return {
             "grid_limit_kw": self.grid_limit_kw,
@@ -98,6 +109,7 @@ class PowerBudget:
             "ev_load_kw": self.ev_load_kw,
             "booked_kw": self.booked_kw,
             "available_kw": self.available_kw,
+            "grid_import_kw": self.grid_import_kw,
             "reading_at": self.reading_at.isoformat() if self.reading_at else None,
             "reading_stale": self.reading_stale,
         }

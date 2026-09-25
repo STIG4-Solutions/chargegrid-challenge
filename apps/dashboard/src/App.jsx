@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import Sidebar from './components/Sidebar.jsx'
 import Header from './components/Header.jsx'
+import Assistente from './components/Assistente.jsx'
 import { Loading } from './components/Async.jsx'
 import { useAuth } from './auth/AuthContext.jsx'
 import Login from './auth/Login.jsx'
@@ -76,6 +77,8 @@ export default function App() {
           </Routes>
         </div>
       </div>
+      {/* Fora de .main: fixo na tela, e presente em qualquer aba. */}
+      <Assistente />
     </div>
   )
 }

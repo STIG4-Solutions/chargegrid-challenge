@@ -6,7 +6,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, PostgresDsn, computed_field, model_validator
+from pydantic import Field, PostgresDsn, computed_field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Sentinelas da lista de bloqueio - NAO sao valores padrao.
@@ -38,6 +38,7 @@ SEGREDOS_PUBLICOS = {
     "TROQUE-ME-senha-do-banco",
     "TROQUE-ME-openssl-rand-hex-32",
     "TROQUE-ME-segredo-do-psp",
+    "TROQUE-ME-chave-do-azure-openai",
 }
 
 # Comprimento minimo de uma chave de assinatura. openssl rand -hex 32 da 64.
@@ -188,6 +189,55 @@ class Settings(BaseSettings):
         default=90, description="Sem leitura nesse intervalo, o ponto é marcado OFFLINE"
     )
 
+    # Assistente do operador (Azure OpenAI).
+    #
+    # Desligado por padrao: sem ele a API sobe inteira e o widget do painel some.
+    # Ligar exige os tres campos do Azure - `assistente_configurado` diz se estao
+    # todos la', e a guarda de producao recusa subir ligado com chave de molde.
+    assistant_enabled: bool = False
+    azure_openai_endpoint: str | None = None
+    azure_openai_api_key: str | None = None
+    # Nome do DEPLOYMENT no Azure, e nao do modelo: e' ele que vai no `model=`.
+    azure_openai_deployment: str | None = None
+    azure_openai_api_version: str = "2024-10-21"
+    # Nulo = nao envia. Modelos de raciocinio (familia o) recusam o parametro.
+    azure_openai_temperature: float | None = 0.2
+    azure_openai_timeout_s: float = 60.0
+
+    assistant_max_input_chars: int = Field(default=2000, ge=100, le=20000)
+    # Rodadas de ferramenta antes de a ultima ser forcada a responder sem elas.
+    assistant_max_tool_iterations: int = Field(default=5, ge=1, le=10)
+    assistant_max_tool_calls_per_round: int = Field(default=4, ge=1, le=10)
+    assistant_max_output_tokens: int = Field(default=1200, ge=100, le=8000)
+    assistant_tool_result_max_chars: int = Field(default=12000, ge=1000, le=100000)
+    assistant_tool_timeout_s: float = Field(default=10.0, gt=0, le=60)
+    assistant_history_messages: int = Field(default=10, ge=0, le=50)
+    assistant_rate_per_min: int = Field(default=6, ge=1)
+    assistant_rate_per_day: int = Field(default=200, ge=1)
+    # Tetos de CUSTO, em tokens (entrada + saida). Mensagem por dia nao limita
+    # gasto: uma pergunta que puxa varias consultas custa dez comuns. Estes sim.
+    #   por resposta - passou, a proxima rodada vai sem ferramentas;
+    #   por usuario/dia e total/dia - passou, a pergunta seguinte toma 429.
+    # O total protege o credito da conta Azure contra muitos usuarios juntos.
+    assistant_max_input_tokens_per_answer: int = Field(default=30000, ge=2000)
+    assistant_daily_tokens_per_user: int = Field(default=300_000, ge=1000)
+    assistant_daily_tokens_total: int = Field(default=2_000_000, ge=1000)
+
+    @field_validator("azure_openai_temperature", mode="before")
+    @classmethod
+    def _temperatura_em_branco_e_nula(cls, valor):
+        # `AZURE_OPENAI_TEMPERATURE=` no .env chega como "" - e "" nao e' float.
+        return None if isinstance(valor, str) and not valor.strip() else valor
+
+    @property
+    def assistente_configurado(self) -> bool:
+        return bool(
+            self.assistant_enabled
+            and self.azure_openai_endpoint
+            and self.azure_openai_api_key
+            and self.azure_openai_deployment
+        )
+
     @model_validator(mode="after")
     def recusar_segredo_padrao(self) -> "Settings":
         """Impede a aplicacao de subir em staging ou producao com segredo de dev.
@@ -222,6 +272,21 @@ class Settings(BaseSettings):
             problemas.append("POSTGRES_PASSWORD é um valor público do repositório.")
         if self.debug:
             problemas.append("DEBUG=true expõe stack trace ao cliente. Use DEBUG=false.")
+        if self.assistant_enabled:
+            # So' com o assistente ligado: desligado, a chave nem e' lida, e
+            # exigi-la obrigaria todo ambiente a ter uma conta Azure para subir.
+            if self.azure_openai_api_key in SEGREDOS_PUBLICOS:
+                problemas.append(
+                    "AZURE_OPENAI_API_KEY é o valor de molde do .env.example. "
+                    "Use a chave do recurso Azure OpenAI, ou ASSISTANT_ENABLED=false."
+                )
+            if not self.assistente_configurado:
+                problemas.append(
+                    "ASSISTANT_ENABLED=true sem AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY "
+                    "e AZURE_OPENAI_DEPLOYMENT. Preencha os três ou desligue o assistente."
+                )
+            elif not self.azure_openai_endpoint.startswith("https://"):
+                problemas.append("AZURE_OPENAI_ENDPOINT precisa ser https.")
 
         # QUALQUER endereco local na lista de producao e' problema - nao apenas
         # uma lista inteiramente local.
