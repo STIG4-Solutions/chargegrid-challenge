@@ -1,0 +1,1860 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+
+/* Tokens do painel (apps/dashboard/src/assets/styles.css). Escopados em .lp:
+   a pagina /download tem a identidade dela e nao herda nada daqui. */
+.lp {
+  --sems-bg: #1f2123;
+  --sems-deep: #0d0d0f;
+  --sems-card: #26282a;
+  --sems-card-2: #2d2f31;
+  --sems-header-row: #3a3a3c;
+  --sems-red: #ff323a;
+  --sems-red-hover: #ff4d54;
+  --sems-text: #f5f6f8;
+  --sems-muted: rgba(245, 246, 248, 0.6);
+  --sems-muted-2: rgba(245, 246, 248, 0.4);
+  --sems-border: rgba(255, 255, 255, 0.08);
+  --sems-green: #34c759;
+  --sems-green-bg: rgba(52, 199, 89, 0.15);
+  --sems-yellow: #ffcc00;
+  --sems-yellow-bg: rgba(255, 204, 0, 0.15);
+  --sems-red-bg: rgba(255, 50, 58, 0.15);
+  --radius: 10px;
+  --font:
+    'Poppins', PingFangSC, 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+
+  --lp-gutter: clamp(20px, 5vw, 72px);
+  --lp-max: 1240px;
+
+  min-height: 100vh;
+  background: var(--sems-deep);
+  color: var(--sems-text);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
+}
+
+.lp *,
+.lp *::before,
+.lp *::after {
+  box-sizing: border-box;
+}
+
+.lp h1,
+.lp h2,
+.lp h3,
+.lp p {
+  margin: 0;
+}
+
+.lp a {
+  color: inherit;
+}
+
+.lp :focus-visible {
+  outline: 2px solid var(--sems-text);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+.lp section[id] {
+  scroll-margin-top: 96px;
+}
+
+/* O "Como funciona" ocupa uma tela exata: com recuo, a legenda da base ficaria
+   fora da tela. O topo do palco e' fundo escuro; o cabecalho fica por cima. */
+.lp section#como-funciona {
+  scroll-margin-top: 0;
+}
+
+.lp-lead {
+  font-size: clamp(16px, 1.35vw, 19px);
+  line-height: 1.55;
+  color: var(--sems-muted);
+  max-width: 34em;
+}
+
+/* ------------------------------------------------------------ botoes */
+
+.lp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 46px;
+  padding: 0 22px;
+  border-radius: 10px;
+  border: 1px solid var(--sems-border);
+  font-family: var(--font);
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
+}
+
+.lp-btn-primario {
+  background: var(--sems-red);
+  border-color: var(--sems-red);
+  color: #fff;
+}
+
+.lp-btn-primario:hover {
+  background: var(--sems-red-hover);
+  border-color: var(--sems-red-hover);
+}
+
+.lp-btn-secundario {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--sems-text);
+}
+
+.lp-btn-secundario:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.lp-btn-pilula {
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-size: 14px;
+}
+
+.lp-botoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* ------------------------------------------------------------ marcas */
+
+.lp-marca {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+}
+
+.lp-marca img {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+}
+
+.lp-goodwe {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--sems-muted);
+}
+
+.lp-goodwe img {
+  width: 92px;
+  height: auto;
+  display: block;
+}
+
+/* ------------------------------------------------------------ cabecalho */
+
+.lp-cabecalho {
+  position: fixed;
+  inset: 16px 0 auto;
+  z-index: 50;
+  padding: 0 var(--lp-gutter);
+  pointer-events: none;
+}
+
+.lp-cabecalho-barra {
+  pointer-events: auto;
+  max-width: var(--lp-max);
+  margin: 0 auto;
+  height: 60px;
+  padding: 0 10px 0 18px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  border-radius: 999px;
+  background: rgba(38, 40, 42, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+}
+
+.lp-cabecalho-marca {
+  text-decoration: none;
+}
+
+.lp-ancoras {
+  display: flex;
+  gap: 6px;
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+}
+
+.lp-ancoras a {
+  display: inline-block;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 14px;
+  color: var(--sems-muted);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.lp-ancoras a:hover {
+  color: var(--sems-text);
+}
+
+/* ------------------------------------------------------------ hero */
+
+/* Curto de proposito (~130vh): a secao fixa so' segura o suficiente para a
+   camera andar; um gesto normal de trackpad ja' sai dela. */
+.lp-hero {
+  position: relative;
+  height: 130vh;
+}
+
+.lp-hero-palco {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* A imagem ocupa a metade direita inteira: encosta no topo, na base e na borda
+   direita, sem mascara nem desfoque. */
+.lp-hero-midia {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 50%;
+}
+
+.lp-hero-imagem,
+.lp-hero-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: 28% 50%;
+}
+
+/* A unica transicao: do fundo escuro para a imagem, na borda que encosta no
+   texto. */
+.lp-hero-degrade {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 34%;
+  background: linear-gradient(90deg, var(--sems-deep) 0%, rgba(13, 13, 15, 0.7) 40%, transparent);
+  pointer-events: none;
+}
+
+/* Cobre o canto inferior direito do quadro original. */
+.lp-hero-selo {
+  position: absolute;
+  right: 24px;
+  bottom: 20px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(13, 13, 15, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  font-size: 11px;
+}
+
+.lp-hero-selo img {
+  width: 76px;
+  opacity: 0.9;
+}
+
+.lp-hero-texto {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  width: 50%;
+  max-width: calc(var(--lp-max) / 2);
+  margin-left: max(var(--lp-gutter), calc((100% - var(--lp-max)) / 2 + var(--lp-gutter)));
+  padding: 96px 32px 40px 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 24px;
+}
+
+.lp-hero-texto h1 {
+  font-size: clamp(34px, 3.8vw, 54px);
+  line-height: 1.07;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  max-width: 14em;
+  text-wrap: balance;
+}
+
+.lp-rolagem {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--sems-muted);
+}
+
+.lp-rolagem-linha {
+  width: 1px;
+  height: 28px;
+  background: linear-gradient(var(--sems-muted-2), transparent);
+}
+
+.lp-hero-card {
+  position: absolute;
+  /* Ao lado do carregador, no ceu escuro acima do carro. */
+  left: 50%;
+  top: 22%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: rgba(38, 40, 42, 0.86);
+  border: 1px solid var(--sems-border);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  font-size: 13px;
+  will-change: opacity, transform;
+}
+
+.lp-hero-card strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.lp-bandeira-linha {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.lp-bolinha {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.lp-bolinha-verde {
+  background: var(--sems-green);
+  box-shadow: 0 0 0 4px var(--sems-green-bg);
+}
+
+.lp-bolinha-amarela {
+  background: var(--sems-yellow);
+  box-shadow: 0 0 0 4px var(--sems-yellow-bg);
+}
+
+.lp-bolinha-vermelha {
+  background: var(--sems-red);
+  box-shadow: 0 0 0 4px var(--sems-red-bg);
+}
+
+/* Movimento reduzido: sem secao fixa, estado final. */
+.lp-hero.lp-estatico {
+  height: auto;
+}
+
+.lp-hero.lp-estatico .lp-hero-palco {
+  position: relative;
+  height: 100vh;
+  min-height: 560px;
+}
+
+/* ------------------------------------------------------------ celular */
+
+@media (max-width: 860px) {
+  .lp-ancoras {
+    display: none;
+  }
+
+  .lp-cabecalho-barra {
+    justify-content: space-between;
+    height: 56px;
+  }
+
+  /* Imagem em cima, largura total; o degrade vai para a base, onde ela
+     encontra o texto. */
+  .lp-hero-midia {
+    left: 0;
+    bottom: auto;
+    width: 100%;
+    height: 54%;
+  }
+
+  .lp-hero-degrade {
+    inset: auto 0 0 0;
+    width: 100%;
+    height: 42%;
+    background: linear-gradient(0deg, var(--sems-deep) 0%, rgba(13, 13, 15, 0.7) 40%, transparent);
+  }
+
+  .lp-hero-selo {
+    right: 16px;
+    bottom: 14px;
+  }
+
+  .lp-hero-texto {
+    width: auto;
+    max-width: none;
+    margin: 0 var(--lp-gutter);
+    padding: 0 0 36px;
+    justify-content: flex-end;
+    gap: 16px;
+  }
+
+  .lp-hero-card {
+    left: auto;
+    right: 16px;
+    top: 34%;
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+
+  .lp-hero-card strong {
+    font-size: 13px;
+  }
+
+  .lp-rolagem {
+    display: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .lp-btn {
+    height: 44px;
+    padding: 0 18px;
+  }
+
+  .lp-cabecalho-barra .lp-btn-pilula {
+    height: 38px;
+    padding: 0 14px;
+    font-size: 13px;
+  }
+}
+
+/* ------------------------------------------------------------ secoes */
+
+.lp-secao {
+  position: relative;
+  padding: clamp(96px, 14vh, 160px) var(--lp-gutter);
+}
+
+.lp-conteudo {
+  max-width: var(--lp-max);
+  margin: 0 auto;
+}
+
+.lp-h2 {
+  font-size: clamp(28px, 3.6vw, 46px);
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  max-width: 18em;
+  text-wrap: balance;
+}
+
+.lp-so-leitor {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------ problema */
+
+.lp-problema {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+}
+
+.lp-problema .lp-conteudo {
+  width: 100%;
+}
+
+.lp-fatos {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: clamp(48px, 8vh, 88px) 0 0;
+  border-top: 1px solid var(--sems-border);
+}
+
+.lp-fato {
+  padding: 32px 32px 8px 0;
+}
+
+.lp-fato + .lp-fato {
+  padding-left: 32px;
+  border-left: 1px solid var(--sems-border);
+}
+
+.lp-fato-numero {
+  font-size: clamp(48px, 5.6vw, 80px);
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.lp-fato dd {
+  margin: 18px 0 0;
+  max-width: 22em;
+  color: var(--sems-muted);
+}
+
+.lp-mercado {
+  margin-top: clamp(56px, 9vh, 96px);
+  padding-top: 24px;
+  border-top: 1px solid var(--sems-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+}
+
+.lp-mercado ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 32px;
+  font-size: 14px;
+  color: var(--sems-muted);
+}
+
+.lp-fonte {
+  flex: none;
+  font-size: 12px;
+  color: var(--sems-muted);
+}
+
+@media (max-width: 860px) {
+  .lp-fatos {
+    grid-template-columns: 1fr;
+  }
+
+  .lp-fato,
+  .lp-fato + .lp-fato {
+    padding: 28px 0 24px;
+    border-left: 0;
+    border-bottom: 1px solid var(--sems-border);
+  }
+
+  .lp-fato dd {
+    margin-top: 10px;
+  }
+
+  .lp-mercado {
+    flex-direction: column;
+    align-items: flex-start;
+    border-top: 0;
+    padding-top: 0;
+  }
+
+  .lp-mercado ul {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}
+
+/* ------------------------------------------------------------ como funciona
+   Animacao com linha do tempo propria (ComoFunciona.jsx), nao controlada pela
+   rolagem. Uma tela inteira, sem borda; o conteudo flutua no escuro. */
+
+.lp-cf {
+  position: relative;
+}
+
+.lp-cf-palco {
+  position: relative;
+  height: 100vh;
+  min-height: 620px;
+  overflow: hidden;
+  background: var(--sems-deep);
+}
+
+/* Brilhos radiais muito suaves, que se movem devagar. */
+.lp-cf-brilho {
+  position: absolute;
+  width: 70vmax;
+  height: 70vmax;
+  border-radius: 50%;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.lp-cf-brilho-a {
+  top: -35vmax;
+  right: -30vmax;
+  background: radial-gradient(closest-side, rgba(255, 50, 58, 0.085), transparent);
+  animation: lp-deriva-a 22s ease-in-out infinite alternate;
+}
+
+.lp-cf-brilho-b {
+  bottom: -40vmax;
+  left: -30vmax;
+  background: radial-gradient(closest-side, rgba(245, 246, 248, 0.05), transparent);
+  animation: lp-deriva-b 26s ease-in-out infinite alternate;
+}
+
+@keyframes lp-deriva-a {
+  to {
+    transform: translate3d(-8vmax, 6vmax, 0);
+  }
+}
+
+@keyframes lp-deriva-b {
+  to {
+    transform: translate3d(9vmax, -5vmax, 0);
+  }
+}
+
+.lp-cf-camera {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+
+/* Origem do sistema de coordenadas: o centro do palco (um pouco acima, para a
+   legenda caber embaixo). Tudo dentro se posiciona a partir daqui. */
+.lp-cf-grupo {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  will-change: transform;
+}
+
+.lp-cf-abertura {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 90vw;
+  transform: translate(-50%, -50%);
+}
+
+.lp-cf-abertura span {
+  display: block;
+  will-change: opacity, transform;
+}
+
+.lp-cf-card {
+  position: absolute;
+  left: 0;
+  top: 0;
+  background: var(--sems-card);
+  border: 1px solid var(--sems-border);
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  /* translate(-50%,-50%) + scale: a escala sai do centro do card. */
+  transform-origin: 50% 50%;
+  will-change: transform, opacity;
+}
+
+.lp-cf-conteudo {
+  position: absolute;
+  inset: 0;
+  will-change: opacity;
+}
+
+/* As telas viram conteudo do card: sem fundo, borda nem sombra proprios. */
+.lp-cf-conteudo > .lp-ui,
+.lp-cf-card-estatico > .lp-ui {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.lp-cf-chip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--sems-card-2);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.45);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  will-change: transform, opacity;
+}
+
+.lp-cf-chip-verde {
+  color: var(--sems-green);
+  border-color: rgba(52, 199, 89, 0.4);
+}
+
+.lp-cf-chip-amarela {
+  color: var(--sems-yellow);
+  border-color: rgba(255, 204, 0, 0.4);
+}
+
+.lp-cf-chip-vermelha {
+  color: var(--sems-red);
+  border-color: rgba(255, 50, 58, 0.45);
+}
+
+.lp-cf-cursor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 26px;
+  height: 26px;
+  pointer-events: none;
+  will-change: transform, opacity;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
+}
+
+.lp-cf-pulso {
+  position: absolute;
+  left: -14px;
+  top: -14px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid var(--sems-text);
+  will-change: transform, opacity;
+}
+
+.lp-cf-final {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  white-space: nowrap;
+  will-change: opacity, transform;
+}
+
+.lp-cf-final img {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+}
+
+.lp-cf-final p {
+  font-size: clamp(24px, 3vw, 40px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.lp-cf-denovo {
+  position: absolute;
+  right: var(--lp-gutter);
+  bottom: clamp(32px, 7vh, 64px);
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--sems-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--sems-muted);
+  font-family: var(--font);
+  font-size: 13px;
+  cursor: pointer;
+  animation: lp-aparece 0.6s ease-out both;
+}
+
+.lp-cf-denovo:hover {
+  color: var(--sems-text);
+}
+
+@keyframes lp-aparece {
+  from {
+    opacity: 0;
+  }
+}
+
+.lp-abertura {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: clamp(34px, 5vw, 68px);
+  line-height: 1.08;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  text-align: center;
+}
+
+.lp-abertura-segunda {
+  color: var(--sems-muted);
+}
+
+.lp-legenda {
+  position: absolute;
+  left: var(--lp-gutter);
+  bottom: clamp(32px, 7vh, 64px);
+  display: flex;
+  flex-direction: column;
+  font-size: clamp(20px, 2vw, 28px);
+  line-height: 1.25;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.lp-legenda-acento {
+  color: var(--sems-red);
+}
+
+/* Movimento reduzido: os estados finais, parados, em sequencia. */
+.lp-cf.lp-estatico {
+  padding: clamp(80px, 12vh, 140px) var(--lp-gutter);
+}
+
+.lp-cf-estatico {
+  max-width: var(--lp-max);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 72px;
+}
+
+.lp-como-figura {
+  margin: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.lp-como-figura .lp-legenda {
+  position: static;
+  text-align: center;
+  align-items: center;
+}
+
+.lp-cf-card-estatico {
+  position: relative;
+  width: min(980px, 100%);
+  border-radius: 16px;
+  background: var(--sems-card);
+  border: 1px solid var(--sems-border);
+  overflow: hidden;
+}
+
+.lp-cf-card-app {
+  width: min(380px, 100%);
+}
+
+.lp-cf-card-fatura {
+  width: min(720px, 100%);
+}
+
+.lp-cf-card-assist {
+  width: min(440px, 100%);
+  height: 560px;
+}
+
+.lp-cf-chips-estaticos {
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  top: 60px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.lp-cf-chips-estaticos .lp-cf-chip {
+  position: static;
+}
+
+.lp-cf-final-estatico {
+  position: static;
+}
+
+/* ------------------------------------------------------------ telas recriadas
+   Medidas e cores de apps/dashboard/src/assets/styles.css (.stat, .panel,
+   .badge, .table, .meter) e de apps/mobile/src (StationScreen, Etiqueta). */
+
+.lp-ui {
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--sems-text);
+  text-align: left;
+}
+
+.lp-ui-muted {
+  color: var(--sems-muted);
+}
+
+.lp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.lp-badge-verde {
+  color: var(--sems-green);
+  background: var(--sems-green-bg);
+}
+
+.lp-badge-amarela {
+  color: var(--sems-yellow);
+  background: var(--sems-yellow-bg);
+}
+
+.lp-badge-vermelha {
+  color: var(--sems-red);
+  background: var(--sems-red-bg);
+}
+
+.lp-badge-azul {
+  color: #0a84ff;
+  background: rgba(10, 132, 255, 0.15);
+}
+
+.lp-badge-cinza {
+  color: var(--sems-muted);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.lp-ui-painel {
+  width: min(980px, 100%);
+  padding: 22px;
+  border-radius: 14px;
+  background: var(--sems-bg);
+  border: 1px solid var(--sems-border);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.lp-ui-topo {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.lp-ui-praca {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.lp-ui-bandeira {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: var(--radius);
+  background: var(--sems-card);
+  border: 1px solid var(--sems-border);
+}
+
+.lp-ui-bandeira strong {
+  font-weight: 600;
+}
+
+.lp-ui-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.lp-ui-stat {
+  padding: 16px;
+  border-radius: var(--radius);
+  background: var(--sems-card);
+  border: 1px solid var(--sems-border);
+}
+
+.lp-ui-label {
+  font-size: 12px;
+  color: var(--sems-muted);
+  margin-bottom: 8px;
+}
+
+.lp-ui-value {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.lp-ui-value small {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--sems-muted);
+  margin-left: 4px;
+}
+
+.lp-ui-trend {
+  font-size: 12px;
+  margin-top: 6px;
+}
+
+.lp-ui-panel {
+  padding: 18px 20px 8px;
+  border-radius: var(--radius);
+  background: var(--sems-card);
+  border: 1px solid var(--sems-border);
+}
+
+.lp-ui-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.lp-ui-pontos {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lp-ui-pontos li {
+  display: grid;
+  grid-template-columns: 170px auto minmax(0, 1fr) 64px;
+  align-items: center;
+  gap: 16px;
+  padding: 11px 0;
+  border-top: 1px solid var(--sems-border);
+}
+
+.lp-ui-ponto-nome {
+  display: flex;
+  flex-direction: column;
+  font-weight: 500;
+}
+
+.lp-ui-ponto-nome .lp-ui-muted {
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.lp-ui-meter {
+  height: 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.lp-ui-meter span {
+  display: block;
+  height: 100%;
+  border-radius: 8px;
+  background: rgba(245, 246, 248, 0.82);
+  transform-origin: left center;
+}
+
+.lp-ui-kw {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* App do motorista: cores de apps/mobile/src/theme.ts. */
+.lp-ui-app-nome {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.lp-ui-app-meta {
+  font-size: 13px;
+  color: #9a9da3;
+  margin-bottom: 4px;
+}
+
+.lp-ui-etiqueta {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.lp-ui-etiqueta-vermelha {
+  color: #ff323a;
+  background: rgba(255, 50, 58, 0.13);
+  border-color: rgba(255, 50, 58, 0.33);
+}
+
+.lp-ui-app-preco {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.lp-ui-app-motivo {
+  font-size: 13px;
+  color: #9a9da3;
+}
+
+.lp-ui-app-botao {
+  align-self: stretch;
+  margin-top: 8px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: #ff323a;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* Fatura: .table do painel. */
+.lp-ui-fatura {
+  width: min(720px, 100%);
+  padding: 22px;
+  border-radius: 14px;
+  background: var(--sems-card);
+  border: 1px solid var(--sems-border);
+}
+
+.lp-ui-fatura-sub {
+  margin: 4px 0 16px;
+  font-size: 12px;
+}
+
+.lp-ui-tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lp-ui-tabela th {
+  background: var(--sems-header-row);
+  font-weight: 500;
+  text-align: left;
+  padding: 12px 14px;
+  white-space: nowrap;
+}
+
+.lp-ui-tabela th:first-child {
+  border-radius: 8px 0 0 8px;
+}
+
+.lp-ui-tabela th:last-child {
+  border-radius: 0 8px 8px 0;
+}
+
+.lp-ui-tabela td {
+  padding: 14px;
+  border-bottom: 1px solid var(--sems-border);
+}
+
+.lp-ui-tabela td:not(:first-child) {
+  white-space: nowrap;
+}
+
+.lp-ui-tabela td:last-child,
+.lp-ui-tabela th:last-child {
+  text-align: right;
+}
+
+.lp-ui-linha-bandeira td {
+  color: var(--sems-red);
+  font-weight: 500;
+}
+
+.lp-ui-tabela tfoot td {
+  border-bottom: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* Assistente: apps/dashboard/src/components/Assistente.jsx (branch do PR). */
+.lp-assist {
+  width: 400px;
+  max-width: calc(100vw - 32px);
+  height: min(560px, 62vh);
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius);
+  background: var(--sems-card);
+  border: 1px solid var(--sems-border);
+  overflow: hidden;
+}
+
+.lp-assist-topo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--sems-card-2);
+  border-bottom: 1px solid var(--sems-border);
+}
+
+.lp-assist-topo > div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.lp-assist-topo span {
+  font-size: 12px;
+  color: var(--sems-muted);
+}
+
+.lp-assist-btn,
+.lp-assist-enviar {
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--sems-border);
+  background: var(--sems-card);
+  font-size: 12px;
+  color: var(--sems-text);
+}
+
+.lp-assist-enviar {
+  background: var(--sems-red);
+  border-color: var(--sems-red);
+  color: #fff;
+}
+
+.lp-assist-msgs {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px;
+  overflow: hidden;
+}
+
+.lp-assist-msg {
+  max-width: 92%;
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.lp-assist-msg p + p,
+.lp-assist-msg p + div,
+.lp-assist-msg div + p {
+  margin-top: 6px;
+}
+
+.lp-assist-usuario {
+  align-self: flex-end;
+  background: var(--sems-red);
+  color: #fff;
+}
+
+.lp-assist-resposta {
+  align-self: flex-start;
+  background: var(--sems-card-2);
+  border: 1px solid var(--sems-border);
+}
+
+.lp-assist-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--sems-muted);
+}
+
+.lp-assist-spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(245, 246, 248, 0.2);
+  border-top-color: var(--sems-text);
+  animation: lp-gira 0.8s linear infinite;
+}
+
+@keyframes lp-gira {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.lp-assist-tabela table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lp-assist-tabela th,
+.lp-assist-tabela td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--sems-border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.lp-assist-tabela th {
+  background: var(--sems-header-row);
+  font-weight: 500;
+}
+
+.lp-assist-entrada {
+  padding: 10px 12px;
+  border-top: 1px solid var(--sems-border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lp-assist-campo {
+  min-height: 52px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--sems-border);
+  background: var(--sems-bg);
+  font-size: 13px;
+}
+
+.lp-assist-placeholder {
+  color: var(--sems-muted);
+}
+
+.lp-assist-cursor {
+  display: inline-block;
+  width: 1px;
+  height: 1.1em;
+  margin-left: 1px;
+  vertical-align: -2px;
+  background: var(--sems-text);
+  animation: lp-pisca 1s steps(1) infinite;
+}
+
+@keyframes lp-pisca {
+  50% {
+    opacity: 0;
+  }
+}
+
+.lp-assist-rodape {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--sems-muted);
+}
+
+@media (max-width: 860px) {
+  .lp-como-cena {
+    padding: 84px 16px 150px;
+  }
+
+  .lp-ui-painel {
+    padding: 14px;
+    gap: 10px;
+  }
+
+  .lp-ui-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .lp-ui-stat {
+    padding: 12px;
+  }
+
+  .lp-ui-value {
+    font-size: 20px;
+  }
+
+  .lp-ui-stat:nth-child(n + 3) {
+    display: none;
+  }
+
+  .lp-ui-pontos li {
+    grid-template-columns: 56px minmax(0, 1fr) 56px;
+    gap: 10px;
+    padding: 9px 0;
+  }
+
+  .lp-ui-ponto-nome .lp-ui-muted,
+  .lp-ui-pontos .lp-badge {
+    display: none;
+  }
+
+  .lp-ui-bandeira {
+    gap: 6px 10px;
+    padding: 12px;
+  }
+
+  .lp-ui-topo .lp-ui-muted {
+    display: none;
+  }
+
+  .lp-ui-tabela th,
+  .lp-ui-tabela td {
+    padding: 10px 8px;
+    font-size: 12px;
+  }
+
+  .lp-ui-fatura {
+    padding: 16px;
+  }
+
+  .lp-legenda {
+    font-size: 19px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-assist-spinner,
+  .lp-assist-cursor {
+    animation: none;
+  }
+}
+
+/* ------------------------------------------------------------ tecnologia */
+
+.lp-fluxo-caixa {
+  margin: clamp(48px, 8vh, 80px) 0 clamp(40px, 7vh, 72px);
+}
+
+.lp-fluxo {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.lp-fluxo-v {
+  display: none;
+  max-width: 320px;
+}
+
+.lp-fluxo-trilho {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-width: 2;
+}
+
+/* A energia percorre o caminho uma vez, quando o diagrama entra na tela. */
+.lp-fluxo-energia {
+  fill: none;
+  stroke: var(--sems-red);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 2.6s cubic-bezier(0.45, 0, 0.2, 1) 0.2s;
+}
+
+.lp-entrou .lp-fluxo-energia {
+  stroke-dashoffset: 0;
+}
+
+.lp-fluxo-no {
+  fill: var(--sems-deep);
+  stroke: rgba(255, 255, 255, 0.22);
+  stroke-width: 1.5;
+}
+
+.lp-fluxo-miolo {
+  fill: var(--sems-muted-2);
+  transition: fill 0.4s;
+}
+
+.lp-entrou .lp-fluxo-miolo {
+  fill: var(--sems-text);
+}
+
+.lp-fluxo-nome {
+  fill: var(--sems-text);
+  font-family: var(--font);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.lp-fluxo-sub {
+  fill: var(--sems-muted);
+  font-family: var(--font);
+  font-size: 14px;
+}
+
+.lp-pontos {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 48px;
+}
+
+.lp-pontos li {
+  padding: 24px 0;
+  border-top: 1px solid var(--sems-border);
+}
+
+.lp-pontos h3 {
+  font-size: 17px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.lp-pontos p {
+  color: var(--sems-muted);
+  max-width: 30em;
+}
+
+.lp-pontos-goodwe {
+  display: inline-block;
+  width: 74px;
+  height: auto;
+  vertical-align: -1px;
+}
+
+.lp-numeros {
+  margin-top: 40px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 32px;
+  font-size: 13px;
+  color: var(--sems-muted);
+}
+
+@media (max-width: 860px) {
+  .lp-fluxo-h {
+    display: none;
+  }
+
+  .lp-fluxo-v {
+    display: block;
+  }
+
+  .lp-pontos {
+    grid-template-columns: 1fr;
+  }
+
+  .lp-numeros {
+    flex-direction: column;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-fluxo-energia {
+    transition: none;
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ------------------------------------------------------------ fechamento */
+
+.lp-fechamento {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  padding: clamp(96px, 14vh, 160px) var(--lp-gutter);
+  overflow: hidden;
+}
+
+/* O ultimo quadro do hero, escurecido: a pagina termina onde a camera parou. */
+.lp-fechamento-fundo {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(13, 13, 15, 0.94) 0%,
+      rgba(13, 13, 15, 0.8) 45%,
+      rgba(13, 13, 15, 0.45)
+    ),
+    linear-gradient(0deg, var(--sems-deep) 0%, transparent 30%),
+    linear-gradient(180deg, var(--sems-deep) 0%, transparent 25%),
+    url('/landing/hero-fim.jpg') center right / cover no-repeat;
+}
+
+.lp-fechamento-conteudo {
+  position: relative;
+  width: 100%;
+}
+
+.lp-fechamento-titulo {
+  font-size: clamp(32px, 4.4vw, 60px);
+  line-height: 1.07;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  max-width: 13em;
+  text-wrap: balance;
+}
+
+.lp-colunas {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 320px));
+  gap: 48px;
+  margin: clamp(40px, 7vh, 64px) 0 clamp(36px, 6vh, 56px);
+}
+
+.lp-colunas h3 {
+  font-size: 15px;
+  font-weight: 600;
+  padding-bottom: 12px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--sems-border);
+}
+
+.lp-colunas ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lp-colunas li {
+  padding: 9px 0;
+  color: var(--sems-muted);
+  border-bottom: 1px solid var(--sems-border);
+}
+
+.lp-demo {
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--sems-muted);
+}
+
+/* ------------------------------------------------------------ rodape */
+
+.lp-rodape {
+  padding: 28px var(--lp-gutter) 36px;
+  border-top: 1px solid var(--sems-border);
+}
+
+.lp-rodape-linha {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px 32px;
+  font-size: 13px;
+}
+
+.lp-rodape-linha .lp-marca {
+  font-size: 15px;
+}
+
+.lp-rodape-link {
+  color: var(--sems-muted);
+  text-decoration: none;
+}
+
+.lp-rodape-link:hover {
+  color: var(--sems-text);
+}
+
+.lp-rodape-ano {
+  margin-left: auto;
+  color: var(--sems-muted);
+}
+
+@media (max-width: 860px) {
+  .lp-fechamento-fundo {
+    background:
+      linear-gradient(
+        0deg,
+        rgba(13, 13, 15, 0.96) 0%,
+        rgba(13, 13, 15, 0.82) 60%,
+        rgba(13, 13, 15, 0.6)
+      ),
+      url('/landing/hero-fim.jpg') 30% center / cover no-repeat;
+  }
+
+  .lp-colunas {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+
+  .lp-rodape-ano {
+    margin-left: 0;
+  }
+}
+
+/* ------------------------------------------------------------ estados do card */
+
+.lp-ui-chips-espaco {
+  height: 34px;
+  flex: none;
+}
+
+.lp-ui-predio {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr) 110px;
+  align-items: center;
+  gap: 16px;
+  padding: 2px 0 14px;
+}
+
+.lp-ui-predio .lp-ui-card-title {
+  margin: 0;
+}
+
+.lp-ui-app {
+  padding: 22px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.lp-ui-app-botao {
+  transition:
+    transform 0.15s ease-out,
+    filter 0.15s ease-out;
+}
+
+.lp-pressionado {
+  transform: scale(0.96);
+  filter: brightness(1.18);
+}
+
+.lp-ui-travando {
+  padding: 24px 26px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+}
+
+.lp-ui-travando-linha {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+}
+
+.lp-ui-progresso {
+  display: block;
+  height: 6px;
+  margin-top: 4px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.lp-ui-progresso span {
+  display: block;
+  height: 100%;
+  background: var(--sems-red);
+  transform-origin: left center;
+}
+
+.lp-ui-linha-bandeira td {
+  background: rgba(255, 50, 58, calc(0.13 * var(--lp-destaque, 0)));
+}
+
+.lp-assist-barra {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px 0 16px;
+}
+
+.lp-assist-barra-marca img {
+  display: block;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+}
+
+.lp-assist-barra-texto {
+  flex: 1;
+  min-width: 0;
+  font-size: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lp-assist-barra-enviar {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--sems-red);
+  color: #fff;
+  transition:
+    transform 0.15s ease-out,
+    filter 0.15s ease-out;
+}
+
+.lp-assist-parte {
+  will-change: opacity;
+}
+
+@media (max-width: 860px) {
+  .lp-ui-chips-espaco {
+    height: 74px;
+  }
+
+  .lp-ui-predio {
+    grid-template-columns: minmax(0, 1fr) 90px;
+    gap: 6px 10px;
+  }
+
+  .lp-ui-predio .lp-ui-card-title {
+    grid-column: 1 / -1;
+  }
+
+  .lp-assist-barra-texto {
+    font-size: 14px;
+  }
+
+  .lp-assist-barra-enviar {
+    width: 36px;
+    height: 36px;
+  }
+
+  .lp-cf-final p {
+    white-space: normal;
+    text-align: center;
+  }
+
+  .lp-cf-denovo {
+    bottom: auto;
+    top: 88px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-cf-brilho {
+    animation: none;
+  }
+}
