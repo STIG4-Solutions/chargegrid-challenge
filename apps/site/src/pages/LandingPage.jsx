@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import Cabecalho from '../components/landing/Cabecalho.jsx'
 import ComoFunciona from '../components/landing/ComoFunciona.jsx'
+import { Fechamento, Rodape } from '../components/landing/Fechamento.jsx'
 import Hero from '../components/landing/Hero.jsx'
 import Problema from '../components/landing/Problema.jsx'
 import Tecnologia from '../components/landing/Tecnologia.jsx'
@@ -27,7 +28,9 @@ export default function LandingPage() {
         <Problema />
         <ComoFunciona />
         <Tecnologia />
+        <Fechamento />
       </main>
+      <Rodape />
     </div>
   )
 }

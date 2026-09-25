@@ -1370,3 +1370,132 @@
     stroke-dashoffset: 0;
   }
 }
+
+/* ------------------------------------------------------------ fechamento */
+
+.lp-fechamento {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  padding: clamp(96px, 14vh, 160px) var(--lp-gutter);
+  overflow: hidden;
+}
+
+/* O ultimo quadro do hero, escurecido: a pagina termina onde a camera parou. */
+.lp-fechamento-fundo {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(13, 13, 15, 0.94) 0%,
+      rgba(13, 13, 15, 0.8) 45%,
+      rgba(13, 13, 15, 0.45)
+    ),
+    linear-gradient(0deg, var(--sems-deep) 0%, transparent 30%),
+    linear-gradient(180deg, var(--sems-deep) 0%, transparent 25%),
+    url('/landing/hero-fim.jpg') center right / cover no-repeat;
+}
+
+.lp-fechamento-conteudo {
+  position: relative;
+  width: 100%;
+}
+
+.lp-fechamento-titulo {
+  font-size: clamp(32px, 4.4vw, 60px);
+  line-height: 1.07;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  max-width: 13em;
+  text-wrap: balance;
+}
+
+.lp-colunas {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 320px));
+  gap: 48px;
+  margin: clamp(40px, 7vh, 64px) 0 clamp(36px, 6vh, 56px);
+}
+
+.lp-colunas h3 {
+  font-size: 15px;
+  font-weight: 600;
+  padding-bottom: 12px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--sems-border);
+}
+
+.lp-colunas ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lp-colunas li {
+  padding: 9px 0;
+  color: var(--sems-muted);
+  border-bottom: 1px solid var(--sems-border);
+}
+
+.lp-demo {
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--sems-muted);
+}
+
+/* ------------------------------------------------------------ rodape */
+
+.lp-rodape {
+  padding: 28px var(--lp-gutter) 36px;
+  border-top: 1px solid var(--sems-border);
+}
+
+.lp-rodape-linha {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px 32px;
+  font-size: 13px;
+}
+
+.lp-rodape-linha .lp-marca {
+  font-size: 15px;
+}
+
+.lp-rodape-link {
+  color: var(--sems-muted);
+  text-decoration: none;
+}
+
+.lp-rodape-link:hover {
+  color: var(--sems-text);
+}
+
+.lp-rodape-ano {
+  margin-left: auto;
+  color: var(--sems-muted-2);
+}
+
+@media (max-width: 860px) {
+  .lp-fechamento-fundo {
+    background:
+      linear-gradient(
+        0deg,
+        rgba(13, 13, 15, 0.96) 0%,
+        rgba(13, 13, 15, 0.82) 60%,
+        rgba(13, 13, 15, 0.6)
+      ),
+      url('/landing/hero-fim.jpg') 30% center / cover no-repeat;
+  }
+
+  .lp-colunas {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+
+  .lp-rodape-ano {
+    margin-left: 0;
+  }
+}
