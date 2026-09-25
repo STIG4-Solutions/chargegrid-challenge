@@ -29,6 +29,7 @@ from sqlalchemy import text  # noqa: E402
 
 from banco import carregar, conectar, resumo  # noqa: E402
 from modelo import COBERTURA_DECLARADA, alinhar_limiar_do_pipeline  # noqa: E402
+from modelo.portao import melhor_regua, modelo_vence, reguas_medidas  # noqa: E402
 from modelo.prever import prever  # noqa: E402
 from pipeline import features as _features  # noqa: E402
 
@@ -248,16 +249,13 @@ def main() -> int:
 
     # AS DUAS REGUAS, e a melhor delas e' a barra. Comparar so' com a media movel
     # era barra baixa: medido em 24 meses ela faz 13,57% e a de ano-a-ano 9,95%,
-    # entao um modelo com 13% "batia a regua" perdendo de longe da melhor
-    # disponivel. `min` sobre as que EXISTEM - artefato antigo nao tem a metrica
-    # nova, e `None` nao pode entrar na comparacao.
-    reguas = {
-        "media_movel": metricas.get("wape_mensal_baseline_m28"),
-        "ano_a_ano": metricas.get("wape_mensal_baseline_ano"),
-    }
-    disponiveis = {k: v for k, v in reguas.items() if v is not None}
-    regua_escolhida = min(disponiveis, key=disponiveis.get) if disponiveis else "media_movel"
-    wape_regua = disponiveis.get(regua_escolhida)
+    # entao um modelo com 13% "batia a regua" perdendo de longe da melhor disponivel.
+    #
+    # A REGRA mora em `modelo/portao.py`, e nao aqui, porque o resumo do job de
+    # previsao tambem precisa dela - e ele a reescrevia em YAML comparando so' com a
+    # media movel. As duas versoes divergiram no dia em que a segunda regua entrou.
+    disponiveis = reguas_medidas(metricas)
+    regua_escolhida, wape_regua = melhor_regua(metricas)
 
     # A ESCOLHA. O modelo so' e' usado quando MEDE melhor que a MELHOR regua no
     # backtest; caso contrario grava-se a regua, e `fonte` diz qual.
@@ -275,10 +273,10 @@ def main() -> int:
     #
     # Sem metrica nenhuma no artefato, o modelo NAO e' usado: e' o valor
     # conservador, e um artefato sem backtest nao provou nada.
-    modelo_vence = wape_modelo is not None and wape_regua is not None and wape_modelo < wape_regua
+    venceu = modelo_vence(metricas)
 
     print("\nReguas medidas: " + ", ".join(f"{k} {v}%" for k, v in sorted(disponiveis.items())))
-    if not modelo_vence and wape_modelo is not None and wape_regua is not None:
+    if not venceu and wape_modelo is not None and wape_regua is not None:
         print(
             f"[ATENCAO] este artefato NAO supera a melhor regua: erro de {wape_modelo}%\n"
             f"          contra {wape_regua}% de `{regua_escolhida}`.\n"
@@ -313,7 +311,7 @@ def main() -> int:
             # regua. Os dois casos em que nao usa produzem o mesmo numero - a
             # media movel - mas por motivos diferentes, e a tela precisa dizer
             # qual foi.
-            usa_modelo = aplicavel and modelo_vence
+            usa_modelo = aplicavel and venceu
             media = _ou_nulo(linha.get("media_diaria_28d"))
             # O par sai daqui mesmo quando nao e' usado: e' ele que da' a `fonte`
             # da linha, e calcular os dois juntos e' o que impede que discordem.
@@ -371,11 +369,11 @@ def main() -> int:
         kwh_regua, fonte_regua = _pela_regua(linha, regua_escolhida)
         if not aplicavel:
             marca = f"  ({fonte_regua}: historico curto demais)"
-        elif not modelo_vence:
+        elif not venceu:
             marca = f"  ({fonte_regua}: o modelo perde da regua)"
         else:
             marca = ""
-        valor = float(linha["kwh_prev"]) if aplicavel and modelo_vence else kwh_regua
+        valor = float(linha["kwh_prev"]) if aplicavel and venceu else kwh_regua
         print(f"  {str(linha['location_id']):<28} {valor:>10.1f} kWh{marca}")
     return 0
 
